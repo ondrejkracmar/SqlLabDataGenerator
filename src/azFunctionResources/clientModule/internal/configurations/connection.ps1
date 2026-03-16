@@ -1,0 +1,4 @@
+﻿Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'Client.Uri' -Value $null -Initialize -Validation 'string' -Description "Url to connect to the SqlLabDataGenerator Azure function"
+Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'Client.UnprotectedToken' -Value '' -Initialize -Validation 'string' -Description "The unencrypted access token to the SqlLabDataGenerator Azure function. ONLY use this from secure locations or non-sensitive functions!"
+Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'Client.ProtectedToken' -Value $null -Initialize -Validation 'credential' -Description "An encrypted access token to the SqlLabDataGenerator Azure function. Use this to persist an access token in a way only the current user on the current system can access."
+Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'Client.MinServerVersion' -Value '1.0.0' -Initialize -Validation 'string' -Description "Minimum required server API version for client compatibility"

@@ -1,0 +1,38 @@
+﻿TOPIC
+	about_SqlLabDataGenerator
+	
+SHORT DESCRIPTION
+	AI-assisted synthetic data generation for SQL Server lab, testing and demo environments.
+	
+LONG DESCRIPTION
+	SqlLabDataGenerator is a PowerShell module that discovers your database schema,
+	classifies columns semantically (using pattern matching and optional AI analysis),
+	and generates realistic, FK-consistent test data.
+
+	Architecture Layers:
+	  1. Schema Discovery    - Reads tables, columns, FKs, constraints
+	  2. Semantic Analysis    - Classifies columns (FirstName, Email, Money, etc.)
+	  3. Generation Engine    - Produces realistic values with FK consistency
+	  4. Validation           - Verifies data integrity post-generation
+	  5. Provider Model       - Extensible DB support (SQL Server built-in)
+
+	Three Generation Modes:
+	  - Synthetic  - Generate completely new data from scratch
+	  - Masking    - Anonymize existing production data (future)
+	  - Scenario   - Domain-specific templates (future)
+
+	Quick Start:
+	  1. Connect-SldgDatabase -ServerInstance 'localhost' -Database 'MyDB'
+	  2. $schema = Get-SldgDatabaseSchema
+	  3. $analyzed = Get-SldgColumnAnalysis -Schema $schema
+	  4. $plan = New-SldgGenerationPlan -Schema $analyzed -RowCount 100
+	  5. Invoke-SldgDataGeneration -Plan $plan
+	  6. Test-SldgGeneratedData -Schema $schema
+	  7. Disconnect-SldgDatabase
+
+	AI Configuration (optional):
+	  Set-PSFConfig -Module SqlLabDataGenerator -Name AI.Provider -Value 'OpenAI'
+	  Set-PSFConfig -Module SqlLabDataGenerator -Name AI.ApiKey -Value 'sk-...'
+
+KEYWORDS
+	SqlLabDataGenerator, SyntheticData, TestData, DataGeneration, LabData, SQL

@@ -1,0 +1,190 @@
+﻿name: Publish Powershell Module To Private Repository
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+trigger:
+  branches:
+    include:
+    - main
+
+  paths:
+    exclude:
+    - CHANGELOG.md
+
+  tags:
+    include:
+    - "v*"
+    exclude:
+    - "*-*"
+
+variables:
+  - group: "AzArtifactsPSModules"
+  - group: "BuildEnvironment"
+  - group: "GitHubSync"
+
+stages:
+  - stage: Build
+    displayName: 'Build & Test'
+    jobs:
+      - job: BuildAndTest
+        displayName: 'Build, Validate & Test'
+        steps:
+          - checkout: self
+            persistCredentials: true
+
+          - task: PowerShell@2
+            displayName: Calculate Powershell ModuleVersion (GitVersion)
+            inputs:
+              targetType: inline
+              script: |
+                dotnet tool install --global GitVersion.Tool --version 6.3.0
+                     dotnet-gitversion /config $(sourceDirectory)/GitVersion.yml
+                     $gitVersionObject = dotnet-gitversion /config $(sourceDirectory)/GitVersion.yml | ConvertFrom-Json
+                     $gitVersionObject.PSObject.Properties.ForEach{
+                         Write-Host -Object "Setting Task Variable '$($_.Name)' with value '$($_.Value)'."
+                         Write-Host -Object "##vso[task.setvariable variable=$($_.Name);isOutput=true]$($_.Value)"
+                     }
+                     Write-Host -Object "##vso[build.updatebuildnumber]$($gitVersionObject.FullSemVer)"
+            name: gitversion
+
+          - task: PowerShell@2
+            displayName: Install Prerequisites For Validation
+            inputs:
+              targetType: filePath
+              filePath: "$(sourceDirectory)/build/vsts-prerequisites.ps1"
+
+          - task: PowerShell@2
+            displayName: Build Powershell Module library
+            inputs:
+              filePath: '$(sourceDirectory)/build/vsts-build-library.ps1'
+              arguments: >
+                 -WorkingDirectory '$(sourceDirectory)'
+              pwsh: true
+
+          - task: PowerShell@2
+            displayName: Validation/Test Powershell Module
+            inputs:
+              targetType: filePath
+              filePath: "$(sourceDirectory)/build/vsts-validate.ps1"
+
+          - task: PublishTestResults@2
+            displayName: "Publish Test Results **/TEST-*.xml"
+            inputs:
+              testResultsFormat: NUnit
+            condition: always()
+
+          - task: PublishCodeCoverageResults@2
+            displayName: 'Publish Code Coverage'
+            inputs:
+              summaryFileLocation: '$(sourceDirectory)/TestResults/coverage.xml'
+              pathToSources: '$(sourceDirectory)/SqlLabDataGenerator'
+            condition: always()
+
+          - task: PowerShell@2
+            displayName: Build Nuget Package For Powerhell Module
+            inputs:
+              targetType: filePath
+              filePath: "$(sourceDirectory)/build/vsts-build.ps1"
+              arguments: >
+                 -WorkingDirectory '$(sourceDirectory)'
+                 -LocalRepo
+                 -ModuleName "SqlLabDataGenerator"
+                 -ModuleVersion '$(MajorMinorPatch)'
+                 -PreRelease '$(PreReleaseLabel)'
+                 -CommitsSinceVersion '$(CommitsSinceVersionSource)'
+
+          - task: PowerShell@2
+            displayName: Validate Build Artifacts
+            inputs:
+              targetType: inline
+              script: |
+                # nupkg is created in sourceDirectory by New-PSMDModuleNugetPackage -PackagePath .
+                $nupkg = Get-ChildItem -Path '$(sourceDirectory)' -Filter '*.nupkg' -ErrorAction SilentlyContinue | Select-Object -First 1
+                if (-not $nupkg) {
+                    Write-Error "No NuGet package found in $(sourceDirectory)"
+                    exit 1
+                }
+                # Copy to staging directory for the publish task
+                Copy-Item -Path $nupkg.FullName -Destination '$(Build.ArtifactStagingDirectory)' -Force
+                $manifest = Import-PowerShellDataFile -Path '$(sourceDirectory)/SqlLabDataGenerator/SqlLabDataGenerator.psd1'
+                if (-not $manifest.ModuleVersion -or $manifest.ModuleVersion -eq '0.0.0') {
+                    Write-Error "Module version not properly stamped: $($manifest.ModuleVersion)"
+                    exit 1
+                }
+                Write-Host "Build artifact validated: $($nupkg.Name) | Version: $($manifest.ModuleVersion)"
+
+          - publish: $(Build.ArtifactStagingDirectory)
+            artifact: NuGetPackage
+            displayName: Publish NuGet Artifact
+
+          - task: PowerShell@2
+            displayName: 'Generate Changelog'
+            inputs:
+              targetType: inline
+              script: |
+                $tag = git describe --tags --abbrev=0 2>$null
+                if ($tag) {
+                  $log = git log "$tag..HEAD" --pretty=format:'- %s (%h)' --no-merges
+                } else {
+                  $log = git log --pretty=format:'- %s (%h)' --no-merges -20
+                }
+                $changelog = "## $env:BUILD_BUILDNUMBER`n`n$($log -join "`n")"
+                Set-Content -Path '$(Build.ArtifactStagingDirectory)/CHANGELOG-increment.md' -Value $changelog
+            condition: and(succeeded(), or(eq(variables['Build.SourceBranch'], 'refs/heads/main'), startsWith(variables['Build.SourceBranch'], 'refs/tags/v')))
+
+  - stage: Publish
+    displayName: 'Publish Package'
+    dependsOn: Build
+    condition: and(succeeded(), or(eq(variables['Build.SourceBranch'], 'refs/heads/main'), startsWith(variables['Build.SourceBranch'], 'refs/tags/v')))
+    jobs:
+      - deployment: PublishPackage
+        displayName: 'Publish NuGet & Sync'
+        environment: 'Production'
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+                  persistCredentials: true
+
+                - download: current
+                  artifact: NuGetPackage
+
+                - task: PowerShell@2
+                  displayName: Install Prerequisites
+                  inputs:
+                    targetType: filePath
+                    filePath: "$(sourceDirectory)/build/vsts-prerequisites.ps1"
+
+                - task: PowerShell@2
+                  displayName: Publish Nuget Package To Repository
+                  inputs:
+                    targetType: filePath
+                    filePath: "$(sourceDirectory)/build/vsts-publishNuGetPackage.ps1"
+                    arguments: >
+                       -WorkingDirectory '$(sourceDirectory)'
+                       -OrganizationName '$(organizationName)'
+                       -ArtifactRepositoryName '$(artifactRepositoryName)'
+                       -ArtifactFeedName '$(artifactFeedName)'
+                       -FeedUsername '$(FeedUsername)'
+                       -PersonalAccessToken '$(personalAccessToken)'
+                       -ModuleName "SqlLabDataGenerator"
+                       -ModuleVersion '$(MajorMinorPatch)'
+                       -PreRelease '$(PreReleaseLabel)'
+                       -CommitsSinceVersion '$(CommitsSinceVersionSource)'
+
+                - task: PowerShell@2
+                  displayName: 'Synchronize Azure DevOps Repository With GitHub'
+                  inputs:
+                    targetType: 'filePath'
+                    filePath: '$(sourceDirectory)/build/vsts-syncRepository.ps1'
+                    arguments: >
+                       -AzureDevOpsOrganizationName '$(organizationName)'
+                       -AzureDevOpsProjectName '$(projectName)'
+                       -AzureDevOpsRepositoryName "SqlLabDataGenerator"
+                       -AzureDevOpsUsername '$(azureDevOpsUsername)'
+                       -AzureDevOpsToken '$(azureDevOpsPAT)'
+                       -GitHubRepositoryName "SqlLabDataGenerator"
+                       -GitHubUsername '$(gitHubUsername)'
+                       -GitHubToken '$(gitHubPAT)'

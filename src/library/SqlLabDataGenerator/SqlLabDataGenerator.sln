@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 15
+VisualStudioVersion = 15.0.27130.2010
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{5B9DAC14-2DAE-422E-AA14-72DF47EDD593}") = "SqlLabDataGenerator", "SqlLabDataGenerator\SqlLabDataGenerator.csproj", "{F6EF3EE4-4630-4B51-B571-5109C5DE56DF}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{F6EF3EE4-4630-4B51-B571-5109C5DE56DF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F6EF3EE4-4630-4B51-B571-5109C5DE56DF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F6EF3EE4-4630-4B51-B571-5109C5DE56DF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F6EF3EE4-4630-4B51-B571-5109C5DE56DF}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {920B51AF-EB7C-480E-AA7B-A18CEDC3387D}
+	EndGlobalSection
+EndGlobal
