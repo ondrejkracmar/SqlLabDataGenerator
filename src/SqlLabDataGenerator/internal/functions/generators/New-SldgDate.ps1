@@ -66,7 +66,10 @@
 		}
 
 		if ($result -is [datetime] -and -not $IncludeTime -and $Type -notin @('Timestamp', 'DateTime', 'Time')) {
-			$result.Date
+			$result.Date.ToString('yyyy-MM-dd')
+		}
+		elseif ($result -is [datetime]) {
+			$result.ToString('yyyy-MM-ddTHH:mm:ss')
 		}
 		else {
 			$result

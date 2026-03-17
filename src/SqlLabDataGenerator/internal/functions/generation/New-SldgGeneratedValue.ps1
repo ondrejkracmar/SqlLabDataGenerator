@@ -93,5 +93,15 @@
 		$params['MaxLength'] = $Column.MaxLength
 	}
 
+	# Apply CHECK constraint ranges to numeric generators
+	if ($Column.CheckConstraints -and $Column.CheckConstraints.Count -gt 0) {
+		foreach ($check in $Column.CheckConstraints) {
+			if ($check -match '\[?\w+\]?\s*>=\s*([\d.]+)') { $params['Minimum'] = [double]$Matches[1] }
+			if ($check -match '\[?\w+\]?\s*<=\s*([\d.]+)') { $params['Maximum'] = [double]$Matches[1] }
+			if ($check -match '\[?\w+\]?\s*>\s*([\d.]+)') { $params['Minimum'] = [double]$Matches[1] + 1 }
+			if ($check -match '\[?\w+\]?\s*<\s*([\d.]+)') { $params['Maximum'] = [double]$Matches[1] - 1 }
+		}
+	}
+
 	& $gen.Function @params
 }

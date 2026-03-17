@@ -28,6 +28,34 @@
 
 	$tableList = [System.Collections.Generic.List[object]]::new()
 
+	# Pre-index metadata by table key for O(1) lookups instead of O(n) per-table scans
+	$columnIndex = @{}
+	foreach ($colRow in $Columns.Rows) {
+		$key = "$([string]$colRow.TABLE_SCHEMA).$([string]$colRow.TABLE_NAME)"
+		if (-not $columnIndex.ContainsKey($key)) { $columnIndex[$key] = [System.Collections.Generic.List[object]]::new() }
+		$columnIndex[$key].Add($colRow)
+	}
+	$ucIndex = @{}
+	foreach ($ucRow in $UniqueConstraints.Rows) {
+		$key = "$([string]$ucRow.SchemaName).$([string]$ucRow.TableName).$([string]$ucRow.ColumnName)"
+		if (-not $ucIndex.ContainsKey($key)) { $ucIndex[$key] = [System.Collections.Generic.List[object]]::new() }
+		$ucIndex[$key].Add($ucRow)
+	}
+	$fkByParent = @{}
+	foreach ($fkRow in $ForeignKeys.Rows) {
+		$key = "$([string]$fkRow.ParentSchema).$([string]$fkRow.ParentTable)"
+		if (-not $fkByParent.ContainsKey($key)) { $fkByParent[$key] = [System.Collections.Generic.List[object]]::new() }
+		$fkByParent[$key].Add($fkRow)
+	}
+	$ccIndex = @{}
+	if ($CheckConstraints) {
+		foreach ($ccRow in $CheckConstraints.Rows) {
+			$key = "$([string]$ccRow.SchemaName).$([string]$ccRow.TableName).$([string]$ccRow.ColumnName)"
+			if (-not $ccIndex.ContainsKey($key)) { $ccIndex[$key] = [System.Collections.Generic.List[object]]::new() }
+			$ccIndex[$key].Add($ccRow)
+		}
+	}
+
 	foreach ($tableRow in $Tables.Rows) {
 		$schemaName = [string]$tableRow.TABLE_SCHEMA
 		$tableName = [string]$tableRow.TABLE_NAME
@@ -38,25 +66,28 @@
 
 		# Build column list for this table
 		$tableColumns = [System.Collections.Generic.List[object]]::new()
-		foreach ($colRow in $Columns.Rows) {
-			if ([string]$colRow.TABLE_SCHEMA -ne $schemaName -or [string]$colRow.TABLE_NAME -ne $tableName) { continue }
+		$tableKey = "$schemaName.$tableName"
+		$tableColRows = if ($columnIndex.ContainsKey($tableKey)) { $columnIndex[$tableKey] } else { @() }
+		foreach ($colRow in $tableColRows) {
 
 			$colName = [string]$colRow.COLUMN_NAME
 
-			# Check PK / Unique
+			# Check PK / Unique via pre-built index
 			$isPK = $false
 			$isUnique = $false
-			foreach ($ucRow in $UniqueConstraints.Rows) {
-				if ([string]$ucRow.SchemaName -eq $schemaName -and [string]$ucRow.TableName -eq $tableName -and [string]$ucRow.ColumnName -eq $colName) {
+			$ucKey = "$schemaName.$tableName.$colName"
+			if ($ucIndex.ContainsKey($ucKey)) {
+				foreach ($ucRow in $ucIndex[$ucKey]) {
 					if ($ucRow.IsPrimaryKey -eq $true -or $ucRow.IsPrimaryKey -eq 1) { $isPK = $true }
 					if ($ucRow.IsUnique -eq $true -or $ucRow.IsUnique -eq 1) { $isUnique = $true }
 				}
 			}
 
-			# Check FK reference
+			# Check FK reference via pre-built index
 			$fkRef = $null
-			foreach ($fkRow in $ForeignKeys.Rows) {
-				if ([string]$fkRow.ParentSchema -eq $schemaName -and [string]$fkRow.ParentTable -eq $tableName -and [string]$fkRow.ParentColumn -eq $colName) {
+			$tableFkRows = if ($fkByParent.ContainsKey($tableKey)) { $fkByParent[$tableKey] } else { @() }
+			foreach ($fkRow in $tableFkRows) {
+				if ([string]$fkRow.ParentColumn -eq $colName) {
 					$fkRef = [PSCustomObject]@{
 						PSTypeName       = 'SqlLabDataGenerator.ForeignKeyRef'
 						ForeignKeyName   = [string]$fkRow.ForeignKeyName
@@ -68,13 +99,12 @@
 				}
 			}
 
-			# Check constraints
+			# Check constraints via pre-built index
 			$checks = @()
-			if ($CheckConstraints) {
-				foreach ($ccRow in $CheckConstraints.Rows) {
-					if ([string]$ccRow.SchemaName -eq $schemaName -and [string]$ccRow.TableName -eq $tableName -and [string]$ccRow.ColumnName -eq $colName) {
-						$checks += [string]$ccRow.ConstraintDefinition
-					}
+			$ccKey = "$schemaName.$tableName.$colName"
+			if ($ccIndex.ContainsKey($ccKey)) {
+				foreach ($ccRow in $ccIndex[$ccKey]) {
+					$checks += [string]$ccRow.ConstraintDefinition
 				}
 			}
 
@@ -101,11 +131,11 @@
 			$tableColumns.Add($column)
 		}
 
-		# Build FK list for this table
+		# Build FK list for this table from pre-built index
 		$tableFKs = [System.Collections.Generic.List[object]]::new()
-		foreach ($fkRow in $ForeignKeys.Rows) {
-			if ([string]$fkRow.ParentSchema -eq $schemaName -and [string]$fkRow.ParentTable -eq $tableName) {
-				$tableFKs.Add([PSCustomObject]@{
+		$fkRowsForTable = if ($fkByParent.ContainsKey($tableKey)) { $fkByParent[$tableKey] } else { @() }
+		foreach ($fkRow in $fkRowsForTable) {
+			$tableFKs.Add([PSCustomObject]@{
 						PSTypeName       = 'SqlLabDataGenerator.ForeignKeyInfo'
 						ForeignKeyName   = [string]$fkRow.ForeignKeyName
 						ParentSchema     = [string]$fkRow.ParentSchema
@@ -115,7 +145,6 @@
 						ReferencedTable  = [string]$fkRow.ReferencedTable
 						ReferencedColumn = [string]$fkRow.ReferencedColumn
 					})
-			}
 		}
 
 		$table = [PSCustomObject]@{

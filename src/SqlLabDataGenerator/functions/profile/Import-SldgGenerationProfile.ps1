@@ -70,8 +70,9 @@
 				foreach ($colName in $colNames) {
 					$colProfile = $tableProfile.columns.$colName
 
-					# Security guard: reject scriptBlock keys from JSON profiles to prevent code injection
-					if ($colProfile.PSObject.Properties.Name -contains 'scriptBlock') {
+					# Security guard: reject scriptBlock keys from JSON profiles to prevent code injection (case-insensitive)
+					$hasScriptBlock = $colProfile.PSObject.Properties.Name | Where-Object { $_ -ieq 'scriptBlock' }
+					if ($hasScriptBlock) {
 						Write-PSFMessage -Level Warning -Message "Profile '$Path': column '$colName' in table '$tableName' contains a 'scriptBlock' key — skipped for security."
 						continue
 					}

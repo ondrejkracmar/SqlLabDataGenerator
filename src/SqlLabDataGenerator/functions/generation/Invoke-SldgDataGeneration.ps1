@@ -226,7 +226,11 @@
 					})
 				if ($transaction) {
 					$generationFailed = $true
-					try { $transaction.Rollback() } catch { }
+					Write-PSFMessage -Level Warning -Message "Rolling back transaction due to masking failure in $($tablePlan.FullName)"
+					try { $transaction.Rollback() }
+					catch {
+						Write-PSFMessage -Level Error -Message "CRITICAL: Transaction rollback failed for masking operation — database may be in inconsistent state: $_"
+					}
 					$transaction = $null
 					$totalInserted = 0
 					break
@@ -278,6 +282,29 @@
 
 			$insertedCount = 0
 			if (-not $NoInsert -and $ConnectionInfo) {
+				# Disable FK constraints for circular dependency tables
+				$disabledFK = $false
+				if ($tablePlan.HasCircularDependency -and $ConnectionInfo.Connection) {
+					try {
+						$fkCmd = $ConnectionInfo.Connection.CreateCommand()
+						if ($transaction) { $fkCmd.Transaction = $transaction }
+						$safeName = Get-SldgSafeSqlName -SchemaName $tablePlan.SchemaName -TableName $tablePlan.TableName -SQLite:($ConnectionInfo.Provider -eq 'SQLite')
+						if ($ConnectionInfo.Provider -eq 'SQLite') {
+							$fkCmd.CommandText = "PRAGMA foreign_keys = OFF"
+						}
+						else {
+							$fkCmd.CommandText = "ALTER TABLE $safeName NOCHECK CONSTRAINT ALL"
+						}
+						[void]$fkCmd.ExecuteNonQuery()
+						$fkCmd.Dispose()
+						$disabledFK = $true
+						Write-PSFMessage -Level Verbose -Message "Disabled FK constraints for circular dependency table $($tablePlan.FullName)"
+					}
+					catch {
+						Write-PSFMessage -Level Warning -Message "Could not disable FK constraints for $($tablePlan.FullName): $_"
+					}
+				}
+
 				$writeParams = @{
 					ConnectionInfo = $ConnectionInfo
 					SchemaName     = $tablePlan.SchemaName
@@ -287,6 +314,27 @@
 				}
 				if ($transaction) { $writeParams['Transaction'] = $transaction }
 				$insertedCount = & $provider.FunctionMap.WriteData @writeParams
+
+				# Re-enable FK constraints after inserting circular dependency table
+				if ($disabledFK -and $ConnectionInfo.Connection) {
+					try {
+						$fkCmd = $ConnectionInfo.Connection.CreateCommand()
+						if ($transaction) { $fkCmd.Transaction = $transaction }
+						$safeName = Get-SldgSafeSqlName -SchemaName $tablePlan.SchemaName -TableName $tablePlan.TableName -SQLite:($ConnectionInfo.Provider -eq 'SQLite')
+						if ($ConnectionInfo.Provider -eq 'SQLite') {
+							$fkCmd.CommandText = "PRAGMA foreign_keys = ON"
+						}
+						else {
+							$fkCmd.CommandText = "ALTER TABLE $safeName WITH CHECK CHECK CONSTRAINT ALL"
+						}
+						[void]$fkCmd.ExecuteNonQuery()
+						$fkCmd.Dispose()
+						Write-PSFMessage -Level Verbose -Message "Re-enabled FK constraints for $($tablePlan.FullName)"
+					}
+					catch {
+						Write-PSFMessage -Level Warning -Message "Could not re-enable FK constraints for $($tablePlan.FullName): $_"
+					}
+				}
 			}
 			else {
 				$insertedCount = $rowSet.RowCount
@@ -320,7 +368,10 @@
 			if ($transaction) {
 				$generationFailed = $true
 				Write-PSFMessage -Level Warning -Message "Rolling back transaction due to failure in $($tablePlan.FullName)"
-				try { $transaction.Rollback() } catch { }
+				try { $transaction.Rollback() }
+				catch {
+					Write-PSFMessage -Level Error -Message "CRITICAL: Transaction rollback failed — database may be in inconsistent state: $_"
+				}
 				$transaction = $null
 				# Zero out previously successful counts since they were rolled back
 				$totalInserted = 0
@@ -342,7 +393,10 @@
 		}
 		catch {
 			Write-PSFMessage -Level Warning -Message "Transaction commit failed, rolling back: $_"
-			try { $transaction.Rollback() } catch { }
+			try { $transaction.Rollback() }
+			catch {
+				Write-PSFMessage -Level Error -Message "CRITICAL: Transaction rollback after commit failure also failed — database may be in inconsistent state: $_"
+			}
 			$totalInserted = 0
 			$generationFailed = $true
 		}
@@ -353,6 +407,34 @@
 	$generationDuration = (Get-Date) - $generationStartTime
 	Write-PSFMessage -Level Host -Message ($script:strings.'Generation.Complete' -f $Plan.TableCount, $totalInserted)
 	Write-PSFMessage -Level Verbose -Message "Generation audit complete: user=$executingUser, rows=$totalInserted, duration=$($generationDuration.TotalSeconds.ToString('F1'))s, failed=$generationFailed"
+
+	# Persistent audit log — append a JSON record for compliance/traceability
+	$auditLogPath = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.Audit.LogPath'
+	if ($auditLogPath) {
+		try {
+			$auditDir = Split-Path $auditLogPath -Parent
+			if ($auditDir -and -not (Test-Path $auditDir)) {
+				$null = New-Item -Path $auditDir -ItemType Directory -Force
+			}
+			$auditRecord = [PSCustomObject]@{
+				Timestamp  = (Get-Date).ToString('o')
+				User       = $executingUser
+				Database   = $Plan.Database
+				Mode       = $Plan.Mode
+				TableCount = $Plan.TableCount
+				TotalRows  = $totalInserted
+				Duration   = $generationDuration.TotalSeconds
+				Success    = -not $generationFailed
+				Tables     = @($tableResults | ForEach-Object { @{ TableName = $_.TableName; RowCount = $_.RowCount; Success = $_.Success } })
+			}
+			$auditJson = $auditRecord | ConvertTo-Json -Depth 4 -Compress
+			Add-Content -Path $auditLogPath -Value $auditJson -Encoding UTF8
+			Write-PSFMessage -Level Verbose -Message "Audit log entry written to: $auditLogPath"
+		}
+		catch {
+			Write-PSFMessage -Level Warning -Message "Failed to write audit log entry: $_"
+		}
+	}
 
 	# Store generated data reference
 	$script:SldgState.GeneratedData[$Plan.Database] = $tableResults

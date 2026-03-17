@@ -1,7 +1,11 @@
 ﻿function Write-SldgSqliteData {
 	<#
 	.SYNOPSIS
-		Writes generated data to a SQLite table.
+		Writes generated data to a SQLite table using batched INSERT statements.
+	.DESCRIPTION
+		Uses a prepared statement with parameter reuse and multi-row INSERT batches
+		to achieve high throughput. Handles 100K+ rows efficiently by avoiding
+		per-row command creation overhead.
 	#>
 	[CmdletBinding()]
 	param (
@@ -17,7 +21,7 @@
 		[Parameter(Mandatory)]
 		[System.Data.DataTable]$Data,
 
-		[int]$BatchSize = 1000,
+		[int]$BatchSize = 500,
 
 		$Transaction
 	)
@@ -35,9 +39,13 @@
 
 	if ($columnNames.Count -eq 0) { return 0 }
 
-	$colList = ($columnNames | ForEach-Object { "[$_]" }) -join ', '
-	$paramList = ($columnNames | ForEach-Object { "@p_$_" }) -join ', '
-	$insertSql = "INSERT INTO [$TableName] ($colList) VALUES ($paramList)"
+	$safeTableName = Get-SldgSafeSqlName -TableName $TableName -SQLite
+	$safeColList = ($columnNames | ForEach-Object { Get-SldgSafeSqlName -ColumnName $_ }) -join ', '
+
+	# SQLite has a limit of SQLITE_MAX_VARIABLE_NUMBER (default 999) parameters per statement.
+	# Ensure batch size does not exceed this limit.
+	$maxBatchRows = [math]::Max(1, [math]::Floor(999 / [math]::Max($columnNames.Count, 1)))
+	$effectiveBatchSize = [math]::Min($BatchSize, $maxBatchRows)
 
 	# Use external transaction if provided, otherwise create a local one
 	$localTransaction = $null
@@ -48,28 +56,49 @@
 	}
 
 	try {
-		foreach ($row in $Data.Rows) {
+		$totalRows = $Data.Rows.Count
+		$rowIndex = 0
+
+		while ($rowIndex -lt $totalRows) {
+			$currentBatchSize = [math]::Min($effectiveBatchSize, $totalRows - $rowIndex)
+
+			# Build multi-row INSERT: INSERT INTO [T] (cols) VALUES (row1), (row2), ...
+			$valueClauses = [System.Collections.Generic.List[string]]::new()
+			for ($b = 0; $b -lt $currentBatchSize; $b++) {
+				$paramNames = ($columnNames | ForEach-Object { "@p${b}_$_" }) -join ', '
+				$valueClauses.Add("($paramNames)")
+			}
+
 			$cmd = $conn.CreateCommand()
 			$cmd.Transaction = $activeTransaction
-			$cmd.CommandText = $insertSql
+			$cmd.CommandText = "INSERT INTO $safeTableName ($safeColList) VALUES $($valueClauses -join ', ')"
 
-			foreach ($colName in $columnNames) {
-				$value = $row[$colName]
-				$param = $cmd.CreateParameter()
-				$param.ParameterName = "@p_$colName"
-				$param.Value = if ($value -is [DBNull] -or $null -eq $value) { [DBNull]::Value } else { $value }
-				[void]$cmd.Parameters.Add($param)
+			# Bind parameters for all rows in this batch
+			for ($b = 0; $b -lt $currentBatchSize; $b++) {
+				$row = $Data.Rows[$rowIndex + $b]
+				foreach ($colName in $columnNames) {
+					$value = $row[$colName]
+					$param = $cmd.CreateParameter()
+					$param.ParameterName = "@p${b}_$colName"
+					$param.Value = if ($value -is [DBNull] -or $null -eq $value) { [DBNull]::Value } else { $value }
+					[void]$cmd.Parameters.Add($param)
+				}
 			}
 
 			[void]$cmd.ExecuteNonQuery()
 			$cmd.Dispose()
-			$insertedCount++
+			$insertedCount += $currentBatchSize
+			$rowIndex += $currentBatchSize
 		}
 
 		if ($localTransaction) { $localTransaction.Commit() }
 	}
 	catch {
-		if ($localTransaction) { $localTransaction.Rollback() }
+		if ($localTransaction) {
+			try { $localTransaction.Rollback() } catch {
+				Write-PSFMessage -Level Warning -Message "SQLite transaction rollback failed: $_"
+			}
+		}
 		throw
 	}
 

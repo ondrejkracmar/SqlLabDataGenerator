@@ -43,8 +43,22 @@
 		Stop-PSFFunction -Message ($script:strings.'Connect.Failed' -f 'SQLite', $dbPath, '', 'Database file not found. Use -CreateIfNotExists to create a new database.') -EnableException $true
 	}
 
-	# Sanitize connection string to prevent injection via path
-	$connectionString = "Data Source={0}" -f $dbPath.Replace(';', '')
+	# Build connection string safely — avoid string interpolation to prevent injection
+	$connectionString = $null
+	try {
+		if ([System.Type]::GetType('Microsoft.Data.Sqlite.SqliteConnectionStringBuilder', $false)) {
+			$builder = New-Object Microsoft.Data.Sqlite.SqliteConnectionStringBuilder
+			$builder.DataSource = $dbPath
+			$connectionString = $builder.ToString()
+		}
+	}
+	catch { }
+
+	if (-not $connectionString) {
+		# Fallback: sanitize path to prevent connection-string parameter injection
+		$sanitizedPath = $dbPath -replace '[;=]', ''
+		$connectionString = "Data Source=$sanitizedPath"
+	}
 
 	try {
 		# Try Microsoft.Data.Sqlite first, then System.Data.SQLite, then ADO.NET generic

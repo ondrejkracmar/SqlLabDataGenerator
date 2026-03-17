@@ -78,10 +78,15 @@
 
 	# Track unique values for unique constraint columns
 	$uniqueTracker = @{}
+	$pkColumns = @($activeColumns | Where-Object { $_.IsPrimaryKey })
+	$hasCompositePK = $pkColumns.Count -gt 1
 	foreach ($col in $activeColumns) {
-		if ($col.IsUnique -or $col.IsPrimaryKey) {
+		if ($col.IsUnique -or ($col.IsPrimaryKey -and -not $hasCompositePK)) {
 			$uniqueTracker[$col.ColumnName] = [System.Collections.Generic.HashSet[string]]::new()
 		}
+	}
+	if ($hasCompositePK) {
+		$uniqueTracker['__CompositePK__'] = [System.Collections.Generic.HashSet[string]]::new()
 	}
 
 	# Determine which columns are FK-bound (AI shouldn't generate these)
@@ -158,12 +163,25 @@
 				}
 			}
 
+			if ($rowValid -and $hasCompositePK) {
+				# Enforce composite PK uniqueness
+				$compositeKey = ($pkColumns | ForEach-Object { [string]$row[$_.ColumnName] }) -join '|'
+				if ($uniqueTracker['__CompositePK__'].Contains($compositeKey)) {
+					$rowValid = $false
+					$retryCount++
+				}
+			}
+
 			if ($rowValid) {
 				# Register unique values
 				foreach ($col in $activeColumns) {
 					if ($uniqueTracker.ContainsKey($col.ColumnName) -and $row[$col.ColumnName] -isnot [DBNull]) {
 						[void]$uniqueTracker[$col.ColumnName].Add([string]$row[$col.ColumnName])
 					}
+				}
+				if ($hasCompositePK) {
+					$compositeKey = ($pkColumns | ForEach-Object { [string]$row[$_.ColumnName] }) -join '|'
+					[void]$uniqueTracker['__CompositePK__'].Add($compositeKey)
 				}
 				$aiBatchIndex++
 			}

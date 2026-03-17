@@ -58,11 +58,14 @@
 		}
 	}
 
-	# Handle circular dependencies
+	# Handle circular dependencies — flag tables so consumers can disable FK constraints
 	if ($sorted.Count -lt $Tables.Count) {
 		$remaining = $Tables | Where-Object { $_.FullName -notin @($sorted | ForEach-Object { $_.FullName }) }
 		Write-PSFMessage -Level Warning -Message ($script:strings.'Generation.CyclicDependency' -f ($remaining.FullName -join ', '))
-		foreach ($table in $remaining) { $sorted.Add($table) }
+		foreach ($table in $remaining) {
+			$table | Add-Member -NotePropertyName 'HasCircularDependency' -NotePropertyValue $true -Force
+			$sorted.Add($table)
+		}
 	}
 
 	Write-PSFMessage -Level Verbose -Message ($script:strings.'Generation.TableOrder' -f ($sorted.FullName -join ' -> '))

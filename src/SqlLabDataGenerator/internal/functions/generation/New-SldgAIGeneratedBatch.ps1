@@ -124,7 +124,7 @@ $jsonRow
 	if ($jsonText -match '```(?:json)?\s*\n?([\s\S]*?)\n?```') {
 		$jsonText = $Matches[1]
 	}
-	elseif ($jsonText -match '(\[[\s\S]*\])') {
+	elseif ($jsonText -match '(\[[\s\S]*?\])') {
 		$jsonText = $Matches[1]
 	}
 

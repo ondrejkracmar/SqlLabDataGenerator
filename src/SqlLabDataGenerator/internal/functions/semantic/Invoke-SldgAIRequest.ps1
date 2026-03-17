@@ -16,9 +16,16 @@
 
 	$aiProvider = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.AI.Provider'
 	$apiKeyRaw = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.AI.ApiKey'
-	$apiKey = if ($apiKeyRaw -is [securestring]) {
-		[System.Net.NetworkCredential]::new('', $apiKeyRaw).Password
-	} elseif ($apiKeyRaw) { [string]$apiKeyRaw } else { $null }
+	$apiKey = $null
+	try {
+		$apiKey = if ($apiKeyRaw -is [securestring]) {
+			[System.Net.NetworkCredential]::new('', $apiKeyRaw).Password
+		} elseif ($apiKeyRaw) { [string]$apiKeyRaw } else { $null }
+	}
+	catch {
+		Write-PSFMessage -Level Warning -Message "Failed to retrieve API key: $_"
+		return $null
+	}
 	$endpoint = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.AI.Endpoint'
 	$model = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.AI.Model'
 	$maxTokens = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.AI.MaxTokens'
@@ -101,8 +108,11 @@
 		}
 	}
 
-	# Clear plaintext API key from memory — already embedded in headers
-	$apiKey = $null
+	# Clear plaintext API key from variable — already embedded in headers
+	if ($apiKey) {
+		$apiKey = [string]::new([char]0, $apiKey.Length)
+		Remove-Variable apiKey -ErrorAction SilentlyContinue
+	}
 
 	$params = @{
 		Uri         = $uri
@@ -121,8 +131,12 @@
 	if ($aiProvider -eq 'Ollama') {
 		$skipCertCheck = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.AI.Ollama.SkipCertificateCheck'
 		if ($skipCertCheck -and $PSVersionTable.PSVersion.Major -ge 7) {
-			Write-PSFMessage -Level Warning -Message "TLS certificate validation is disabled for Ollama. This should only be used in development environments."
-			$params['SkipCertificateCheck'] = $true
+			if (-not $env:SLDG_ALLOW_SKIP_TLS) {
+				Write-PSFMessage -Level Warning -Message "TLS certificate validation skip requested for Ollama but blocked. Set environment variable SLDG_ALLOW_SKIP_TLS=1 to allow this in development environments."
+			} else {
+				Write-PSFMessage -Level Warning -Message "TLS certificate validation is disabled for Ollama (SLDG_ALLOW_SKIP_TLS is set). This should NEVER be used in production environments."
+				$params['SkipCertificateCheck'] = $true
+			}
 		}
 	}
 

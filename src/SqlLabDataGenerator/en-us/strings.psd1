@@ -105,4 +105,8 @@
 
 	# Connection health
 	'Connect.HealthCheckFailed'              = 'Connection health check failed for {0}://{1}/{2}: connection is not in Open state'
+
+	# Audit
+	'Audit.Written'                          = 'Audit log entry written to: {0}'
+	'Audit.WriteFailed'                      = 'Failed to write audit log entry: {0}'
 }

@@ -124,15 +124,16 @@
 		}
 
 		$tablePlans.Add([PSCustomObject]@{
-				PSTypeName   = 'SqlLabDataGenerator.TablePlan'
-				Order        = $order
-				SchemaName   = $table.SchemaName
-				TableName    = $table.TableName
-				FullName     = $table.FullName
-				RowCount     = $tableRowCount
-				Columns      = $columnPlans
-				ForeignKeys  = $table.ForeignKeys
-				ColumnCount  = $table.ColumnCount
+				PSTypeName              = 'SqlLabDataGenerator.TablePlan'
+				Order                   = $order
+				SchemaName              = $table.SchemaName
+				TableName               = $table.TableName
+				FullName                = $table.FullName
+				RowCount                = $tableRowCount
+				Columns                 = $columnPlans
+				ForeignKeys             = $table.ForeignKeys
+				ColumnCount             = $table.ColumnCount
+				HasCircularDependency   = [bool]$table.HasCircularDependency
 			})
 	}
 

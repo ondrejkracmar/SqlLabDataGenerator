@@ -48,7 +48,7 @@
 
 	# 4. Fallback to en-US
 	if ($Locale -ne 'en-US' -and $script:SldgState.Locales.ContainsKey('en-US')) {
-		Write-PSFMessage -Level Verbose -Message ($script:strings.'Locale.Fallback' -f $Locale, 'en-US')
+		Write-PSFMessage -Level Warning -Message ($script:strings.'Locale.Fallback' -f $Locale, 'en-US')
 		return $script:SldgState.Locales['en-US']
 	}
 

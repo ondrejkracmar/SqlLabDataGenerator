@@ -72,3 +72,6 @@ Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'AI.ConfidenceThreshold' -Valu
 # Cache management
 Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'Cache.MaxEntries' -Value 500 -Initialize -Validation 'integerpositive' -Description "Maximum number of entries per module cache (AILocaleCache, AIValueCache, etc.). Oldest entries are evicted when exceeded."
 Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'Cache.TTLMinutes' -Value 60 -Initialize -Validation 'integerpositive' -Description "Time-to-live in minutes for cached AI responses. Expired entries are purged on next access."
+
+# Audit logging
+Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'Audit.LogPath' -Value '' -Initialize -Validation 'string' -Description "Path to a JSON-lines audit log file. Each generation run appends a JSON record with timestamp, user, database, row counts, and success status. Leave empty to disable persistent audit logging."
