@@ -8,7 +8,26 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) with [Se
 
 ## [Unreleased]
 
-_Nothing yet._
+### Added — Scenario Mode
+- **Scenario mode** (`New-SldgGenerationPlan -Mode Scenario`) — domain-specific data generation using built-in templates.
+- Five built-in scenario templates: **eCommerce**, **Healthcare**, **HR**, **Finance**, **Education**.
+- Auto-detection (`-ScenarioName Auto`) matches schema table names to the best template.
+- Scenario templates define table role multipliers (Lookup ×0.05, Master ×1.0, Transaction ×3–20, Detail ×8–30) for realistic relational data volumes.
+- Scenario-specific value rules for status, type, and category columns (e.g., `OrderStatus` → Pending/Processing/Shipped/Delivered/Cancelled).
+- New internal function `Get-SldgScenarioTemplate` — retrieves and matches scenario templates.
+
+### Added — Parallel Table Generation
+- **`-Parallel` switch** on `Invoke-SldgDataGeneration` — independent tables generated concurrently (PS 7+ only).
+- Tables grouped by FK dependency level via `Group-SldgTablesByLevel`; tables at the same level run in parallel.
+- **`-ThrottleLimit`** parameter and `Generation.ThrottleLimit` config (default: 4) for concurrency control.
+- Automatic fallback to sequential on PS 5.1 or when `-UseTransaction` is active.
+- Parallel generation, sequential writes — thread-safe FK value propagation between levels.
+
+### Added — Streaming for Large Tables
+- **Streaming (chunked) generation** — tables exceeding `Generation.StreamingThreshold` (default: 100,000 rows) are generated and written in fixed-size chunks.
+- `Generation.StreamingChunkSize` config (default: 10,000 rows) — each chunk is generated, written, and disposed to keep memory bounded.
+- Cross-chunk uniqueness tracking via shared `UniqueTracker` parameter in `New-SldgRowSet`.
+- New internal function `Invoke-SldgStreamingGeneration` — orchestrates chunked generation and write cycles.
 
 ---
 
@@ -37,9 +56,6 @@ _Nothing yet._
 
 ### Changed — AI Platform
 - `Invoke-SldgAIRequest` now dispatches to OpenAI, AzureOpenAI, or Ollama.
- - New: `Set-SldgAIProvider` — one-command AI setup (provider, model, endpoint, features)
- - New: `Get-SldgAIProvider` — show current AI configuration and active database connection
- - New: `Test-SldgAIProvider` — test AI connectivity with response time measurement
 
 ### Added — Locale / Culture System
 - Universal locale system for culturally-aware data generation.

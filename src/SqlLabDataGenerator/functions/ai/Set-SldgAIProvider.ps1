@@ -140,6 +140,7 @@
 
 	# SkipCertificateCheck (Ollama)
 	if ($SkipCertificateCheck) {
+		Write-PSFMessage -Level Warning -Message "TLS certificate validation is disabled for the AI endpoint. This is insecure and should only be used in development environments with self-signed certificates."
 		Set-PSFConfig -FullName 'SqlLabDataGenerator.AI.Ollama.SkipCertificateCheck' -Value $true
 	}
 

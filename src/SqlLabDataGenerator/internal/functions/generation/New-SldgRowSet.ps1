@@ -29,7 +29,9 @@
 
 		[hashtable]$ForeignKeyValues,
 
-		[hashtable]$TableRules
+		[hashtable]$TableRules,
+
+		[hashtable]$SharedUniqueTracker
 	)
 
 	if (-not $GeneratorMap) { $GeneratorMap = Get-SldgGeneratorMap }
@@ -41,6 +43,7 @@
 	$maxUniqueRetries = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.Generation.MaxUniqueRetries'
 
 	$dataTable = New-Object System.Data.DataTable
+	try {
 
 	# Build columns for the DataTable (skip identity and computed)
 	$activeColumns = @()
@@ -76,17 +79,25 @@
 		$activeColumns += $col
 	}
 
-	# Track unique values for unique constraint columns
-	$uniqueTracker = @{}
+	# Compute PK columns for uniqueness enforcement (needed in both standard and streaming mode)
 	$pkColumns = @($activeColumns | Where-Object { $_.IsPrimaryKey })
 	$hasCompositePK = $pkColumns.Count -gt 1
-	foreach ($col in $activeColumns) {
-		if ($col.IsUnique -or ($col.IsPrimaryKey -and -not $hasCompositePK)) {
-			$uniqueTracker[$col.ColumnName] = [System.Collections.Generic.HashSet[string]]::new()
-		}
+
+	# Track unique values for unique constraint columns
+	# When SharedUniqueTracker is provided (streaming mode), reuse it across chunks
+	if ($SharedUniqueTracker) {
+		$uniqueTracker = $SharedUniqueTracker
 	}
-	if ($hasCompositePK) {
-		$uniqueTracker['__CompositePK__'] = [System.Collections.Generic.HashSet[string]]::new()
+	else {
+		$uniqueTracker = @{}
+		foreach ($col in $activeColumns) {
+			if ($col.IsUnique -or ($col.IsPrimaryKey -and -not $hasCompositePK)) {
+				$uniqueTracker[$col.ColumnName] = [System.Collections.Generic.HashSet[string]]::new()
+			}
+		}
+		if ($hasCompositePK) {
+			$uniqueTracker['__CompositePK__'] = [System.Collections.Generic.HashSet[string]]::new()
+		}
 	}
 
 	# Determine which columns are FK-bound (AI shouldn't generate these)
@@ -194,13 +205,13 @@
 	foreach ($col in $activeColumns) {
 		if ($col.IsPrimaryKey -or $col.IsUnique) {
 			$key = "$($TableInfo.SchemaName).$($TableInfo.TableName).$($col.ColumnName)"
-			$values = @()
+			$valuesList = [System.Collections.Generic.List[object]]::new($dataTable.Rows.Count)
 			foreach ($row in $dataTable.Rows) {
 				if ($row[$col.ColumnName] -isnot [DBNull]) {
-					$values += $row[$col.ColumnName]
+					$valuesList.Add($row[$col.ColumnName])
 				}
 			}
-			$generatedValues[$key] = $values
+			$generatedValues[$key] = $valuesList.ToArray()
 		}
 	}
 
@@ -210,5 +221,10 @@
 		DataTable       = $dataTable
 		RowCount        = $dataTable.Rows.Count
 		GeneratedValues = $generatedValues
+	}
+
+	} catch {
+		$dataTable.Dispose()
+		throw
 	}
 }

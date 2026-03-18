@@ -11,7 +11,7 @@ Have it execute `vsts-prerequisites.ps1`
 
 ## 2) PowerShell Task: Validate
 
-Have it execute `vsts-prerequisites.ps1`
+Have it execute `vsts-validate.ps1`
 
 ## 3) PowerShell Task: Build
 

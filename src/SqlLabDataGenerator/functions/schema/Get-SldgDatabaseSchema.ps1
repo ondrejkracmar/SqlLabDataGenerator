@@ -43,7 +43,7 @@
 
 	# Connection staleness check
 	if ($ConnectionInfo.Connection -and $ConnectionInfo.Connection.State -ne 'Open') {
-		Stop-PSFFunction -Message "Database connection is no longer open. Reconnect with Connect-SldgDatabase." -EnableException $true
+		Stop-PSFFunction -Message ($script:strings.'Connect.HealthCheckFailed' -f $ConnectionInfo.Provider, $ConnectionInfo.ServerInstance, $ConnectionInfo.Database) -EnableException $true
 	}
 
 	$provider = Get-SldgProviderInternal -Name $ConnectionInfo.Provider

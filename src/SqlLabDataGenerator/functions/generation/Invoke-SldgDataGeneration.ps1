@@ -39,6 +39,11 @@
 
 		Generates and inserts data within a single transaction. If any table fails,
 		all previously inserted data is rolled back.
+
+	.EXAMPLE
+		PS C:\> $result = Invoke-SldgDataGeneration -Plan $plan -Parallel -ThrottleLimit 4
+
+		Independent tables are generated in parallel (PS 7+ only), up to 4 at a time.
 	#>
 	[CmdletBinding(SupportsShouldProcess)]
 	param (
@@ -51,7 +56,11 @@
 
 		[switch]$PassThru,
 
-		[switch]$UseTransaction
+		[switch]$UseTransaction,
+
+		[switch]$Parallel,
+
+		[int]$ThrottleLimit
 	)
 
 	if (-not $ConnectionInfo) { $ConnectionInfo = $script:SldgState.ActiveConnection }
@@ -61,7 +70,7 @@
 
 	# Connection staleness check
 	if ($ConnectionInfo -and $ConnectionInfo.Connection -and $ConnectionInfo.Connection.State -ne 'Open') {
-		Stop-PSFFunction -Message "Database connection is no longer open. Reconnect with Connect-SldgDatabase." -EnableException $true
+		Stop-PSFFunction -Message ($script:strings.'Connect.HealthCheckFailed' -f $ConnectionInfo.Provider, $ConnectionInfo.ServerInstance, $ConnectionInfo.Database) -EnableException $true
 	}
 
 	$provider = if ($ConnectionInfo) { Get-SldgProviderInternal -Name $ConnectionInfo.Provider } else { $null }
@@ -90,16 +99,78 @@
 		Write-PSFMessage -Level Verbose -Message "Transaction started for data generation (provider: $($ConnectionInfo.Provider))"
 	}
 
-	# Guard: Scenario mode is not yet implemented
-	if ($Plan.Mode -eq 'Scenario') {
-		Stop-PSFFunction -Message "Scenario mode is not yet implemented. Use 'Synthetic' or 'Masking'." -EnableException $true
-	}
+	# Streaming config for large tables
+	$streamingThreshold = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.Generation.StreamingThreshold'
+	$streamingChunkSize = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.Generation.StreamingChunkSize'
+
+	# Parallel config
+	if (-not $ThrottleLimit) { $ThrottleLimit = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.Generation.ThrottleLimit' }
+	$useParallel = $Parallel -and -not ($Plan.Mode -eq 'Masking') -and $PSVersionTable.PSVersion.Major -ge 7
 
 	$generationFailed = $false
 	$isMaskingMode = $Plan.Mode -eq 'Masking'
 
+	# S4: Auto-enable transaction for masking mode to prevent data loss from DELETE+INSERT
+	if ($isMaskingMode -and -not $NoInsert -and $ConnectionInfo -and -not $transaction) {
+		$transaction = $ConnectionInfo.Connection.BeginTransaction()
+		Write-PSFMessage -Level Verbose -Message "Transaction auto-started for masking mode (destructive DELETE+INSERT requires atomicity)"
+	}
+
 	$tableIndex = 0
 	$tableTotal = $Plan.Tables.Count
+
+	# A2: Pre-scan and disable FK constraints for ALL circular dependency tables before insertion
+	$circularTables = @($Plan.Tables | Where-Object { $_.HasCircularDependency })
+	$disabledCircularFKs = [System.Collections.Generic.List[object]]::new()
+	if ($circularTables.Count -gt 0 -and -not $NoInsert -and $ConnectionInfo -and $ConnectionInfo.Connection) {
+		if ($ConnectionInfo.Provider -eq 'SQLite') {
+			# SQLite PRAGMA is connection-global — disable once
+			try {
+				$fkCmd = $ConnectionInfo.Connection.CreateCommand()
+				if ($transaction) { $fkCmd.Transaction = $transaction }
+				$fkCmd.CommandText = "PRAGMA foreign_keys = OFF"
+				try { [void]$fkCmd.ExecuteNonQuery() } finally { $fkCmd.Dispose() }
+				$disabledCircularFKs.AddRange($circularTables)
+				Write-PSFMessage -Level Verbose -Message "Disabled FK constraints (PRAGMA) for $($circularTables.Count) circular dependency tables"
+			}
+			catch {
+				Write-PSFMessage -Level Warning -Message "Could not disable FK constraints (PRAGMA): $_"
+			}
+		}
+		else {
+			# SQL Server — disable per-table so entire cycle is unconstrained during insertion
+			foreach ($ct in $circularTables) {
+				try {
+					$fkCmd = $ConnectionInfo.Connection.CreateCommand()
+					if ($transaction) { $fkCmd.Transaction = $transaction }
+					$safeName = Get-SldgSafeSqlName -SchemaName $ct.SchemaName -TableName $ct.TableName
+					$fkCmd.CommandText = "ALTER TABLE $safeName NOCHECK CONSTRAINT ALL"
+					try { [void]$fkCmd.ExecuteNonQuery() } finally { $fkCmd.Dispose() }
+					$disabledCircularFKs.Add($ct)
+					Write-PSFMessage -Level Verbose -Message "Disabled FK constraints for circular dependency table $($ct.FullName)"
+				}
+				catch {
+					Write-PSFMessage -Level Warning -Message "Could not disable FK constraints for $($ct.FullName): $_"
+				}
+			}
+		}
+	}
+
+	# ── Parallel generation path (PS 7+, Synthetic/Scenario only) ──
+	if ($useParallel) {
+		$parallelResult = Invoke-SldgParallelTableGeneration -Plan $Plan -FkValues $fkValues `
+			-ConnectionInfo $ConnectionInfo -Provider $provider -Transaction $transaction `
+			-BatchSize $batchSize -ThrottleLimit $ThrottleLimit `
+			-StreamingThreshold $streamingThreshold -StreamingChunkSize $streamingChunkSize `
+			-NoInsert:$NoInsert -PassThru:$PassThru
+
+		$tableResults.AddRange($parallelResult.TableResults)
+		$totalInserted = $parallelResult.TotalInserted
+		$generationFailed = $parallelResult.GenerationFailed
+		if ($generationFailed -and $transaction) { $transaction = $null }
+	}
+	# ── Sequential generation path (original) ──
+	else {
 
 	foreach ($tablePlan in $Plan.Tables) {
 		$tableIndex++
@@ -233,7 +304,7 @@
 					}
 					$transaction = $null
 					$totalInserted = 0
-					break
+					Stop-PSFFunction -Message "Masking rolled back due to failure in $($tablePlan.FullName): $($_.Exception.Message)" -EnableException $true -ErrorRecord $_
 				}
 			}
 			continue
@@ -264,6 +335,7 @@
 					IsNullable  = if ($null -ne $cp.IsNullable) { [bool]$cp.IsNullable } else { $true }
 					MaxLength   = $cp.MaxLength
 					ForeignKey  = $cp.ForeignKey
+					SchemaHint  = $cp.SchemaHint
 					Classification = [PSCustomObject]@{ SemanticType = $cp.SemanticType; IsPII = $cp.IsPII }
 					GenerationRule = $cp.CustomRule
 				}
@@ -272,72 +344,56 @@
 		}
 
 		try {
-			$rowSet = New-SldgRowSet -TableInfo $tableInfo -RowCount $tablePlan.RowCount `
-				-GeneratorMap $Plan.GeneratorMap -ForeignKeyValues $fkValues -TableRules $tableRules
+			# Streaming mode: large tables generate and write in chunks to keep memory bounded
+			if ($streamingThreshold -gt 0 -and $tablePlan.RowCount -gt $streamingThreshold) {
+				Write-PSFMessage -Level Host -Message ($script:strings.'Generation.StreamingStarting' -f $tablePlan.FullName, $tablePlan.RowCount, $streamingChunkSize)
 
-			# Merge generated FK values for child tables
-			foreach ($key in $rowSet.GeneratedValues.Keys) {
-				$fkValues[$key] = $rowSet.GeneratedValues[$key]
-			}
-
-			$insertedCount = 0
-			if (-not $NoInsert -and $ConnectionInfo) {
-				# Disable FK constraints for circular dependency tables
-				$disabledFK = $false
-				if ($tablePlan.HasCircularDependency -and $ConnectionInfo.Connection) {
-					try {
-						$fkCmd = $ConnectionInfo.Connection.CreateCommand()
-						if ($transaction) { $fkCmd.Transaction = $transaction }
-						$safeName = Get-SldgSafeSqlName -SchemaName $tablePlan.SchemaName -TableName $tablePlan.TableName -SQLite:($ConnectionInfo.Provider -eq 'SQLite')
-						if ($ConnectionInfo.Provider -eq 'SQLite') {
-							$fkCmd.CommandText = "PRAGMA foreign_keys = OFF"
-						}
-						else {
-							$fkCmd.CommandText = "ALTER TABLE $safeName NOCHECK CONSTRAINT ALL"
-						}
-						[void]$fkCmd.ExecuteNonQuery()
-						$fkCmd.Dispose()
-						$disabledFK = $true
-						Write-PSFMessage -Level Verbose -Message "Disabled FK constraints for circular dependency table $($tablePlan.FullName)"
-					}
-					catch {
-						Write-PSFMessage -Level Warning -Message "Could not disable FK constraints for $($tablePlan.FullName): $_"
-					}
+				$streamParams = @{
+					TableInfo        = $tableInfo
+					TotalRowCount    = $tablePlan.RowCount
+					ChunkSize        = $streamingChunkSize
+					GeneratorMap     = $Plan.GeneratorMap
+					ForeignKeyValues = $fkValues
+					TableRules       = $tableRules
+					BatchSize        = $batchSize
+					NoInsert         = $NoInsert
+					PassThru         = $PassThru
 				}
+				if ($ConnectionInfo) { $streamParams['ConnectionInfo'] = $ConnectionInfo }
+				if ($transaction) { $streamParams['Transaction'] = $transaction }
+				if ($provider) { $streamParams['WriteFunction'] = $provider.FunctionMap.WriteData }
 
-				$writeParams = @{
-					ConnectionInfo = $ConnectionInfo
-					SchemaName     = $tablePlan.SchemaName
-					TableName      = $tablePlan.TableName
-					Data           = $rowSet.DataTable
-					BatchSize      = $batchSize
-				}
-				if ($transaction) { $writeParams['Transaction'] = $transaction }
-				$insertedCount = & $provider.FunctionMap.WriteData @writeParams
+				$streamResult = Invoke-SldgStreamingGeneration @streamParams
 
-				# Re-enable FK constraints after inserting circular dependency table
-				if ($disabledFK -and $ConnectionInfo.Connection) {
-					try {
-						$fkCmd = $ConnectionInfo.Connection.CreateCommand()
-						if ($transaction) { $fkCmd.Transaction = $transaction }
-						$safeName = Get-SldgSafeSqlName -SchemaName $tablePlan.SchemaName -TableName $tablePlan.TableName -SQLite:($ConnectionInfo.Provider -eq 'SQLite')
-						if ($ConnectionInfo.Provider -eq 'SQLite') {
-							$fkCmd.CommandText = "PRAGMA foreign_keys = ON"
-						}
-						else {
-							$fkCmd.CommandText = "ALTER TABLE $safeName WITH CHECK CHECK CONSTRAINT ALL"
-						}
-						[void]$fkCmd.ExecuteNonQuery()
-						$fkCmd.Dispose()
-						Write-PSFMessage -Level Verbose -Message "Re-enabled FK constraints for $($tablePlan.FullName)"
-					}
-					catch {
-						Write-PSFMessage -Level Warning -Message "Could not re-enable FK constraints for $($tablePlan.FullName): $_"
-					}
+				foreach ($key in $streamResult.GeneratedValues.Keys) {
+					$fkValues[$key] = $streamResult.GeneratedValues[$key]
 				}
+				$insertedCount = $streamResult.InsertedCount
 			}
 			else {
-				$insertedCount = $rowSet.RowCount
+				$rowSet = New-SldgRowSet -TableInfo $tableInfo -RowCount $tablePlan.RowCount `
+					-GeneratorMap $Plan.GeneratorMap -ForeignKeyValues $fkValues -TableRules $tableRules
+
+				# Merge generated FK values for child tables
+				foreach ($key in $rowSet.GeneratedValues.Keys) {
+					$fkValues[$key] = $rowSet.GeneratedValues[$key]
+				}
+
+				$insertedCount = 0
+				if (-not $NoInsert -and $ConnectionInfo) {
+					$writeParams = @{
+						ConnectionInfo = $ConnectionInfo
+						SchemaName     = $tablePlan.SchemaName
+						TableName      = $tablePlan.TableName
+						Data           = $rowSet.DataTable
+						BatchSize      = $batchSize
+					}
+					if ($transaction) { $writeParams['Transaction'] = $transaction }
+					$insertedCount = & $provider.FunctionMap.WriteData @writeParams
+				}
+				else {
+					$insertedCount = $rowSet.RowCount
+				}
 			}
 
 			$totalInserted += $insertedCount
@@ -350,8 +406,11 @@
 				Success    = $true
 				Error      = $null
 			}
-			if ($PassThru) {
+			if ($PassThru -and $rowSet) {
 				$tableResult | Add-Member -NotePropertyName DataTable -NotePropertyValue $rowSet.DataTable
+			}
+			elseif ($PassThru -and $streamResult -and $streamResult.DataTables) {
+				$tableResult | Add-Member -NotePropertyName DataTables -NotePropertyValue $streamResult.DataTables
 			}
 			$tableResults.Add($tableResult)
 		}
@@ -380,7 +439,40 @@
 						$tr | Add-Member -NotePropertyName 'RolledBack' -NotePropertyValue $true -Force
 					}
 				}
-				break
+				Stop-PSFFunction -Message "Data generation rolled back due to failure in $($tablePlan.FullName): $($_.Exception.Message)" -EnableException $true -ErrorRecord $_
+			}
+		}
+	}
+
+	} # end: sequential/parallel branch
+
+	# Re-enable FK constraints for all circular dependency tables after insertion
+	if ($disabledCircularFKs.Count -gt 0 -and $ConnectionInfo -and $ConnectionInfo.Connection -and -not $generationFailed) {
+		if ($ConnectionInfo.Provider -eq 'SQLite') {
+			try {
+				$fkCmd = $ConnectionInfo.Connection.CreateCommand()
+				if ($transaction) { $fkCmd.Transaction = $transaction }
+				$fkCmd.CommandText = "PRAGMA foreign_keys = ON"
+				try { [void]$fkCmd.ExecuteNonQuery() } finally { $fkCmd.Dispose() }
+				Write-PSFMessage -Level Verbose -Message "Re-enabled FK constraints (PRAGMA) for circular dependency tables"
+			}
+			catch {
+				Write-PSFMessage -Level Warning -Message "Could not re-enable FK constraints (PRAGMA): $_"
+			}
+		}
+		else {
+			foreach ($ct in $disabledCircularFKs) {
+				try {
+					$fkCmd = $ConnectionInfo.Connection.CreateCommand()
+					if ($transaction) { $fkCmd.Transaction = $transaction }
+					$safeName = Get-SldgSafeSqlName -SchemaName $ct.SchemaName -TableName $ct.TableName
+					$fkCmd.CommandText = "ALTER TABLE $safeName WITH CHECK CHECK CONSTRAINT ALL"
+					try { [void]$fkCmd.ExecuteNonQuery() } finally { $fkCmd.Dispose() }
+					Write-PSFMessage -Level Verbose -Message "Re-enabled FK constraints for $($ct.FullName)"
+				}
+				catch {
+					Write-PSFMessage -Level Warning -Message "Could not re-enable FK constraints for $($ct.FullName): $_"
+				}
 			}
 		}
 	}
@@ -412,6 +504,8 @@
 	$auditLogPath = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.Audit.LogPath'
 	if ($auditLogPath) {
 		try {
+			# Validate: resolve path and prevent traversal attacks
+			$auditLogPath = [System.IO.Path]::GetFullPath($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($auditLogPath))
 			$auditDir = Split-Path $auditLogPath -Parent
 			if ($auditDir -and -not (Test-Path $auditDir)) {
 				$null = New-Item -Path $auditDir -ItemType Directory -Force

@@ -6,13 +6,16 @@
 	.DESCRIPTION
 		Establishes a connection to a database using the specified provider.
 		The connection is stored as the active connection for subsequent commands.
-		Currently supports SQL Server via the built-in SqlServer provider.
+
+		Use the Server parameter set for SQL Server (ServerInstance + Database).
+		Use the File parameter set for file-based databases like SQLite (Database path only).
 
 	.PARAMETER ServerInstance
 		The server instance to connect to (e.g., 'localhost', 'server\instance', 'server,port').
+		Used with the Server parameter set (SQL Server, etc.).
 
 	.PARAMETER Database
-		The database name to connect to.
+		The database name (Server set) or database file path (File set) to connect to.
 
 	.PARAMETER Provider
 		The database provider to use. Default is 'SqlServer'.
@@ -36,10 +39,15 @@
 		PS C:\> Connect-SldgDatabase -ServerInstance 'dbserver\SQLEXPRESS' -Database 'TestDB' -Credential $cred
 
 		Connects using SQL authentication.
+
+	.EXAMPLE
+		PS C:\> Connect-SldgDatabase -Provider 'SQLite' -Database 'C:\Data\mydb.sqlite'
+
+		Connects to a SQLite database file (ServerInstance is not required).
 	#>
-	[CmdletBinding()]
+	[CmdletBinding(DefaultParameterSetName = 'Server')]
 	param (
-		[Parameter(Mandatory)]
+		[Parameter(Mandatory, ParameterSetName = 'Server')]
 		[string]$ServerInstance,
 
 		[Parameter(Mandatory)]
@@ -57,14 +65,15 @@
 	# Validate provider
 	$providerInfo = Get-SldgProviderInternal -Name $Provider
 
-	Write-PSFMessage -Level Host -Message ($script:strings.'Connect.Connecting' -f $Provider, $Database, $ServerInstance)
+	$displayServer = if ($ServerInstance) { $ServerInstance } else { 'localhost' }
+	Write-PSFMessage -Level Host -Message ($script:strings.'Connect.Connecting' -f $Provider, $Database, $displayServer)
 
 	# Call provider's connect function
 	$params = @{
-		ServerInstance        = $ServerInstance
 		Database              = $Database
 		ConnectionTimeout     = $ConnectionTimeout
 	}
+	if ($ServerInstance) { $params['ServerInstance'] = $ServerInstance }
 	if ($Credential) { $params['Credential'] = $Credential }
 	if ($TrustServerCertificate) { $params['TrustServerCertificate'] = $TrustServerCertificate }
 
@@ -72,14 +81,14 @@
 
 	# Validate connection is alive before storing
 	if ($connectionInfo.Connection -and $connectionInfo.Connection.State -ne 'Open') {
-		Stop-PSFFunction -Message ($script:strings.'Connect.Failed' -f $Provider, $ServerInstance, $Database, 'Connection is not in Open state after connect.') -EnableException $true
+		Stop-PSFFunction -Message ($script:strings.'Connect.Failed' -f $Provider, $displayServer, $Database, 'Connection is not in Open state after connect.') -EnableException $true
 	}
 
 	# Store as active connection
 	$script:SldgState.ActiveConnection = $connectionInfo
 	$script:SldgState.ActiveProvider = $Provider
 
-	Write-PSFMessage -Level Host -Message ($script:strings.'Connect.Success' -f $Provider, $ServerInstance, $Database)
+	Write-PSFMessage -Level Host -Message ($script:strings.'Connect.Success' -f $Provider, $displayServer, $Database)
 
 	$connectionInfo
 }

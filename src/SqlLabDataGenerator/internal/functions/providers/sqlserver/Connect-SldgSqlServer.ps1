@@ -36,6 +36,8 @@
 	}
 
 	$connection = New-Object System.Data.SqlClient.SqlConnection($builder.ConnectionString)
+	# Clear password from builder to minimize exposure window in memory
+	if ($Credential) { $builder['Password'] = '' }
 	try {
 		$connection.Open()
 		Write-PSFMessage -Level Verbose -Message "Connected to SQL Server '$ServerInstance' database '$Database'"

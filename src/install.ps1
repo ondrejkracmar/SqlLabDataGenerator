@@ -11,7 +11,7 @@
 		- Moving that content to a module folder in either program files (default) or the user profile
 	
 	.PARAMETER Branch
-		The branch to install. Installs master by default.
+		The branch to install. Installs main by default.
 		Unknown branches will terminate the script in error.
 	
 	.PARAMETER Scope
@@ -24,7 +24,7 @@
 [CmdletBinding()]
 Param (
 	[string]
-	$Branch = "master",
+	$Branch = "main",
 	
 	[ValidateSet('AllUsers', 'CurrentUser')]
 	[string]

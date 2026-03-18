@@ -39,6 +39,11 @@
 		Stop-PSFFunction -Message "No active database connection. Use Connect-SldgDatabase first." -EnableException $true
 	}
 
+	# Connection staleness check
+	if ($ConnectionInfo.Connection -and $ConnectionInfo.Connection.State -ne 'Open') {
+		Stop-PSFFunction -Message ($script:strings.'Connect.HealthCheckFailed' -f $ConnectionInfo.Provider, $ConnectionInfo.ServerInstance, $ConnectionInfo.Database) -EnableException $true
+	}
+
 	Write-PSFMessage -Level Host -Message ($script:strings.'Validation.Starting' -f $Schema.TableCount)
 
 	$allResults = [System.Collections.Generic.List[object]]::new()

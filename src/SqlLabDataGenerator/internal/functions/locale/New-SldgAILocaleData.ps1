@@ -20,19 +20,13 @@
 
 	# Return cached AI locale if already generated (check TTL)
 	if (-not $Force -and $script:SldgState.AILocaleCache.ContainsKey($Locale)) {
-		$ttlMinutes = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.Cache.TTLMinutes'
-		$tsKey = "AILocaleCache|$Locale"
-		$isExpired = $false
-		if ($ttlMinutes -gt 0 -and $script:SldgState.CacheTimestamps.ContainsKey($tsKey)) {
-			$isExpired = ([datetime]::UtcNow - $script:SldgState.CacheTimestamps[$tsKey]).TotalMinutes -gt $ttlMinutes
-		}
-		if (-not $isExpired) {
+		if (-not (Test-SldgCacheExpired -CacheName 'AILocaleCache' -Key $Locale)) {
 			Write-PSFMessage -Level Verbose -Message ($script:strings.'Locale.AICacheHit' -f $Locale)
 			return $script:SldgState.AILocaleCache[$Locale]
 		}
 		# Expired — remove and regenerate
 		$script:SldgState.AILocaleCache.Remove($Locale)
-		$script:SldgState.CacheTimestamps.Remove($tsKey)
+		$script:SldgState.CacheTimestamps.Remove("AILocaleCache|$Locale")
 	}
 
 	$aiProvider = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.AI.Provider'

@@ -25,6 +25,7 @@
 	'Semantic.AIAnalysis'                    = 'Requesting AI semantic analysis for {0} tables'
 	'Semantic.AINotConfigured'               = 'AI provider not configured, using pattern-based classification only'
 	'Semantic.PIIDetected'                   = 'PII detected in column "{0}.{1}" ({2})'
+	'Semantic.ViewOverride'                  = 'View analysis overrides column "{0}.{1}" to {2} (active function detection)'
 
 	# Generation
 	'Generation.CreatingPlan'                = 'Creating generation plan for {0} tables'
@@ -71,6 +72,11 @@
 	'AI.TestNoResponse'                      = 'AI provider returned no response. Check model name and endpoint.'
 	'AI.TestFailed'                          = 'AI provider {0} test failed: {1}'
 
+	# Structured Data (JSON/XML)
+	'StructuredData.AIGenerating'            = 'AI generating {0} structure for table "{1}" column "{2}"'
+	'StructuredData.AIGenerated'             = 'AI generated {1} {0} templates for {2}.{3}'
+	'StructuredData.AIFailed'                = 'AI {0} generation failed for {1}.{2}: {3}'
+
 	# Locale
 	'Locale.Register'                        = 'Registering locale: {0}'
 	'Locale.Registered'                      = 'Locale "{0}" registered successfully'
@@ -109,4 +115,16 @@
 	# Audit
 	'Audit.Written'                          = 'Audit log entry written to: {0}'
 	'Audit.WriteFailed'                      = 'Failed to write audit log entry: {0}'
+
+	# Scenario
+	'Scenario.AutoDetected'                  = 'Auto-detected scenario template: {0} (matched {1} tables)'
+	'Scenario.NotFound'                      = 'Scenario template "{0}" not found. Available: {1}'
+	'Scenario.Applying'                      = 'Applying scenario template: {0} — {1}'
+	'Scenario.FallbackSynthetic'             = 'No matching scenario template found. Generating with default row counts.'
+
+	# Parallel
+	'Generation.ParallelStarting'            = 'Parallel generation: {0} dependency levels, throttle limit: {1}'
+
+	# Streaming
+	'Generation.StreamingStarting'           = 'Streaming generation for {0}: {1} rows in chunks of {2}'
 }

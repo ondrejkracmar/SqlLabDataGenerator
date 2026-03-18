@@ -33,7 +33,7 @@
 		'^(text|ntext)$' { @{ Type = 'LongString'; Generator = 'Text' } }
 		'^(uniqueidentifier)$' { @{ Type = 'Guid'; Generator = 'Identifier' } }
 		'^(binary|varbinary|image)$' { @{ Type = 'Binary'; Generator = 'Skip' } }
-		'^(xml)$' { @{ Type = 'Xml'; Generator = 'Skip' } }
+		'^(xml)$' { @{ Type = 'Xml'; Generator = 'StructuredData' } }
 		'^(geography|geometry|hierarchyid)$' { @{ Type = 'Spatial'; Generator = 'Skip' } }
 		'^(sql_variant)$' { @{ Type = 'Variant'; Generator = 'Text' } }
 		'^(timestamp|rowversion)$' { @{ Type = 'RowVersion'; Generator = 'Skip' } }

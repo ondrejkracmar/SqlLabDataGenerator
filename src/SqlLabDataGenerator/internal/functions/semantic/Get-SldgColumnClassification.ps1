@@ -72,6 +72,10 @@
 		@{ Pattern = '(user[\s_]?name|login[\s_]?name|username)'; Type = 'Username'; IsPII = $true }
 		@{ Pattern = '(password|passwd|pwd|heslo)'; Type = 'Password'; IsPII = $true }
 
+		# Structured data (JSON / XML)
+		@{ Pattern = '(json|json_data|json_content|jsondata|payload|metadata|properties|attributes|settings|config|configuration|options|preferences|params|parameters)'; Type = 'Json'; IsPII = $false }
+		@{ Pattern = '(xml|xml_data|xml_content|xmldata|soap|message_body|request_body|response_body)'; Type = 'Xml'; IsPII = $false }
+
 		# Descriptive text
 		@{ Pattern = '(description|desc|comment|note|remark|memo|poznamka)'; Type = 'Text'; IsPII = $false }
 		@{ Pattern = '(status|stav)'; Type = 'Status'; IsPII = $false }

@@ -32,8 +32,7 @@
 			$cmd = $conn.CreateCommand()
 			if ($Transaction) { $cmd.Transaction = $Transaction }
 			$cmd.CommandText = "SET IDENTITY_INSERT $qualifiedName ON"
-			[void]$cmd.ExecuteNonQuery()
-			$cmd.Dispose()
+			try { [void]$cmd.ExecuteNonQuery() } finally { $cmd.Dispose() }
 		}
 
 		$bulkCopyOptions = [System.Data.SqlClient.SqlBulkCopyOptions]::Default
@@ -58,14 +57,17 @@
 			$cmd = $conn.CreateCommand()
 			if ($Transaction) { $cmd.Transaction = $Transaction }
 			$cmd.CommandText = "SET IDENTITY_INSERT $qualifiedName OFF"
-			[void]$cmd.ExecuteNonQuery()
-			$cmd.Dispose()
+			try { [void]$cmd.ExecuteNonQuery() } finally { $cmd.Dispose() }
 		}
 
 		Write-PSFMessage -Level Verbose -Message "Inserted $($Data.Rows.Count) rows into $qualifiedName"
 		$Data.Rows.Count
 	}
 	catch {
+		# Ensure bulk copy resources are released on failure
+		if ($bulkCopy) {
+			try { $bulkCopy.Close() } catch { }
+		}
 		if ($IdentityInsert) {
 			try {
 				$cmd = $conn.CreateCommand()

@@ -69,6 +69,13 @@ Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'Generation.Mode' -Value 'Synt
 Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'Generation.MaxUniqueRetries' -Value 10 -Initialize -Validation 'integerpositive' -Description "Maximum retry attempts when generating a unique value before giving up."
 Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'AI.ConfidenceThreshold' -Value 0.6 -Initialize -Validation 'double' -Description "Minimum confidence score for AI semantic classification to be accepted."
 
+# Streaming — chunked generation for tables exceeding the threshold to prevent out-of-memory
+Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'Generation.StreamingThreshold' -Value 100000 -Initialize -Validation 'integer' -Description "Row count threshold above which streaming (chunked) generation is used. Set 0 to disable streaming. Default: 100000."
+Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'Generation.StreamingChunkSize' -Value 10000 -Initialize -Validation 'integerpositive' -Description "Number of rows per chunk in streaming mode. Each chunk is generated, written, and disposed. Default: 10000."
+
+# Parallel — concurrent table generation for independent tables (PS 7+)
+Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'Generation.ThrottleLimit' -Value 4 -Initialize -Validation 'integerpositive' -Description "Maximum number of tables generated concurrently when -Parallel is used. Default: 4."
+
 # Cache management
 Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'Cache.MaxEntries' -Value 500 -Initialize -Validation 'integerpositive' -Description "Maximum number of entries per module cache (AILocaleCache, AIValueCache, etc.). Oldest entries are evicted when exceeded."
 Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'Cache.TTLMinutes' -Value 60 -Initialize -Validation 'integerpositive' -Description "Time-to-live in minutes for cached AI responses. Expired entries are purged on next access."

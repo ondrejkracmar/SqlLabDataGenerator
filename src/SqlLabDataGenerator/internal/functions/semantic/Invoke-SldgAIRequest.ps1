@@ -142,35 +142,46 @@
 
 	# Retry loop with exponential backoff
 	$lastError = $null
-	for ($attempt = 1; $attempt -le ($retryCount + 1); $attempt++) {
-		try {
-			# Record timestamp for rate limiting
-			$script:SldgState.AIRequestTimestamps.Add([datetime]::UtcNow)
+	try {
+		for ($attempt = 1; $attempt -le ($retryCount + 1); $attempt++) {
+			try {
+				# Record timestamp for rate limiting
+				$script:SldgState.AIRequestTimestamps.Add([datetime]::UtcNow)
 
-			$response = Invoke-RestMethod @params
+				$response = Invoke-RestMethod @params
 
-			# Ollama /api/chat returns message directly, OpenAI-compatible returns choices array
-			if ($response.message) {
-				return $response.message.content
+				# Ollama /api/chat returns message directly, OpenAI-compatible returns choices array
+				if ($response.message) {
+					return $response.message.content
+				}
+				elseif ($response.choices) {
+					return $response.choices[0].message.content
+				}
+				else {
+					Write-PSFMessage -Level Warning -Message ($script:strings.'AI.UnexpectedResponse' -f $aiProvider)
+					return $null
+				}
 			}
-			elseif ($response.choices) {
-				return $response.choices[0].message.content
-			}
-			else {
-				Write-PSFMessage -Level Warning -Message ($script:strings.'AI.UnexpectedResponse' -f $aiProvider)
-				return $null
+			catch {
+				$lastError = $_
+				if ($attempt -le $retryCount) {
+					$delay = $retryDelay * [math]::Pow(2, $attempt - 1)
+					Write-PSFMessage -Level Warning -Message ($script:strings.'AI.RetryAttempt' -f $attempt, $retryCount, $delay, $_)
+					Start-Sleep -Seconds $delay
+				}
 			}
 		}
-		catch {
-			$lastError = $_
-			if ($attempt -le $retryCount) {
-				$delay = $retryDelay * [math]::Pow(2, $attempt - 1)
-				Write-PSFMessage -Level Warning -Message ($script:strings.'AI.RetryAttempt' -f $attempt, $retryCount, $delay, $_)
-				Start-Sleep -Seconds $delay
-			}
-		}
+
+		Write-PSFMessage -Level Warning -Message ($script:strings.'AI.RequestFailed' -f $lastError)
+		$null
 	}
-
-	Write-PSFMessage -Level Warning -Message ($script:strings.'AI.RequestFailed' -f $lastError)
-	$null
+	finally {
+		# Zero-fill sensitive API key values from headers to prevent memory exposure
+		foreach ($headerKey in @('Authorization', 'api-key')) {
+			if ($headers.ContainsKey($headerKey) -and $headers[$headerKey]) {
+				$headers[$headerKey] = [string]::new([char]0, $headers[$headerKey].Length)
+			}
+		}
+		$headers.Clear()
+	}
 }

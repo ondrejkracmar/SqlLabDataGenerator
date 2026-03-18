@@ -102,10 +102,27 @@ SELECT
 FROM sys.check_constraints cc
 "@
 
+	# Discover view definitions that reference base tables (helps infer JSON/XML column structure)
+	$viewHints = & $executeQuery -Query @"
+SELECT
+    OBJECT_SCHEMA_NAME(d.referencing_id) AS ViewSchema,
+    OBJECT_NAME(d.referencing_id) AS ViewName,
+    OBJECT_SCHEMA_NAME(d.referenced_id) AS TableSchema,
+    OBJECT_NAME(d.referenced_id) AS TableName,
+    m.definition AS ViewDefinition
+FROM sys.sql_expression_dependencies d
+INNER JOIN sys.sql_modules m ON m.object_id = d.referencing_id
+INNER JOIN sys.views v ON v.object_id = d.referencing_id
+WHERE d.referenced_id IS NOT NULL
+    AND OBJECTPROPERTY(d.referencing_id, 'IsView') = 1
+ORDER BY TableSchema, TableName, ViewSchema, ViewName
+"@
+
 	Write-PSFMessage -Level Verbose -Message "Retrieved: $($tables.Rows.Count) tables, $($columns.Rows.Count) columns, $($foreignKeys.Rows.Count) FK relationships"
 
 	# Build normalized schema model
 	ConvertTo-SldgSchemaModel -Tables $tables -Columns $columns -ForeignKeys $foreignKeys `
 		-UniqueConstraints $uniqueConstraints -CheckConstraints $checkConstraints `
+		-ViewHints $viewHints `
 		-SchemaFilter $SchemaFilter -TableFilter $TableFilter -Database $ConnectionInfo.Database
 }

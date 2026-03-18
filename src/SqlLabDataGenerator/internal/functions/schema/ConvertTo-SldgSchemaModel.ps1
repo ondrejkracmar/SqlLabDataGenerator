@@ -19,6 +19,8 @@
 
 		$CheckConstraints,
 
+		$ViewHints,
+
 		[string[]]$SchemaFilter,
 
 		[string[]]$TableFilter,
@@ -53,6 +55,62 @@
 			$key = "$([string]$ccRow.SchemaName).$([string]$ccRow.TableName).$([string]$ccRow.ColumnName)"
 			if (-not $ccIndex.ContainsKey($key)) { $ccIndex[$key] = [System.Collections.Generic.List[object]]::new() }
 			$ccIndex[$key].Add($ccRow)
+		}
+	}
+	$viewHintIndex = @{}
+	# Pre-analyze view definitions to detect JSON/XML usage per table.column
+	# Maps "schema.table.column" -> @{ ViewDefinitions = [...]; DetectedFormat = 'Json'|'Xml'|$null }
+	$viewColumnHints = @{}
+	if ($ViewHints -and $ViewHints.Rows) {
+		foreach ($vhRow in $ViewHints.Rows) {
+			$tableKey = "$([string]$vhRow.TableSchema).$([string]$vhRow.TableName)"
+			$viewDef = [string]$vhRow.ViewDefinition
+			if (-not $viewDef) { continue }
+
+			# Collect all view definitions per table
+			if (-not $viewHintIndex.ContainsKey($tableKey)) { $viewHintIndex[$tableKey] = [System.Collections.Generic.List[string]]::new() }
+			$viewHintIndex[$tableKey].Add($viewDef)
+
+			# Detect JSON parsing functions: JSON_VALUE(x.col, ...), OPENJSON(x.col), JSON_QUERY(x.col, ...), ISJSON(x.col)
+			$jsonMatches = [regex]::Matches($viewDef, '(?:JSON_VALUE|JSON_QUERY|OPENJSON|ISJSON)\s*\(\s*(?:\w+\.)?\[?(\w+)\]?', 'IgnoreCase')
+			foreach ($m in $jsonMatches) {
+				$detectedCol = $m.Groups[1].Value
+				$hintKey = "$tableKey.$detectedCol"
+				if (-not $viewColumnHints.ContainsKey($hintKey)) {
+					$viewColumnHints[$hintKey] = @{ ViewDefinitions = [System.Collections.Generic.List[string]]::new(); DetectedFormat = 'Json' }
+				}
+				if ($viewColumnHints[$hintKey].DetectedFormat -ne 'Json') { $viewColumnHints[$hintKey].DetectedFormat = 'Json' }
+				if (-not $viewColumnHints[$hintKey].ViewDefinitions.Contains($viewDef)) {
+					$viewColumnHints[$hintKey].ViewDefinitions.Add($viewDef)
+				}
+			}
+
+			# Detect XML parsing: col.value(...), col.query(...), col.nodes(...), col.exist(...)
+			$xmlMatches = [regex]::Matches($viewDef, '(?:\w+\.)?\[?(\w+)\]?\s*\.\s*(?:value|query|nodes|exist|modify)\s*\(', 'IgnoreCase')
+			foreach ($m in $xmlMatches) {
+				$detectedCol = $m.Groups[1].Value
+				$hintKey = "$tableKey.$detectedCol"
+				if (-not $viewColumnHints.ContainsKey($hintKey)) {
+					$viewColumnHints[$hintKey] = @{ ViewDefinitions = [System.Collections.Generic.List[string]]::new(); DetectedFormat = 'Xml' }
+				}
+				if ($viewColumnHints[$hintKey].DetectedFormat -ne 'Xml') { $viewColumnHints[$hintKey].DetectedFormat = 'Xml' }
+				if (-not $viewColumnHints[$hintKey].ViewDefinitions.Contains($viewDef)) {
+					$viewColumnHints[$hintKey].ViewDefinitions.Add($viewDef)
+				}
+			}
+
+			# Detect CAST/CONVERT to xml: CAST(col AS xml), CONVERT(xml, col)
+			$castXmlMatches = [regex]::Matches($viewDef, 'CAST\s*\(\s*(?:\w+\.)?\[?(\w+)\]?\s+AS\s+xml\s*\)', 'IgnoreCase')
+			foreach ($m in $castXmlMatches) {
+				$detectedCol = $m.Groups[1].Value
+				$hintKey = "$tableKey.$detectedCol"
+				if (-not $viewColumnHints.ContainsKey($hintKey)) {
+					$viewColumnHints[$hintKey] = @{ ViewDefinitions = [System.Collections.Generic.List[string]]::new(); DetectedFormat = 'Xml' }
+				}
+				if (-not $viewColumnHints[$hintKey].ViewDefinitions.Contains($viewDef)) {
+					$viewColumnHints[$hintKey].ViewDefinitions.Add($viewDef)
+				}
+			}
 		}
 	}
 
@@ -108,25 +166,50 @@
 				}
 			}
 
+			# Detect structured data columns via view analysis and data type
+			$schemaHint = $null
+			$viewDetectedFormat = $null
+			$colDataType = ([string]$colRow.DATA_TYPE).ToLower()
+			$hintKey = "$tableKey.$colName"
+
+			# 1. Check if any view actively parses this column as JSON/XML
+			if ($viewColumnHints.ContainsKey($hintKey)) {
+				$hint = $viewColumnHints[$hintKey]
+				$viewDetectedFormat = $hint.DetectedFormat
+				$schemaHint = ($hint.ViewDefinitions | Select-Object -First 3) -join "`n---`n"
+			}
+			# 2. For xml-typed or nvarchar(max) columns, also attach any view that mentions the column
+			elseif ($colDataType -eq 'xml' -or ($colDataType -in @('nvarchar', 'varchar', 'ntext', 'text') -and ($colRow.CHARACTER_MAXIMUM_LENGTH -is [DBNull] -or $colRow.CHARACTER_MAXIMUM_LENGTH -eq -1))) {
+				if ($viewHintIndex.ContainsKey($tableKey)) {
+					$escapedCol = [regex]::Escape($colName)
+					$relevantViews = $viewHintIndex[$tableKey] | Where-Object { $_ -match $escapedCol }
+					if ($relevantViews) {
+						$schemaHint = ($relevantViews | Select-Object -First 3) -join "`n---`n"
+					}
+				}
+			}
+
 			$column = [PSCustomObject]@{
-				PSTypeName       = 'SqlLabDataGenerator.ColumnInfo'
-				ColumnName       = $colName
-				DataType         = [string]$colRow.DATA_TYPE
-				MaxLength        = if ($colRow.CHARACTER_MAXIMUM_LENGTH -is [DBNull]) { $null } else { $colRow.CHARACTER_MAXIMUM_LENGTH }
-				NumericPrecision = if ($colRow.NUMERIC_PRECISION -is [DBNull]) { $null } else { $colRow.NUMERIC_PRECISION }
-				NumericScale     = if ($colRow.NUMERIC_SCALE -is [DBNull]) { $null } else { $colRow.NUMERIC_SCALE }
-				IsNullable       = $colRow.IS_NULLABLE -eq 'YES'
-				DefaultValue     = if ($colRow.COLUMN_DEFAULT -is [DBNull]) { $null } else { [string]$colRow.COLUMN_DEFAULT }
-				OrdinalPosition  = [int]$colRow.ORDINAL_POSITION
-				IsIdentity       = [bool]($colRow.IsIdentity -eq 1)
-				IsComputed       = [bool]($colRow.IsComputed -eq 1)
-				IsPrimaryKey     = $isPK
-				IsUnique         = $isUnique
-				ForeignKey       = $fkRef
-				CheckConstraints = $checks
-				SemanticType     = $null
-				Classification   = $null
-				GenerationRule   = $null
+				PSTypeName         = 'SqlLabDataGenerator.ColumnInfo'
+				ColumnName         = $colName
+				DataType           = [string]$colRow.DATA_TYPE
+				MaxLength          = if ($colRow.CHARACTER_MAXIMUM_LENGTH -is [DBNull]) { $null } else { $colRow.CHARACTER_MAXIMUM_LENGTH }
+				NumericPrecision   = if ($colRow.NUMERIC_PRECISION -is [DBNull]) { $null } else { $colRow.NUMERIC_PRECISION }
+				NumericScale       = if ($colRow.NUMERIC_SCALE -is [DBNull]) { $null } else { $colRow.NUMERIC_SCALE }
+				IsNullable         = $colRow.IS_NULLABLE -eq 'YES'
+				DefaultValue       = if ($colRow.COLUMN_DEFAULT -is [DBNull]) { $null } else { [string]$colRow.COLUMN_DEFAULT }
+				OrdinalPosition    = [int]$colRow.ORDINAL_POSITION
+				IsIdentity         = [bool]($colRow.IsIdentity -eq 1)
+				IsComputed         = [bool]($colRow.IsComputed -eq 1)
+				IsPrimaryKey       = $isPK
+				IsUnique           = $isUnique
+				ForeignKey         = $fkRef
+				CheckConstraints   = $checks
+				SchemaHint         = $schemaHint
+				ViewDetectedFormat = $viewDetectedFormat
+				SemanticType       = $null
+				Classification     = $null
+				GenerationRule     = $null
 			}
 			$tableColumns.Add($column)
 		}

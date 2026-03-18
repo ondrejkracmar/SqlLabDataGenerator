@@ -86,6 +86,10 @@
 		'Guid'           = @{ Function = 'New-SldgIdentifier'; Params = @{ Type = 'Guid' } }
 		'Code'           = @{ Function = 'New-SldgIdentifier'; Params = @{ Type = 'Code' } }
 
+		# Structured data (JSON / XML)
+		'Json'           = @{ Function = 'New-SldgStructuredData'; Params = @{ Type = 'Json' } }
+		'Xml'            = @{ Function = 'New-SldgStructuredData'; Params = @{ Type = 'Xml' } }
+
 		# Generic strings
 		'ShortString'    = @{ Function = 'New-SldgText'; Params = @{ Type = 'ShortString'; Locale = $Locale } }
 		'MediumString'   = @{ Function = 'New-SldgText'; Params = @{ Type = 'MediumString'; Locale = $Locale } }

@@ -112,10 +112,20 @@
 
 			# Start with en-US as base, then overlay AI-generated categories
 			$baseLocale = if ($script:SldgState.Locales.ContainsKey('en-US')) {
-				# Deep-clone the base
+				# Deep-clone the base (nested hashtables + arrays of hashtables are reference types)
 				$clone = @{}
 				foreach ($k in $script:SldgState.Locales['en-US'].Keys) {
-					$clone[$k] = $script:SldgState.Locales['en-US'][$k]
+					$v = $script:SldgState.Locales['en-US'][$k]
+					$clone[$k] = if ($v -is [hashtable]) {
+						$innerClone = @{}
+						foreach ($ik in $v.Keys) {
+							$iv = $v[$ik]
+							$innerClone[$ik] = if ($iv -is [hashtable]) { $iv.Clone() } elseif ($iv -is [array]) { @($iv) } else { $iv }
+						}
+						$innerClone
+					} elseif ($v -is [array]) {
+						@($v | ForEach-Object { if ($_ -is [hashtable]) { $_.Clone() } else { $_ } })
+					} else { $v }
 				}
 				$clone
 			}

@@ -72,6 +72,16 @@
 		}
 	}
 
+	# View-based override: if a view actively parses a column as JSON/XML, override the semantic type
+	foreach ($table in $Schema.Tables) {
+		foreach ($col in $table.Columns) {
+			if ($col.ViewDetectedFormat -and $col.SemanticType -notin @('Json', 'Xml')) {
+				$col.SemanticType = $col.ViewDetectedFormat
+				Write-PSFMessage -Level Verbose -Message ($script:strings.'Semantic.ViewOverride' -f $table.FullName, $col.ColumnName, $col.ViewDetectedFormat)
+			}
+		}
+	}
+
 	# Second pass: AI enrichment (if enabled)
 	if ($UseAI) {
 		Write-PSFMessage -Level Host -Message ($script:strings.'Semantic.AIAnalysis' -f $Schema.TableCount)

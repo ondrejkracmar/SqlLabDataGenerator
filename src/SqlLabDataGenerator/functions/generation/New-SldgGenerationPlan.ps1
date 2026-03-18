@@ -33,6 +33,11 @@
 	.PARAMETER IndustryHint
 		Industry context for AI plan suggestions (e.g., 'Healthcare', 'eCommerce').
 
+	.PARAMETER ScenarioName
+		Scenario template name for Scenario mode. Built-in: eCommerce, Healthcare, HR,
+		Finance, Education. Use 'Auto' (default) to let the module detect the best match
+		from table names in the schema.
+
 	.EXAMPLE
 		PS C:\> $plan = New-SldgGenerationPlan -Schema $analyzed -RowCount 200
 
@@ -47,6 +52,11 @@
 		PS C:\> $plan = New-SldgGenerationPlan -Schema $analyzed -UseAI -IndustryHint 'eCommerce'
 
 		AI uses eCommerce domain knowledge for realistic data patterns.
+
+	.EXAMPLE
+		PS C:\> $plan = New-SldgGenerationPlan -Schema $analyzed -Mode Scenario -ScenarioName eCommerce -RowCount 100
+
+		Generates a Scenario plan: lookup tables get ~5 rows, customers 100, orders 300, order items 800.
 	#>
 	[CmdletBinding()]
 	param (
@@ -62,7 +72,9 @@
 
 		[switch]$UseAI,
 
-		[string]$IndustryHint
+		[string]$IndustryHint,
+
+		[string]$ScenarioName = 'Auto'
 	)
 
 	if (-not $RowCount) { $RowCount = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.Generation.DefaultRowCount' }
@@ -79,6 +91,18 @@
 		}
 	}
 
+	# Scenario mode: load template for domain-specific row count ratios and value rules
+	$scenarioTemplate = $null
+	if ($Mode -eq 'Scenario') {
+		$scenarioTemplate = Get-SldgScenarioTemplate -Name $ScenarioName -Schema $Schema
+		if ($scenarioTemplate) {
+			Write-PSFMessage -Level Host -Message ($script:strings.'Scenario.Applying' -f $scenarioTemplate.Name, $scenarioTemplate.Description)
+		}
+		else {
+			Write-PSFMessage -Level Warning -Message ($script:strings.'Scenario.FallbackSynthetic')
+		}
+	}
+
 	# Resolve table insertion order
 	$orderedTables = Resolve-SldgForeignKeyOrder -Tables $Schema.Tables
 
@@ -91,12 +115,24 @@
 	foreach ($table in $orderedTables) {
 		$order++
 
-		# Row count priority: explicit TableRowCounts > AI suggestion > default RowCount
+		# Row count priority: explicit TableRowCounts > AI suggestion > Scenario template > default RowCount
 		$tableRowCount = if ($TableRowCounts -and $TableRowCounts.ContainsKey($table.FullName)) {
 			$TableRowCounts[$table.FullName]
 		}
 		elseif ($aiAdvice -and $aiAdvice.Tables.ContainsKey($table.FullName)) {
 			$aiAdvice.Tables[$table.FullName].RowCount
+		}
+		elseif ($scenarioTemplate) {
+			# Apply scenario row count multiplier based on table role matching
+			$multiplier = 1.0
+			$tableLower = $table.TableName.ToLower()
+			foreach ($pattern in $scenarioTemplate.TableRoles.Keys) {
+				if ($tableLower -match $pattern) {
+					$multiplier = $scenarioTemplate.TableRoles[$pattern].Multiplier
+					break
+				}
+			}
+			[math]::Max(1, [int]($RowCount * $multiplier))
 		}
 		else { $RowCount }
 
@@ -118,6 +154,7 @@
 				IsNullable    = [bool]$col.IsNullable
 				MaxLength     = $col.MaxLength
 				ForeignKey    = $col.ForeignKey
+				SchemaHint    = $col.SchemaHint
 				Skip          = $skip
 				CustomRule    = $col.GenerationRule
 			}
@@ -179,6 +216,33 @@
 					$plan.GenerationRules[$tableName] = @{}
 				}
 				$plan.GenerationRules[$tableName][$columnName] = $genRule
+			}
+		}
+	}
+
+	# Apply Scenario template value rules to matching columns
+	if ($scenarioTemplate -and $scenarioTemplate.ValueRules) {
+		foreach ($tp in $plan.Tables) {
+			foreach ($col in $tp.Columns) {
+				if ($col.Skip -or $col.ForeignKey) { continue }
+
+				# Don't override existing rules
+				if ($plan.GenerationRules.ContainsKey($tp.FullName) -and $plan.GenerationRules[$tp.FullName].ContainsKey($col.ColumnName)) {
+					continue
+				}
+
+				$colLower = $col.ColumnName.ToLower() -replace '[_\s]', ''
+				foreach ($pattern in $scenarioTemplate.ValueRules.Keys) {
+					if ($colLower -match $pattern) {
+						if (-not $plan.GenerationRules.ContainsKey($tp.FullName)) {
+							$plan.GenerationRules[$tp.FullName] = @{}
+						}
+						$plan.GenerationRules[$tp.FullName][$col.ColumnName] = @{
+							ValueList = $scenarioTemplate.ValueRules[$pattern]
+						}
+						break
+					}
+				}
 			}
 		}
 	}

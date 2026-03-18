@@ -39,20 +39,14 @@
 	$cacheKey = "$TableName|$($colSignatures -join '|')|$Locale"
 
 	if (-not $Force -and $script:SldgState.AIValueCache.ContainsKey($cacheKey)) {
-		$ttlMinutes = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.Cache.TTLMinutes'
-		$tsKey = "AIValueCache|$cacheKey"
-		$isExpired = $false
-		if ($ttlMinutes -gt 0 -and $script:SldgState.CacheTimestamps.ContainsKey($tsKey)) {
-			$isExpired = ([datetime]::UtcNow - $script:SldgState.CacheTimestamps[$tsKey]).TotalMinutes -gt $ttlMinutes
-		}
-		if (-not $isExpired) {
+		if (-not (Test-SldgCacheExpired -CacheName 'AIValueCache' -Key $cacheKey)) {
 			$cached = $script:SldgState.AIValueCache[$cacheKey]
 			if ($cached.Count -ge $BatchSize) {
 				return $cached
 			}
 		} else {
 			$script:SldgState.AIValueCache.Remove($cacheKey)
-			$script:SldgState.CacheTimestamps.Remove($tsKey)
+			$script:SldgState.CacheTimestamps.Remove("AIValueCache|$cacheKey")
 		}
 	}
 
@@ -108,7 +102,10 @@ $jsonRow
 "@
 
 	if ($IndustryHint) {
-		$systemPrompt += "`n`nIndustry context: $IndustryHint — use industry-specific terminology and realistic values."
+		# Sanitize: limit length and strip control characters to mitigate prompt injection
+		$sanitizedHint = ($IndustryHint -replace '[\x00-\x1F\x7F]', ' ')
+		if ($sanitizedHint.Length -gt 200) { $sanitizedHint = $sanitizedHint.Substring(0, 200) }
+		$systemPrompt += "`n`nIndustry context: $sanitizedHint — use industry-specific terminology and realistic values."
 	}
 
 	$userMessage = "Generate $BatchSize rows of test data for table $TableName with locale $Locale. Return ONLY the JSON array."

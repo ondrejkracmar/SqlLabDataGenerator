@@ -19,8 +19,11 @@ trigger:
     - "*-*"
 
 variables:
+  # AzArtifactsPSModules: organizationName, artifactRepositoryName, artifactFeedName, FeedUsername, personalAccessToken
   - group: "AzArtifactsPSModules"
+  # BuildEnvironment: sourceDirectory (path to src/ folder, e.g. '$(Build.SourcesDirectory)/src')
   - group: "BuildEnvironment"
+  # GitHubSync: azureDevOpsUsername, azureDevOpsPAT, projectName, gitHubUsername, gitHubPAT
   - group: "GitHubSync"
 
 stages:
@@ -72,6 +75,7 @@ stages:
             displayName: "Publish Test Results **/TEST-*.xml"
             inputs:
               testResultsFormat: NUnit
+              testResultsFiles: '$(sourceDirectory)/TestResults/TEST-*.xml'
             condition: always()
 
           - task: PublishCodeCoverageResults@2

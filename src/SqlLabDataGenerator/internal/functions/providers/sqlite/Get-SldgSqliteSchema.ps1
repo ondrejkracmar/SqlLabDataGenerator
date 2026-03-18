@@ -132,22 +132,25 @@
 			}
 
 			[PSCustomObject]@{
-				PSTypeName      = 'SqlLabDataGenerator.ColumnInfo'
-				ColumnName      = $col.name
-				DataType        = $dataType
-				MaxLength       = $maxLength
-				Precision       = $null
-				Scale           = $null
-				IsNullable      = $col.notnull -eq 0
-				IsPrimaryKey    = $col.pk -gt 0
-				IsIdentity      = $hasAutoIncrement.ContainsKey($col.name)
-				IsComputed      = $false
-				IsUnique        = $col.pk -gt 0 -or $uniqueColumns.ContainsKey($col.name)
-				DefaultValue    = $col.dflt
-				ForeignKey      = $fkInfo
-				SemanticType    = $null
-				Classification  = $null
-				GenerationRule  = $null
+				PSTypeName          = 'SqlLabDataGenerator.ColumnInfo'
+				ColumnName          = $col.name
+				DataType            = $dataType
+				MaxLength           = $maxLength
+				Precision           = $null
+				Scale               = $null
+				IsNullable          = $col.notnull -eq 0
+				IsPrimaryKey        = $col.pk -gt 0
+				IsIdentity          = $hasAutoIncrement.ContainsKey($col.name)
+				IsComputed          = $false
+				IsUnique            = $col.pk -gt 0 -or $uniqueColumns.ContainsKey($col.name)
+				DefaultValue        = $col.dflt
+				ForeignKey          = $fkInfo
+				SemanticType        = $null
+				Classification      = $null
+				GenerationRule      = $null
+				CheckConstraints    = @()
+				SchemaHint          = $null
+				ViewDetectedFormat  = $null
 			}
 		}
 

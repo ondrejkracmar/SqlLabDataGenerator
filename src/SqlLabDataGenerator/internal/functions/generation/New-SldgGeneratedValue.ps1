@@ -103,5 +103,13 @@
 		}
 	}
 
+	# Pass column/table context to structured data generators (JSON/XML)
+	if ($gen.Function -eq 'New-SldgStructuredData') {
+		$params['ColumnName'] = $Column.ColumnName
+		if ($Column.TableName) { $params['TableName'] = $Column.TableName }
+		if ($Column.SchemaHint) { $params['SchemaHint'] = $Column.SchemaHint }
+		if ($Column.MaxLength -and $Column.MaxLength -gt 0) { $params['MaxLength'] = $Column.MaxLength }
+	}
+
 	& $gen.Function @params
 }

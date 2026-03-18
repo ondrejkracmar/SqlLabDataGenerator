@@ -196,4 +196,31 @@ Describe "Invoke-SldgDataGeneration" {
 			}
 		}
 	}
+
+	Context "Parallel Parameter Validation" {
+		It "Has Parallel switch parameter" {
+			$cmd = Get-Command Invoke-SldgDataGeneration
+			$cmd.Parameters['Parallel'].SwitchParameter | Should -BeTrue
+		}
+
+		It "Has ThrottleLimit parameter" {
+			$cmd = Get-Command Invoke-SldgDataGeneration
+			$cmd.Parameters.ContainsKey('ThrottleLimit') | Should -BeTrue
+		}
+
+		It "Succeeds with Parallel flag on empty plan in NoInsert mode" {
+			$emptyPlan = [PSCustomObject]@{
+				Database        = 'TestDB'
+				Mode            = 'Synthetic'
+				Tables          = @()
+				TableCount      = 0
+				GeneratorMap    = @{}
+				GenerationRules = @{}
+			}
+			& $module { $script:SldgState.ActiveConnection = $null }
+			$result = Invoke-SldgDataGeneration -Plan $emptyPlan -NoInsert -Parallel
+			$result | Should -Not -BeNullOrEmpty
+			$result.TotalRows | Should -Be 0
+		}
+	}
 }

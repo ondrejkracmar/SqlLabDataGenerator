@@ -26,17 +26,11 @@
 
 	$cacheKey = "$Language|$Category"
 	if (-not $Force -and $script:SldgState.AILocaleCategoryCache.ContainsKey($cacheKey)) {
-		$ttlMinutes = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.Cache.TTLMinutes'
-		$tsKey = "AILocaleCategoryCache|$cacheKey"
-		$isExpired = $false
-		if ($ttlMinutes -gt 0 -and $script:SldgState.CacheTimestamps.ContainsKey($tsKey)) {
-			$isExpired = ([datetime]::UtcNow - $script:SldgState.CacheTimestamps[$tsKey]).TotalMinutes -gt $ttlMinutes
-		}
-		if (-not $isExpired) {
+		if (-not (Test-SldgCacheExpired -CacheName 'AILocaleCategoryCache' -Key $cacheKey)) {
 			return $script:SldgState.AILocaleCategoryCache[$cacheKey]
 		}
 		$script:SldgState.AILocaleCategoryCache.Remove($cacheKey)
-		$script:SldgState.CacheTimestamps.Remove($tsKey)
+		$script:SldgState.CacheTimestamps.Remove("AILocaleCategoryCache|$cacheKey")
 	}
 
 	$aiProvider = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.AI.Provider'
@@ -138,7 +132,10 @@ $categorySchema
 "@
 
 	if ($CustomInstructions) {
-		$systemPrompt += "`n`nAdditional instructions: $CustomInstructions"
+		# Sanitize: limit length and strip control characters to mitigate prompt injection
+		$sanitized = ($CustomInstructions -replace '[\x00-\x1F\x7F]', ' ')
+		if ($sanitized.Length -gt 500) { $sanitized = $sanitized.Substring(0, 500) }
+		$systemPrompt += "`n`nAdditional instructions: $sanitized"
 	}
 
 	$userMessage = "Generate $Category data for language/culture: $Language. Return ONLY the JSON object."

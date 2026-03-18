@@ -6,9 +6,15 @@ Describe "Connect-SldgDatabase" {
 	}
 
 	Context "Parameter Validation" {
-		It "Has mandatory ServerInstance parameter" {
+		It "Has mandatory ServerInstance parameter in Server set" {
 			$cmd = Get-Command Connect-SldgDatabase
-			$cmd.Parameters['ServerInstance'].Attributes.Where({ $_ -is [System.Management.Automation.ParameterAttribute] }).Mandatory | Should -BeTrue
+			$serverAttr = $cmd.Parameters['ServerInstance'].Attributes.Where({ $_ -is [System.Management.Automation.ParameterAttribute] -and $_.ParameterSetName -eq 'Server' })
+			$serverAttr.Mandatory | Should -BeTrue
+		}
+
+		It "Does not require ServerInstance in default parameter set for file providers" {
+			$cmd = Get-Command Connect-SldgDatabase
+			$cmd.Parameters['ServerInstance'].ParameterSets.Keys | Should -Contain 'Server'
 		}
 
 		It "Has mandatory Database parameter" {
