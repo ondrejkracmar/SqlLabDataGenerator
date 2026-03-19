@@ -93,7 +93,30 @@ Describe "Invoke-SldgStreamingGeneration" {
 		}
 
 		It "Returns GeneratedValues for FK tracking" {
-			$tableInfo = & $script:buildTableInfo
+			# Use a table with a non-identity unique column so values are tracked
+			$tableInfo = [PSCustomObject]@{
+				SchemaName  = 'dbo'
+				TableName   = 'TestTable'
+				FullName    = 'dbo.TestTable'
+				Columns     = @(
+					[PSCustomObject]@{
+						ColumnName     = 'Code'
+						DataType       = 'nvarchar'
+						SemanticType   = 'Guid'
+						IsIdentity     = $false
+						IsComputed     = $false
+						IsPrimaryKey   = $true
+						IsUnique       = $true
+						IsNullable     = $false
+						MaxLength      = 50
+						ForeignKey     = $null
+						SchemaHint     = $null
+						Classification = [PSCustomObject]@{ SemanticType = 'Guid'; IsPII = $false }
+						GenerationRule = $null
+					}
+				)
+				ForeignKeys = @()
+			}
 			$genMap = & $module { Get-SldgGeneratorMap -Locale 'en-US' }
 
 			$result = & $module {

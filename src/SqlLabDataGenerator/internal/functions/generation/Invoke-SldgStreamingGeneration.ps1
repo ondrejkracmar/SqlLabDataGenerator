@@ -43,7 +43,8 @@
 	$chunkCount = [math]::Ceiling($TotalRowCount / $ChunkSize)
 	$insertedTotal = 0
 	$allGeneratedValues = @{}
-	$allDataTables = if ($PassThru) { [System.Collections.Generic.List[System.Data.DataTable]]::new() } else { $null }
+	$allDataTables = $null
+	if ($PassThru) { $allDataTables = [System.Collections.Generic.List[System.Data.DataTable]]::new() }
 
 	# Build shared uniqueness tracker so chunks don't collide
 	$sharedTracker = @{}
