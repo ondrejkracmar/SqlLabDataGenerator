@@ -111,7 +111,7 @@
 	# Clear plaintext API key from variable — already embedded in headers
 	if ($apiKey) {
 		$apiKey = [string]::new([char]0, $apiKey.Length)
-		Remove-Variable apiKey -ErrorAction SilentlyContinue
+		$apiKey = $null
 	}
 
 	$params = @{

@@ -139,7 +139,7 @@ Describe "New-SldgGeneratedValue" {
 				MaxLength     = $null
 			}
 			$result = & $module { param($c, $m) New-SldgGeneratedValue -Column $c -GeneratorMap $m } $col $generatorMap
-			$result | Should -BeOfType [int] -Or $result | Should -BeOfType [long]
+			($result -is [int] -or $result -is [long]) | Should -BeTrue
 		}
 	}
 

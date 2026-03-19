@@ -28,6 +28,8 @@
 		PS C:\> Register-SldgTransformer -Name 'CsvUsers' `
 		>>     -Description 'Exports users as CSV-ready objects' `
 		>>     -TransformFunction 'ConvertTo-CsvUser'
+
+		Registers a transformer that converts generated data to CSV-ready user objects.
 	#>
 	[CmdletBinding()]
 	param (

@@ -35,6 +35,8 @@
 		>>     -WriteDataFunction 'Write-PostgreSqlData' `
 		>>     -ReadDataFunction 'Read-PostgreSqlData' `
 		>>     -DisconnectFunction 'Disconnect-PostgreSql'
+
+		Registers a PostgreSQL provider with all required interface functions.
 	#>
 	[CmdletBinding()]
 	param (

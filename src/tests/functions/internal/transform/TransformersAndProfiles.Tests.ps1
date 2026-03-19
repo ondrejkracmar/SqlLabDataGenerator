@@ -50,39 +50,39 @@ Describe "Transformer Tests" {
 		}
 
 		It "Transforms data to EntraIdUser objects" {
-			$result = & $module { param($d) ConvertTo-SldgEntraIdUser -Data $d } -ArgumentList $script:testData
+			$result = & $module { param($d) ConvertTo-SldgEntraIdUser -Data $d } $script:testData
 			$result | Should -Not -BeNullOrEmpty
 			@($result).Count | Should -Be 2
 		}
 
 		It "Sets correct displayName" {
-			$result = & $module { param($d) ConvertTo-SldgEntraIdUser -Data $d } -ArgumentList $script:testData
+			$result = & $module { param($d) ConvertTo-SldgEntraIdUser -Data $d } $script:testData
 			$result[0].displayName | Should -Be 'John Doe'
 		}
 
 		It "Generates userPrincipalName with domain" {
-			$result = & $module { param($d) ConvertTo-SldgEntraIdUser -Data $d -Domain 'test.onmicrosoft.com' } -ArgumentList $script:testData
+			$result = & $module { param($d) ConvertTo-SldgEntraIdUser -Data $d -Domain 'test.onmicrosoft.com' } $script:testData
 			$result[0].userPrincipalName | Should -Match '@test\.onmicrosoft\.com$'
 		}
 
 		It "Sets accountEnabled to true" {
-			$result = & $module { param($d) ConvertTo-SldgEntraIdUser -Data $d } -ArgumentList $script:testData
+			$result = & $module { param($d) ConvertTo-SldgEntraIdUser -Data $d } $script:testData
 			$result[0].accountEnabled | Should -BeTrue
 		}
 
 		It "Includes passwordProfile with forceChange" {
-			$result = & $module { param($d) ConvertTo-SldgEntraIdUser -Data $d } -ArgumentList $script:testData
+			$result = & $module { param($d) ConvertTo-SldgEntraIdUser -Data $d } $script:testData
 			$result[0].passwordProfile.forceChangePasswordNextSignIn | Should -BeTrue
 		}
 
 		It "Auto-detects column mappings for English column names" {
-			$result = & $module { param($d) ConvertTo-SldgEntraIdUser -Data $d } -ArgumentList $script:testData
+			$result = & $module { param($d) ConvertTo-SldgEntraIdUser -Data $d } $script:testData
 			$result[0].givenName | Should -Be 'John'
 			$result[0].surname | Should -Be 'Doe'
 		}
 
 		It "Supports custom domain parameter" {
-			$result = & $module { param($d) ConvertTo-SldgEntraIdUser -Data $d -Domain 'custom.com' } -ArgumentList $script:testData
+			$result = & $module { param($d) ConvertTo-SldgEntraIdUser -Data $d -Domain 'custom.com' } $script:testData
 			$result[0].userPrincipalName | Should -Match '@custom\.com$'
 		}
 	}
@@ -105,31 +105,31 @@ Describe "Transformer Tests" {
 		}
 
 		It "Transforms data to EntraIdGroup objects" {
-			$result = & $module { param($d) ConvertTo-SldgEntraIdGroup -Data $d } -ArgumentList $script:groupData
+			$result = & $module { param($d) ConvertTo-SldgEntraIdGroup -Data $d } $script:groupData
 			$result | Should -Not -BeNullOrEmpty
 			@($result).Count | Should -Be 2
 		}
 
 		It "Sets correct displayName" {
-			$result = & $module { param($d) ConvertTo-SldgEntraIdGroup -Data $d } -ArgumentList $script:groupData
+			$result = & $module { param($d) ConvertTo-SldgEntraIdGroup -Data $d } $script:groupData
 			$result[0].displayName | Should -Be 'Engineering'
 		}
 
 		It "Defaults to Security group type" {
-			$result = & $module { param($d) ConvertTo-SldgEntraIdGroup -Data $d } -ArgumentList $script:groupData
+			$result = & $module { param($d) ConvertTo-SldgEntraIdGroup -Data $d } $script:groupData
 			$result[0].securityEnabled | Should -BeTrue
 			$result[0].mailEnabled | Should -BeFalse
 		}
 
 		It "Supports Microsoft365 group type" {
-			$result = & $module { param($d) ConvertTo-SldgEntraIdGroup -Data $d -GroupType 'Microsoft365' } -ArgumentList $script:groupData
+			$result = & $module { param($d) ConvertTo-SldgEntraIdGroup -Data $d -GroupType 'Microsoft365' } $script:groupData
 			$result[0].mailEnabled | Should -BeTrue
 			$result[0].securityEnabled | Should -BeTrue
 			$result[0].groupTypes | Should -Contain 'Unified'
 		}
 
 		It "Generates valid mailNickname" {
-			$result = & $module { param($d) ConvertTo-SldgEntraIdGroup -Data $d } -ArgumentList $script:groupData
+			$result = & $module { param($d) ConvertTo-SldgEntraIdGroup -Data $d } $script:groupData
 			$result[0].mailNickname | Should -Not -BeNullOrEmpty
 			$result[0].mailNickname | Should -Match '^[a-z0-9]+$'
 		}
@@ -295,8 +295,8 @@ Describe "Profile Import/Export Tests" {
 						FullName    = 'dbo.Customer'
 						RowCount    = 100
 						Columns     = @(
-							[PSCustomObject]@{ ColumnName = 'Status'; DataType = 'nvarchar'; SemanticType = 'Status' }
-							[PSCustomObject]@{ ColumnName = 'Currency'; DataType = 'nvarchar'; SemanticType = 'Currency' }
+					[PSCustomObject]@{ ColumnName = 'Status'; DataType = 'nvarchar'; SemanticType = 'Status'; CustomRule = $null }
+					[PSCustomObject]@{ ColumnName = 'Currency'; DataType = 'nvarchar'; SemanticType = 'Currency'; CustomRule = $null }
 						)
 						ForeignKeys = @()
 						ColumnCount = 2

@@ -12,7 +12,6 @@
 		$SchemaModel
 	)
 
-	$provider = Get-SldgProviderInternal -Name $ConnectionInfo.Provider
 	$results = [System.Collections.Generic.List[object]]::new()
 
 	foreach ($table in $SchemaModel.Tables) {

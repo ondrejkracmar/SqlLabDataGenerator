@@ -24,6 +24,19 @@
 	.PARAMETER PassThru
 		Returns the generated data as part of the result object.
 
+	.PARAMETER UseTransaction
+		Wraps all inserts in a single database transaction. If any table fails,
+		all previously inserted data is rolled back.
+
+	.PARAMETER Parallel
+		Generates independent tables in parallel (PowerShell 7+ only).
+
+	.PARAMETER ThrottleLimit
+		Maximum number of tables to generate in parallel when using -Parallel.
+
+	.PARAMETER Confirm
+		Prompts for confirmation before inserting data into each table.
+
 	.EXAMPLE
 		PS C:\> $result = Invoke-SldgDataGeneration -Plan $plan
 
@@ -89,7 +102,11 @@
 	$totalInserted = 0
 	$transaction = $null
 	$generationStartTime = Get-Date
-	$executingUser = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+	$executingUser = if ($IsLinux -or $IsMacOS) {
+		[System.Environment]::UserName
+	} else {
+		[System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+	}
 
 	Write-PSFMessage -Level Verbose -Message "Generation audit: user=$executingUser, database=$($Plan.Database), tables=$($Plan.TableCount), mode=$($Plan.Mode)"
 
@@ -157,7 +174,7 @@
 	}
 
 	# ── Parallel generation path (PS 7+, Synthetic/Scenario only) ──
-	if ($useParallel) {
+	if ($useParallel -and $Plan.Tables.Count -gt 0) {
 		$parallelResult = Invoke-SldgParallelTableGeneration -Plan $Plan -FkValues $fkValues `
 			-ConnectionInfo $ConnectionInfo -Provider $provider -Transaction $transaction `
 			-BatchSize $batchSize -ThrottleLimit $ThrottleLimit `

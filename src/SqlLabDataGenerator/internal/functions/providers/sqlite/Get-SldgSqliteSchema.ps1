@@ -3,6 +3,7 @@
 	.SYNOPSIS
 		Reads the schema from a SQLite database.
 	#>
+	[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', 'SchemaFilter', Justification = 'Provider interface parameter')]
 	[CmdletBinding()]
 	param (
 		[Parameter(Mandatory)]

@@ -1,4 +1,4 @@
-function Get-SldgScenarioTemplate {
+﻿function Get-SldgScenarioTemplate {
 	<#
 	.SYNOPSIS
 		Returns a built-in or auto-detected scenario template for domain-specific data generation.

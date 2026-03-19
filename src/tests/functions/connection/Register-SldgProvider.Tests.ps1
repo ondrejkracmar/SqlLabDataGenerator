@@ -3,11 +3,25 @@ Describe "Register-SldgProvider" {
 		Remove-Module SqlLabDataGenerator -ErrorAction Ignore
 		Import-Module "$PSScriptRoot\..\..\..\SqlLabDataGenerator\SqlLabDataGenerator.psd1" -Force
 		$module = Get-Module SqlLabDataGenerator
+
+		# Define stub functions with correct parameter signatures for provider registration
+		function global:Connect-Test { param($ServerInstance, $Database) }
+		function global:Get-TestSchema { param($ConnectionInfo) }
+		function global:Write-TestData { param($ConnectionInfo, $SchemaName, $TableName, $Data) }
+		function global:Read-TestData { param($ConnectionInfo, $SchemaName, $TableName) }
+		function global:Disconnect-Test { param($ConnectionInfo) }
+		function global:Connect-TestV2 { param($ServerInstance, $Database) }
+		function global:Get-TestSchemaV2 { param($ConnectionInfo) }
+		function global:Write-TestDataV2 { param($ConnectionInfo, $SchemaName, $TableName, $Data) }
+		function global:Read-TestDataV2 { param($ConnectionInfo, $SchemaName, $TableName) }
+		function global:Disconnect-TestV2 { param($ConnectionInfo) }
 	}
 
 	AfterAll {
 		# Clean up any test providers
 		& $module { $script:SldgState.Providers.Remove('TestProvider') }
+		# Clean up stub functions
+		@('Connect-Test','Get-TestSchema','Write-TestData','Read-TestData','Disconnect-Test','Connect-TestV2','Get-TestSchemaV2','Write-TestDataV2','Read-TestDataV2','Disconnect-TestV2') | ForEach-Object { Remove-Item "function:global:$_" -ErrorAction Ignore }
 	}
 
 	Context "Parameter Validation" {

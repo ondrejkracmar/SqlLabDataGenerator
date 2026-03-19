@@ -6,6 +6,7 @@
 		Maps columns from generated DataTable rows to Entra ID user properties.
 		Outputs objects compatible with Microsoft Graph API user creation payload.
 	#>
+	[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingPlainTextForPassword', 'DefaultPassword', Justification = 'Used for test data generation, not real credentials')]
 	[CmdletBinding()]
 	param (
 		[Parameter(Mandatory)]

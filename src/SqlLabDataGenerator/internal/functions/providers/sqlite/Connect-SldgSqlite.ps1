@@ -3,6 +3,7 @@
 	.SYNOPSIS
 		Opens a connection to a SQLite database file.
 	#>
+	[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', 'ConnectionTimeout', Justification = 'Provider interface parameter')]
 	[CmdletBinding()]
 	param (
 		[Parameter(Mandatory)]
@@ -24,7 +25,7 @@
 				break
 			}
 		}
-		catch { }
+		catch { $null = $_ }
 	}
 
 	if (-not $assemblyLoaded) {
@@ -52,7 +53,7 @@
 			$connectionString = $builder.ToString()
 		}
 	}
-	catch { }
+	catch { $null = $_ }
 
 	if (-not $connectionString) {
 		# Fallback: sanitize path to prevent connection-string parameter injection

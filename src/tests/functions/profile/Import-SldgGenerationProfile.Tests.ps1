@@ -29,6 +29,8 @@ Describe "Import-SldgGenerationProfile" {
 			$script:testPlan = [PSCustomObject]@{
 				Database        = 'ImportTestDB'
 				Mode            = 'Synthetic'
+				TableCount      = 1
+				TotalRows       = 10
 				GenerationRules = @{}
 				Tables          = @(
 					[PSCustomObject]@{
@@ -91,6 +93,8 @@ Describe "Import-SldgGenerationProfile" {
 			$script:genPlan = [PSCustomObject]@{
 				Database        = 'GenTestDB'
 				Mode            = 'Synthetic'
+				TableCount      = 1
+				TotalRows       = 10
 				GenerationRules = @{}
 				Tables          = @(
 					[PSCustomObject]@{

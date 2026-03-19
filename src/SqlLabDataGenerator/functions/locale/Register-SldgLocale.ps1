@@ -74,6 +74,7 @@
 
 		Manually registers a Slovak locale data pack.
 	#>
+	[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', 'UseAI', Justification = 'Switch drives parameter set selection')]
 	[CmdletBinding(DefaultParameterSetName = 'Manual')]
 	param (
 		[Parameter(Mandatory)]

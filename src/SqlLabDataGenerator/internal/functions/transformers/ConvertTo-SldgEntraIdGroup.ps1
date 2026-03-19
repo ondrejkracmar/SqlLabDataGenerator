@@ -6,6 +6,7 @@
 		Maps columns from generated DataTable rows to Entra ID group properties.
 		Outputs objects compatible with Microsoft Graph API group creation payload.
 	#>
+	[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', 'MailDomain', Justification = 'Reserved for future mail address generation')]
 	[CmdletBinding()]
 	param (
 		[Parameter(Mandatory)]

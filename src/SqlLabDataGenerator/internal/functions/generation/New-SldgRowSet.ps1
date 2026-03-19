@@ -101,7 +101,6 @@
 	}
 
 	# Determine which columns are FK-bound (AI shouldn't generate these)
-	$fkColumns = @($activeColumns | Where-Object { $_.ForeignKey -and $ForeignKeyValues })
 	$nonFkColumns = @($activeColumns | Where-Object { -not $_.ForeignKey -or -not $ForeignKeyValues })
 
 	# Try AI batch generation for non-FK columns
@@ -170,7 +169,8 @@
 					$row[$col.ColumnName] = [guid]$value
 				}
 				else {
-					$row[$col.ColumnName] = $value
+					# Unwrap PSObject to raw .NET type for DataTable compatibility
+					$row[$col.ColumnName] = $value.psobject.BaseObject
 				}
 			}
 

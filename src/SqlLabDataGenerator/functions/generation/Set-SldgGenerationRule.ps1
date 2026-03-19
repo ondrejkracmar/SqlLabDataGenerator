@@ -37,11 +37,17 @@
 	.EXAMPLE
 		PS C:\> Set-SldgGenerationRule -Plan $plan -TableName 'dbo.Customer' -ColumnName 'Status' -ValueList @('Active', 'Inactive', 'Pending')
 
+		Sets the Status column to randomly pick from a predefined list.
+
 	.EXAMPLE
 		PS C:\> Set-SldgGenerationRule -Plan $plan -TableName 'dbo.Order' -ColumnName 'Currency' -StaticValue 'USD'
 
+		Sets the Currency column to always use 'USD'.
+
 	.EXAMPLE
 		PS C:\> Set-SldgGenerationRule -Plan $plan -TableName 'dbo.Product' -ColumnName 'SKU' -ScriptBlock { "SKU-$(Get-Random -Minimum 10000 -Maximum 99999)" }
+
+		Sets the SKU column to use a custom scriptblock for value generation.
 	#>
 	[CmdletBinding()]
 	param (

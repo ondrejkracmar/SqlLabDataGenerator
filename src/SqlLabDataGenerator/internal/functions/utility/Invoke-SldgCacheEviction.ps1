@@ -1,4 +1,4 @@
-function Invoke-SldgCacheEviction {
+﻿function Invoke-SldgCacheEviction {
 	<#
 	.SYNOPSIS
 		Evicts expired or overflow entries from module caches.

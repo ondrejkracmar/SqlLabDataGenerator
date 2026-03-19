@@ -10,7 +10,7 @@ Describe "ConvertTo-SldgSchemaModel" {
 			$dt = [System.Data.DataTable]::new()
 			foreach ($name in $ColumnNames) { $null = $dt.Columns.Add($name) }
 			foreach ($row in $Rows) { $null = $dt.Rows.Add($row) }
-			$dt
+			, $dt
 		}
 	}
 

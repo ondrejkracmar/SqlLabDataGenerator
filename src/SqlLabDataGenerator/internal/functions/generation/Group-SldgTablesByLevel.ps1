@@ -1,4 +1,4 @@
-function Group-SldgTablesByLevel {
+﻿function Group-SldgTablesByLevel {
 	<#
 	.SYNOPSIS
 		Groups topologically-ordered tables into dependency levels for parallel processing.

@@ -3,6 +3,7 @@
 	.SYNOPSIS
 		Maps a SQL data type to a semantic type and generator for fallback classification.
 	#>
+	[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', 'IsNullable', Justification = 'Reserved for future mapping refinement')]
 	[CmdletBinding()]
 	param (
 		[Parameter(Mandatory)]
@@ -21,13 +22,13 @@
 		'^(datetime|datetime2|smalldatetime|datetimeoffset)$' { @{ Type = 'DateTime'; Generator = 'Date' } }
 		'^(time)$' { @{ Type = 'Time'; Generator = 'Date' } }
 		'^(char|nchar)$' {
-			if ($MaxLength -and $MaxLength -le 10) { @{ Type = 'Code'; Generator = 'Identifier' } }
+			if ($MaxLength -and $MaxLength -gt 0 -and $MaxLength -le 10) { @{ Type = 'Code'; Generator = 'Identifier' } }
 			else { @{ Type = 'FixedString'; Generator = 'Text' } }
 		}
 		'^(varchar|nvarchar)$' {
-			if ($MaxLength -and $MaxLength -le 20) { @{ Type = 'ShortString'; Generator = 'Identifier' } }
-			elseif ($MaxLength -and $MaxLength -le 100) { @{ Type = 'MediumString'; Generator = 'Text' } }
-			elseif ($MaxLength -and $MaxLength -le 500) { @{ Type = 'LongString'; Generator = 'Text' } }
+			if ($MaxLength -and $MaxLength -gt 0 -and $MaxLength -le 20) { @{ Type = 'ShortString'; Generator = 'Identifier' } }
+			elseif ($MaxLength -and $MaxLength -gt 0 -and $MaxLength -le 100) { @{ Type = 'MediumString'; Generator = 'Text' } }
+			elseif ($MaxLength -and $MaxLength -gt 0 -and $MaxLength -le 500) { @{ Type = 'LongString'; Generator = 'Text' } }
 			else { @{ Type = 'LongString'; Generator = 'Text' } }
 		}
 		'^(text|ntext)$' { @{ Type = 'LongString'; Generator = 'Text' } }

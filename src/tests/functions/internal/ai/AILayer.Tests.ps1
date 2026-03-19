@@ -40,6 +40,10 @@ Describe "AI Layer Tests" {
 	}
 
 	Context "Invoke-SldgAIRequest - Retry and Rate Limiting Config" {
+		BeforeAll {
+			& $module { Set-PSFConfig -FullName 'SqlLabDataGenerator.AI.RetryDelaySeconds' -Value 2 }
+		}
+
 		It "Has retry configuration defaults" {
 			$retryCount = & $module { Get-PSFConfigValue -FullName 'SqlLabDataGenerator.AI.RetryCount' }
 			$retryCount | Should -Be 3
@@ -60,9 +64,10 @@ Describe "AI Layer Tests" {
 			& $module {
 				$script:SldgState.AIRequestTimestamps = [System.Collections.Generic.List[datetime]]::new()
 			}
-			$timestamps = & $module { $script:SldgState.AIRequestTimestamps }
-			$timestamps | Should -Not -BeNullOrEmpty
-			$timestamps.Count | Should -Be 0
+			$type = & $module { $script:SldgState.AIRequestTimestamps.GetType().Name }
+			$type | Should -Be 'List`1'
+			$count = & $module { $script:SldgState.AIRequestTimestamps.Count }
+			$count | Should -Be 0
 		}
 	}
 
@@ -75,7 +80,7 @@ Describe "AI Layer Tests" {
 			$cols = @(
 				[PSCustomObject]@{ ColumnName = 'FirstName'; DataType = 'nvarchar'; SemanticType = 'FirstName'; MaxLength = 50; IsNullable = $false }
 			)
-			$result = & $module { param($c) New-SldgAIGeneratedBatch -Columns $c -TableName 'dbo.Test' -BatchSize 5 } -ArgumentList (, $cols)
+			$result = & $module { param($c) New-SldgAIGeneratedBatch -Columns $c -TableName 'dbo.Test' -BatchSize 5 } (,$cols)
 			$result | Should -BeNullOrEmpty
 		}
 	}
@@ -91,7 +96,7 @@ Describe "AI Layer Tests" {
 				Tables     = @()
 				TableCount = 0
 			}
-			$result = & $module { param($s) Get-SldgAIColumnAnalysis -SchemaModel $s } -ArgumentList $schemaModel
+			$result = & $module { param($s) Get-SldgAIColumnAnalysis -SchemaModel $s } $schemaModel
 			$result | Should -BeNullOrEmpty
 		}
 	}
@@ -107,7 +112,7 @@ Describe "AI Layer Tests" {
 				Tables     = @()
 				TableCount = 0
 			}
-			$result = & $module { param($s) Get-SldgAIPlanAdvice -SchemaModel $s -BaseRowCount 100 } -ArgumentList $schemaModel
+			$result = & $module { param($s) Get-SldgAIPlanAdvice -SchemaModel $s -BaseRowCount 100 } $schemaModel
 			$result | Should -BeNullOrEmpty
 		}
 	}
@@ -122,9 +127,9 @@ Describe "AI Layer Tests" {
 				@{ FirstName = 'Alice' },
 				@{ FirstName = 'Eve' }
 			)
-			& $module { param($k, $d) $script:SldgState.AIValueCache[$k] = $d } -ArgumentList $cacheKey, $cachedData
+			& $module { param($k, $d) $script:SldgState.AIValueCache[$k] = $d } $cacheKey (,$cachedData)
 
-			$cached = & $module { param($k) $script:SldgState.AIValueCache[$k] } -ArgumentList $cacheKey
+			$cached = & $module { param($k) $script:SldgState.AIValueCache[$k] } $cacheKey
 			$cached | Should -Not -BeNullOrEmpty
 			$cached.Count | Should -Be 5
 		}

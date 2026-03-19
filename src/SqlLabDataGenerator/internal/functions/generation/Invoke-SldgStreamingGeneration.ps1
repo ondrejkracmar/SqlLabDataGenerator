@@ -1,4 +1,4 @@
-function Invoke-SldgStreamingGeneration {
+﻿function Invoke-SldgStreamingGeneration {
 	<#
 	.SYNOPSIS
 		Generates and writes data in chunks to prevent out-of-memory for large tables.

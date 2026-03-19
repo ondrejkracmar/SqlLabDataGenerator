@@ -47,7 +47,7 @@
 
 		# Financial
 		@{ Pattern = '(iban)'; Type = 'IBAN'; IsPII = $true }
-		@{ Pattern = '(credit[\s_]?card|card[\s_]?number|pan)'; Type = 'CreditCard'; IsPII = $true }
+		@{ Pattern = '(credit[\s_]?card|card[\s_]?number|\bpan\b)'; Type = 'CreditCard'; IsPII = $true }
 		@{ Pattern = '(bank[\s_]?account|account[\s_]?number|cislo[\s_]?uctu)'; Type = 'BankAccount'; IsPII = $true }
 		@{ Pattern = '(amount|total|subtotal|balance|debit|credit)(?![\s_]?(date|at|on))'; Type = 'Money'; IsPII = $false }
 		@{ Pattern = '(price|cost|fee|rate(?![\s_]?date)|salary|wage|revenue)'; Type = 'Money'; IsPII = $false }

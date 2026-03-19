@@ -76,7 +76,7 @@ Describe "Set-SldgAIProvider" {
 
 		It "Stores Temperature value" {
 			Set-SldgAIProvider -Provider Ollama -Temperature 0.7
-			$temp = & $module { Get-PSFConfigValue -FullName 'SqlLabDataGenerator.AI.Temperature' }
+			$temp = & $module { Get-PSFConfigValue -FullName 'SqlLabDataGenerator.AI.Ollama.Temperature' }
 			$temp | Should -Be 0.7
 		}
 	}
@@ -93,13 +93,13 @@ Describe "Set-SldgAIProvider" {
 		It "Clears AI caches when provider changes" {
 			& $module {
 				$script:SldgState.AIValueCache['test'] = 'value'
-				$script:SldgState.Caches.SemanticTypeCache['test'] = 'value'
+				$script:SldgState.AILocaleCache['test'] = @{}
 			}
 			Set-SldgAIProvider -Provider Ollama
 			$valueCache = & $module { $script:SldgState.AIValueCache.Count }
-			$semanticCache = & $module { $script:SldgState.Caches.SemanticTypeCache.Count }
+			$localeCache = & $module { $script:SldgState.AILocaleCache.Count }
 			$valueCache | Should -Be 0
-			$semanticCache | Should -Be 0
+			$localeCache | Should -Be 0
 		}
 	}
 

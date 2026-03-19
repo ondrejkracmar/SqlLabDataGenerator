@@ -1,4 +1,4 @@
-function New-SldgAIStructuredValue {
+﻿function New-SldgAIStructuredValue {
 	<#
 	.SYNOPSIS
 		Uses AI to generate a single structured data value.

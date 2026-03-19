@@ -7,6 +7,7 @@
 		to achieve high throughput. Handles 100K+ rows efficiently by avoiding
 		per-row command creation overhead.
 	#>
+	[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', 'SchemaName', Justification = 'Provider interface parameter')]
 	[CmdletBinding()]
 	param (
 		[Parameter(Mandatory)]

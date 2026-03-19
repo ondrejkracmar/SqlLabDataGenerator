@@ -46,15 +46,15 @@
 
 	Write-PSFMessage -Level Host -Message ($script:strings.'Profile.Importing' -f $Path)
 
-	$profile = Get-Content -Path $Path -Raw | ConvertFrom-Json
+	$profileData = Get-Content -Path $Path -Raw | ConvertFrom-Json
 
 	$ruleCount = 0
 	$columnOverrides = 0
 
-	if ($profile.tables) {
-		$tableNames = $profile.tables.PSObject.Properties.Name
+	if ($profileData.tables) {
+		$tableNames = $profileData.tables.PSObject.Properties.Name
 		foreach ($tableName in $tableNames) {
-			$tableProfile = $profile.tables.$tableName
+			$tableProfile = $profileData.tables.$tableName
 
 			# Override row count
 			if ($tableProfile.rowCount) {

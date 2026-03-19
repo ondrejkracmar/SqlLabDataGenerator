@@ -1,4 +1,4 @@
-function Get-SldgSafeSqlName {
+﻿function Get-SldgSafeSqlName {
 	<#
 	.SYNOPSIS
 		Returns a bracket-escaped SQL identifier.

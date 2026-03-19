@@ -3,6 +3,7 @@
 	.SYNOPSIS
 		Validates data type constraints (nullability, ranges) on generated data.
 	#>
+	[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', '', Justification = 'Name describes multiple constraints being tested')]
 	[CmdletBinding()]
 	param (
 		[Parameter(Mandatory)]

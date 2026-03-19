@@ -17,9 +17,11 @@ Describe "Get-SldgTransformer" {
 		}
 
 		It "Name parameter defaults to wildcard" {
+			# Get-Command doesn't reliably expose parameter defaults, so parse the source AST
 			$cmd = Get-Command Get-SldgTransformer
-			$default = $cmd.Parameters['Name'].DefaultValue
-			$default | Should -Be '*'
+			$ast = (Get-Command Get-SldgTransformer).ScriptBlock.Ast
+			$nameParam = $ast.Body.ParamBlock.Parameters | Where-Object { $_.Name.VariablePath.UserPath -eq 'Name' }
+			$nameParam.DefaultValue.Value | Should -Be '*'
 		}
 	}
 

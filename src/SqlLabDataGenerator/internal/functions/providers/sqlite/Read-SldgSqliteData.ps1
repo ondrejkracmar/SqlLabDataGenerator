@@ -3,6 +3,7 @@
 	.SYNOPSIS
 		Reads existing data from a SQLite table (for masking mode).
 	#>
+	[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', 'SchemaName', Justification = 'Provider interface parameter')]
 	[CmdletBinding()]
 	param (
 		[Parameter(Mandatory)]

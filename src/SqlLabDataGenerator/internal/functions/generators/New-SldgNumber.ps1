@@ -3,6 +3,7 @@
 	.SYNOPSIS
 		Generates numbers based on semantic type and SQL data type constraints.
 	#>
+	[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', 'Precision', Justification = 'Used to define decimal range')]
 	[CmdletBinding()]
 	param (
 		[ValidateSet('Integer', 'Decimal', 'Money', 'Quantity', 'Percentage', 'Age', 'Boolean')]

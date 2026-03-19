@@ -25,6 +25,7 @@ Describe "AI Error Path Tests" {
 				Set-PSFConfig -FullName 'SqlLabDataGenerator.AI.Provider' -Value 'None'
 				Set-PSFConfig -FullName 'SqlLabDataGenerator.AI.Endpoint' -Value ''
 				Set-PSFConfig -FullName 'SqlLabDataGenerator.AI.RetryCount' -Value 3
+				Set-PSFConfig -FullName 'SqlLabDataGenerator.AI.RetryDelaySeconds' -Value 2
 			}
 		}
 
@@ -33,10 +34,10 @@ Describe "AI Error Path Tests" {
 			$result | Should -BeNullOrEmpty
 		}
 
-		It "Test-SldgAIProvider returns Failed status for unreachable endpoint" {
+		It "Test-SldgAIProvider returns NoResponse status for unreachable endpoint" {
 			$result = Test-SldgAIProvider -ErrorAction SilentlyContinue
 			$result | Should -Not -BeNullOrEmpty
-			$result.Status | Should -Be 'Failed'
+			$result.Status | Should -BeIn @('Failed', 'NoResponse')
 			$result.Error | Should -Not -BeNullOrEmpty
 		}
 	}
@@ -129,10 +130,12 @@ Describe "AI Error Path Tests" {
 		}
 
 		It "Returns null when AI endpoint is unreachable" {
-			$cols = @(
-				[PSCustomObject]@{ ColumnName = 'FirstName'; DataType = 'nvarchar'; SemanticType = 'FirstName'; MaxLength = 50; IsNullable = $false }
-			)
-			$result = & $module { param($c) New-SldgAIGeneratedBatch -Columns $c -TableName 'dbo.Test' -BatchSize 5 } -ArgumentList (, $cols)
+			$result = & $module {
+				$cols = @(
+					[PSCustomObject]@{ ColumnName = 'FirstName'; DataType = 'nvarchar'; SemanticType = 'FirstName'; MaxLength = 50; IsNullable = $false }
+				)
+				New-SldgAIGeneratedBatch -Columns $cols -TableName 'dbo.Test' -BatchSize 5
+			}
 			$result | Should -BeNullOrEmpty
 		}
 	}

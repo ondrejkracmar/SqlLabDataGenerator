@@ -45,6 +45,9 @@
 	.PARAMETER Locale
 		Set the default locale for data generation (e.g., 'cs-CZ', 'de-DE').
 
+	.PARAMETER Credential
+		PSCredential object whose password is used as the API key. Alternative to -ApiKey.
+
 	.EXAMPLE
 		PS C:\> Set-SldgAIProvider -Provider Ollama -Model 'llama3'
 

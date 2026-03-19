@@ -1,4 +1,4 @@
-function Invoke-SldgParallelTableGeneration {
+﻿function Invoke-SldgParallelTableGeneration {
 	<#
 	.SYNOPSIS
 		Generates data for tables using parallel execution across dependency levels.

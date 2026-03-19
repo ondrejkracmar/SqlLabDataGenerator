@@ -19,7 +19,7 @@ Describe "SQL Server Integration Tests" {
 				$sqlAvailable = $true
 			}
 			catch {
-				Write-Host "SQL Server not available at $testInstance: $_" -ForegroundColor Yellow
+				Write-Host "SQL Server not available at ${testInstance}: $_" -ForegroundColor Yellow
 			}
 		}
 		else {

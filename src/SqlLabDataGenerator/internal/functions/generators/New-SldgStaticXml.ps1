@@ -1,4 +1,4 @@
-function New-SldgStaticXml {
+﻿function New-SldgStaticXml {
 	<#
 	.SYNOPSIS
 		Generates a static XML fallback based on column/table name heuristics.

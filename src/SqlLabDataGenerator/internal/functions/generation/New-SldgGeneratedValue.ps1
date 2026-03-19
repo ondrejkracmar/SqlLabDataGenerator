@@ -89,7 +89,7 @@
 	$params = @{} + $gen.Params
 
 	# Apply MaxLength constraint for text generators
-	if ($Column.MaxLength -and $Column.MaxLength -gt 0 -and $params.ContainsKey('Type') -and $gen.Function -match 'Text|Email|Identifier|Company|PersonName') {
+	if ($Column.MaxLength -and $Column.MaxLength -gt 0 -and $params.ContainsKey('Type') -and $gen.Function -eq 'New-SldgText') {
 		$params['MaxLength'] = $Column.MaxLength
 	}
 

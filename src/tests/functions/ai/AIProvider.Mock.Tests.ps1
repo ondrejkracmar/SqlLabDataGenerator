@@ -53,11 +53,28 @@ Describe "AI Provider Mock Tests" {
 
 	Context "AI semantic classification mock" {
 		It "Pattern-based classification works without AI" {
-			$analysis = Get-SldgColumnAnalysis -Columns @(
-				[PSCustomObject]@{ ColumnName = 'EmailAddress'; DataType = 'nvarchar'; MaxLength = 256 }
-				[PSCustomObject]@{ ColumnName = 'PhoneNumber'; DataType = 'nvarchar'; MaxLength = 20 }
-				[PSCustomObject]@{ ColumnName = 'FirstName'; DataType = 'nvarchar'; MaxLength = 100 }
-			) -TableName 'TestTable' -ErrorAction SilentlyContinue
+			$testSchema = [PSCustomObject]@{
+				PSTypeName   = 'SqlLabDataGenerator.SchemaModel'
+				Database     = 'TestDB'
+				TableCount   = 1
+				DiscoveredAt = Get-Date
+				Tables       = @(
+					[PSCustomObject]@{
+						PSTypeName  = 'SqlLabDataGenerator.TableInfo'
+						SchemaName  = 'dbo'
+						TableName   = 'TestTable'
+						FullName    = 'dbo.TestTable'
+						ColumnCount = 3
+						ForeignKeys = @()
+						Columns     = @(
+							[PSCustomObject]@{ ColumnName = 'EmailAddress'; DataType = 'nvarchar'; MaxLength = 256; IsNullable = $false; IsIdentity = $false; IsComputed = $false; IsPrimaryKey = $false; IsUnique = $false; ForeignKey = $null; SemanticType = $null; Classification = $null }
+							[PSCustomObject]@{ ColumnName = 'PhoneNumber'; DataType = 'nvarchar'; MaxLength = 20; IsNullable = $false; IsIdentity = $false; IsComputed = $false; IsPrimaryKey = $false; IsUnique = $false; ForeignKey = $null; SemanticType = $null; Classification = $null }
+							[PSCustomObject]@{ ColumnName = 'FirstName'; DataType = 'nvarchar'; MaxLength = 100; IsNullable = $false; IsIdentity = $false; IsComputed = $false; IsPrimaryKey = $false; IsUnique = $false; ForeignKey = $null; SemanticType = $null; Classification = $null }
+						)
+					}
+				)
+			}
+			$analysis = Get-SldgColumnAnalysis -Schema $testSchema -ErrorAction SilentlyContinue
 
 			# Even without AI, pattern matching should classify known column names
 			if ($analysis) {

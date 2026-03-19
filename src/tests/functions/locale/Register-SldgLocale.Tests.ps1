@@ -43,8 +43,9 @@ Describe "Register-SldgLocale" {
 		}
 
 		It "PoolSize defaults to 30" {
-			$cmd = Get-Command Register-SldgLocale
-			$cmd.Parameters['PoolSize'].DefaultValue | Should -Be 30
+			$funcDef = (Get-Command Register-SldgLocale).ScriptBlock.Ast
+			$poolSizeParam = $funcDef.FindAll({ $args[0] -is [System.Management.Automation.Language.ParameterAst] -and $args[0].Name.VariablePath.UserPath -eq 'PoolSize' }, $true)
+			$poolSizeParam.DefaultValue.SafeGetValue() | Should -Be 30
 		}
 
 		It "Has CustomInstructions string parameter" {

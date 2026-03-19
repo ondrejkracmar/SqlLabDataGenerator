@@ -66,7 +66,7 @@
 	catch {
 		# Ensure bulk copy resources are released on failure
 		if ($bulkCopy) {
-			try { $bulkCopy.Close() } catch { }
+			try { $bulkCopy.Close() } catch { $null = $_ }
 		}
 		if ($IdentityInsert) {
 			try {
@@ -76,7 +76,7 @@
 				[void]$cmd.ExecuteNonQuery()
 				$cmd.Dispose()
 			}
-			catch { }
+			catch { $null = $_ }
 		}
 		Stop-PSFFunction -Message ($script:strings.'Generation.Failed' -f $SchemaName, $TableName, $_) -EnableException $true -ErrorRecord $_
 	}

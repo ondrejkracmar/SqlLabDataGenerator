@@ -1,4 +1,4 @@
-function New-SldgStaticJson {
+﻿function New-SldgStaticJson {
 	<#
 	.SYNOPSIS
 		Generates a static JSON fallback based on column/table name heuristics.

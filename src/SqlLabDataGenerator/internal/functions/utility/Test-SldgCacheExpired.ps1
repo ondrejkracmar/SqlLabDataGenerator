@@ -1,4 +1,4 @@
-function Test-SldgCacheExpired {
+﻿function Test-SldgCacheExpired {
 	<#
 	.SYNOPSIS
 		Checks whether a cache entry has exceeded the configured TTL.

@@ -1,4 +1,4 @@
-function New-SldgStructuredData {
+﻿function New-SldgStructuredData {
 	<#
 	.SYNOPSIS
 		Generates JSON or XML structured data for columns.
