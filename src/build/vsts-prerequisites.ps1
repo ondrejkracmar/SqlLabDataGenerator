@@ -19,7 +19,7 @@ foreach ($dependency in $data.RequiredModules) {
 }
 
 foreach ($module in $modules) {
-    Write-PSFMessage -Level Important -Message "Installing $module"
+    Write-Host "Installing $module"
     Install-Module $module -Force -SkipPublisherCheck -Repository $Repository
     Import-Module $module -Force -PassThru
 }
