@@ -54,7 +54,7 @@ $feedUrl = "https://pkgs.dev.azure.com/$OrganizationName/$ArtifactRepositoryName
 
 # Add authenticated source for the push
 $sourceName = "AzArtifactsPush"
-dotnet nuget remove source $sourceName 2>$null
+$null = dotnet nuget remove source $sourceName 2>&1
 dotnet nuget add source $feedUrl --name $sourceName --username $FeedUsername --password $PersonalAccessToken --store-password-in-clear-text
 
 Write-Host "Publishing $NupkgPath to $ArtifactRepositoryName ($feedUrl)"
