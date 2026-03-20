@@ -103,7 +103,7 @@ stages:
             inputs:
               targetType: inline
               script: |
-                # nupkg is created in sourceDirectory by New-PSMDModuleNugetPackage -PackagePath .
+                # nupkg is created in sourceDirectory by New-PSMDModuleNugetPackage -PackagePath $WorkingDirectory
                 $nupkg = Get-ChildItem -Path '$(sourceDirectory)' -Filter '*.nupkg' -ErrorAction SilentlyContinue | Select-Object -First 1
                 if (-not $nupkg) {
                     Write-Error "No NuGet package found in $(sourceDirectory)"
@@ -111,7 +111,8 @@ stages:
                 }
                 # Copy to staging directory for the publish task
                 Copy-Item -Path $nupkg.FullName -Destination '$(Build.ArtifactStagingDirectory)' -Force
-                $manifest = Import-PowerShellDataFile -Path '$(sourceDirectory)/SqlLabDataGenerator/SqlLabDataGenerator.psd1'
+                # Check the published (version-stamped) manifest, not the source copy
+                $manifest = Import-PowerShellDataFile -Path '$(sourceDirectory)/publish/SqlLabDataGenerator/SqlLabDataGenerator.psd1'
                 if (-not $manifest.ModuleVersion -or $manifest.ModuleVersion -eq '0.0.0') {
                     Write-Error "Module version not properly stamped: $($manifest.ModuleVersion)"
                     exit 1
