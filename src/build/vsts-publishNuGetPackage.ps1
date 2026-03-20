@@ -13,6 +13,9 @@ param (
 	[string]$OrganizationName,
 
 	[Parameter(Mandatory)]
+	[string]$ProjectName,
+
+	[Parameter(Mandatory)]
 	[string]$ArtifactRepositoryName,
 
 	[Parameter(Mandatory)]
@@ -41,7 +44,7 @@ if (-not $NupkgPath) {
 	if ($artifactDir -and (Test-Path $artifactDir)) { $searchPaths = @($artifactDir) + $searchPaths }
 
 	foreach ($searchPath in $searchPaths) {
-		$found = Get-ChildItem -Path $searchPath -Filter '*.nupkg' -ErrorAction SilentlyContinue | Select-Object -First 1
+		$found = Get-ChildItem -Path $searchPath -Filter 'SqlLabDataGenerator*.nupkg' -ErrorAction SilentlyContinue | Select-Object -First 1
 		if ($found) { $NupkgPath = $found.FullName; break }
 	}
 }
@@ -50,7 +53,7 @@ if (-not $NupkgPath -or -not (Test-Path $NupkgPath)) {
 	throw "No .nupkg file found. Searched: $($searchPaths -join ', '). Run vsts-build.ps1 first."
 }
 
-$feedUrl = "https://pkgs.dev.azure.com/$OrganizationName/_packaging/$ArtifactFeedName/nuget/v3/index.json"
+$feedUrl = "https://pkgs.dev.azure.com/$OrganizationName/$ProjectName/_packaging/$ArtifactFeedName/nuget/v3/index.json"
 
 Write-Host "Publishing $NupkgPath to $ArtifactRepositoryName ($feedUrl)"
 

@@ -104,7 +104,7 @@ stages:
               targetType: inline
               script: |
                 # nupkg is created in sourceDirectory by New-PSMDModuleNugetPackage -PackagePath $WorkingDirectory
-                $nupkg = Get-ChildItem -Path '$(sourceDirectory)' -Filter '*.nupkg' -ErrorAction SilentlyContinue | Select-Object -First 1
+                $nupkg = Get-ChildItem -Path '$(sourceDirectory)' -Filter 'SqlLabDataGenerator*.nupkg' -ErrorAction SilentlyContinue | Select-Object -First 1
                 if (-not $nupkg) {
                     Write-Error "No NuGet package found in $(sourceDirectory)"
                     exit 1
@@ -166,6 +166,7 @@ stages:
                     filePath: "$(sourceDirectory)/build/vsts-publishNuGetPackage.ps1"
                     arguments: >
                        -OrganizationName '$(organizationName)'
+                       -ProjectName '$(projectName)'
                        -ArtifactRepositoryName '$(artifactRepositoryName)'
                        -ArtifactFeedName '$(artifactFeedName)'
                        -FeedUsername '$(FeedUsername)'
