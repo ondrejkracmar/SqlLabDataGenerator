@@ -21,7 +21,15 @@ param (
 	$AutoVersion,
 
 	[switch]
-	$Build
+	$Build,
+
+	[string]$ModuleName = 'SqlLabDataGenerator',
+
+	[string]$ModuleVersion,
+
+	[string]$PreRelease,
+
+	[string]$CommitsSinceVersion
 )
 
 #region Handle Working Directory Defaults
@@ -94,7 +102,14 @@ $fileData = $fileData.Replace('"<compile code into here>"', ($text -join "`n`n")
 #endregion Update the psm1 file
 
 #region Updating the Module Version
-if ($AutoVersion)
+if ($ModuleVersion)
+{
+	Write-PSFMessage -Level Important -Message "Stamping module version: $ModuleVersion"
+	$updateParams = @{ Path = "$($publishDir.FullName)\SqlLabDataGenerator\SqlLabDataGenerator.psd1"; ModuleVersion = $ModuleVersion }
+	if ($PreRelease) { $updateParams['Prerelease'] = $PreRelease }
+	Update-ModuleManifest @updateParams
+}
+elseif ($AutoVersion)
 {
 	Write-PSFMessage -Level Important -Message "Updating module version numbers."
 	try { [version]$remoteVersion = (Find-Module 'SqlLabDataGenerator' -Repository $Repository -ErrorAction Stop).Version }
@@ -118,9 +133,9 @@ if ($LocalRepo)
 {
 	# Dependencies must go first
 	Write-PSFMessage -Level Important -Message "Creating Nuget Package for module: PSFramework"
-	New-PSMDModuleNugetPackage -ModulePath (Get-Module -Name PSFramework).ModuleBase -PackagePath .
+	New-PSMDModuleNugetPackage -ModulePath (Get-Module -Name PSFramework).ModuleBase -PackagePath $WorkingDirectory
 	Write-PSFMessage -Level Important -Message "Creating Nuget Package for module: SqlLabDataGenerator"
-	New-PSMDModuleNugetPackage -ModulePath "$($publishDir.FullName)\SqlLabDataGenerator" -PackagePath .
+	New-PSMDModuleNugetPackage -ModulePath "$($publishDir.FullName)\SqlLabDataGenerator" -PackagePath $WorkingDirectory
 }
 else
 {
