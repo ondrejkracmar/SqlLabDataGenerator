@@ -2,8 +2,9 @@
 	.SYNOPSIS
 		Publishes the SqlLabDataGenerator NuGet package to Azure Artifacts.
 	.DESCRIPTION
-		Registers an Azure Artifacts PowerShell repository and pushes
-		the module NuGet package built by vsts-build.ps1.
+		Pushes a pre-built .nupkg file to an Azure Artifacts NuGet feed.
+		The nupkg is expected to already exist (built by vsts-build.ps1
+		and downloaded as a pipeline artifact).
 #>
 param (
 	[string]$WorkingDirectory,
@@ -23,15 +24,7 @@ param (
 	[Parameter(Mandatory)]
 	[string]$PersonalAccessToken,
 
-	[Parameter(Mandatory)]
-	[string]$ModuleName,
-
-	[Parameter(Mandatory)]
-	[string]$ModuleVersion,
-
-	[string]$PreRelease,
-
-	[string]$CommitsSinceVersion
+	[string]$NupkgPath
 )
 
 if (-not $WorkingDirectory) {
@@ -39,49 +32,32 @@ if (-not $WorkingDirectory) {
 	else { $WorkingDirectory = Split-Path $PSScriptRoot }
 }
 
-$feedUrl = "https://pkgs.dev.azure.com/$OrganizationName/_packaging/$ArtifactFeedName/nuget/v2"
+# Locate the nupkg — either passed explicitly or search common locations
+if (-not $NupkgPath) {
+	# Pipeline artifact download location
+	$artifactDir = if ($env:PIPELINE_WORKSPACE) { Join-Path $env:PIPELINE_WORKSPACE 'NuGetPackage' } else { $null }
 
-# Register the feed as a PS repository
-$repoParams = @{
-	Name               = $ArtifactRepositoryName
-	SourceLocation     = $feedUrl
-	PublishLocation    = $feedUrl
-	InstallationPolicy = 'Trusted'
+	$searchPaths = @($WorkingDirectory)
+	if ($artifactDir -and (Test-Path $artifactDir)) { $searchPaths = @($artifactDir) + $searchPaths }
+
+	foreach ($searchPath in $searchPaths) {
+		$found = Get-ChildItem -Path $searchPath -Filter '*.nupkg' -ErrorAction SilentlyContinue | Select-Object -First 1
+		if ($found) { $NupkgPath = $found.FullName; break }
+	}
 }
 
-$existingRepo = Get-PSRepository -Name $ArtifactRepositoryName -ErrorAction SilentlyContinue
-if ($existingRepo) {
-	Set-PSRepository @repoParams
-}
-else {
-	Register-PSRepository @repoParams
+if (-not $NupkgPath -or -not (Test-Path $NupkgPath)) {
+	throw "No .nupkg file found. Searched: $($searchPaths -join ', '). Run vsts-build.ps1 first."
 }
 
-# Create credential for the feed
-$password = ConvertTo-SecureString -String $PersonalAccessToken -AsPlainText -Force
-$credential = [PSCredential]::new($FeedUsername, $password)
+$feedUrl = "https://pkgs.dev.azure.com/$OrganizationName/_packaging/$ArtifactFeedName/nuget/v3/index.json"
 
-# Locate the built module
-$publishDir = Join-Path $WorkingDirectory 'publish'
-$modulePath = Join-Path $publishDir $ModuleName
+Write-Host "Publishing $NupkgPath to $ArtifactRepositoryName ($feedUrl)"
 
-if (-not (Test-Path $modulePath)) {
-	throw "Module not found at $modulePath. Run vsts-build.ps1 first."
+dotnet nuget push $NupkgPath --source $feedUrl --api-key "az" --skip-duplicate
+
+if ($LASTEXITCODE -ne 0) {
+	throw "Failed to push NuGet package. Exit code: $LASTEXITCODE"
 }
 
-# Update manifest version to match pipeline version
-$manifestPath = Join-Path $modulePath "$ModuleName.psd1"
-$versionString = $ModuleVersion
-if ($PreRelease -and $PreRelease -ne '') {
-	$preReleaseTag = "$PreRelease$CommitsSinceVersion"
-	Update-ModuleManifest -Path $manifestPath -ModuleVersion $ModuleVersion -Prerelease $preReleaseTag
-}
-else {
-	Update-ModuleManifest -Path $manifestPath -ModuleVersion $ModuleVersion
-}
-
-Write-PSFMessage -Level Important -Message "Publishing $ModuleName v$versionString to $ArtifactRepositoryName"
-
-Publish-Module -Path $modulePath -Repository $ArtifactRepositoryName -NuGetApiKey $PersonalAccessToken -Credential $credential -Force
-
-Write-PSFMessage -Level Important -Message "Successfully published $ModuleName v$versionString"
+Write-Host "Successfully published $(Split-Path $NupkgPath -Leaf)"

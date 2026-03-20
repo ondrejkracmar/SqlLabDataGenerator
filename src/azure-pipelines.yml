@@ -156,23 +156,8 @@ stages:
                 - download: current
                   artifact: NuGetPackage
 
-                - task: PowerShell@2
-                  displayName: Calculate Module Version (GitVersion)
-                  inputs:
-                    targetType: inline
-                    script: |
-                      dotnet tool install --global GitVersion.Tool --version 6.3.0
-                           $gitVersionObject = dotnet-gitversion /config $(sourceDirectory)/GitVersion.yml | ConvertFrom-Json
-                           $gitVersionObject.PSObject.Properties.ForEach{
-                               Write-Host -Object "Setting Task Variable '$($_.Name)' with value '$($_.Value)'."
-                               Write-Host -Object "##vso[task.setvariable variable=$($_.Name)]$($_.Value)"
-                           }
-
-                - task: PowerShell@2
-                  displayName: Install Prerequisites
-                  inputs:
-                    targetType: filePath
-                    filePath: "$(sourceDirectory)/build/vsts-prerequisites.ps1"
+                - task: NuGetAuthenticate@1
+                  displayName: Authenticate to Azure Artifacts
 
                 - task: PowerShell@2
                   displayName: Publish Nuget Package To Repository
@@ -180,16 +165,11 @@ stages:
                     targetType: filePath
                     filePath: "$(sourceDirectory)/build/vsts-publishNuGetPackage.ps1"
                     arguments: >
-                       -WorkingDirectory '$(sourceDirectory)'
                        -OrganizationName '$(organizationName)'
                        -ArtifactRepositoryName '$(artifactRepositoryName)'
                        -ArtifactFeedName '$(artifactFeedName)'
                        -FeedUsername '$(FeedUsername)'
                        -PersonalAccessToken '$(personalAccessToken)'
-                       -ModuleName "SqlLabDataGenerator"
-                       -ModuleVersion '$(MajorMinorPatch)'
-                       -PreRelease '$(PreReleaseLabel)'
-                       -CommitsSinceVersion '$(CommitsSinceVersionSource)'
 
                 - task: PowerShell@2
                   displayName: 'Synchronize Azure DevOps Repository With GitHub'
