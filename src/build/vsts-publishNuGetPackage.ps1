@@ -13,9 +13,6 @@ param (
 	[string]$OrganizationName,
 
 	[Parameter(Mandatory)]
-	[string]$ProjectName,
-
-	[Parameter(Mandatory)]
 	[string]$ArtifactRepositoryName,
 
 	[Parameter(Mandatory)]
@@ -53,7 +50,7 @@ if (-not $NupkgPath -or -not (Test-Path $NupkgPath)) {
 	throw "No .nupkg file found. Searched: $($searchPaths -join ', '). Run vsts-build.ps1 first."
 }
 
-$feedUrl = "https://pkgs.dev.azure.com/$OrganizationName/$ProjectName/_packaging/$ArtifactFeedName/nuget/v3/index.json"
+$feedUrl = "https://pkgs.dev.azure.com/$OrganizationName/$ArtifactRepositoryName/_packaging/$ArtifactFeedName/nuget/v3/index.json"
 
 Write-Host "Publishing $NupkgPath to $ArtifactRepositoryName ($feedUrl)"
 
