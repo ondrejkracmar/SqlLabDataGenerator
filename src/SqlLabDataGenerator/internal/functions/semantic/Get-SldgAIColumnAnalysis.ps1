@@ -1,4 +1,4 @@
-function Get-SldgAIColumnAnalysis {
+﻿function Get-SldgAIColumnAnalysis {
 	<#
 	.SYNOPSIS
 		Uses an AI provider for deep semantic analysis of database columns.

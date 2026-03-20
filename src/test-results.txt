@@ -1,8 +1,0 @@
-[[37m15:10:14[96m][[37mpester.ps1[96m] Starting Tests
-[[37m15:10:14[96m][[37mpester.ps1[96m] Importing Module
-[[37m15:10:16[96m][[37mpester.ps1[96m] Creating test result folder
-[[37m15:10:16[96m][[37mpester.ps1[96m] Modules imported, proceeding with general tests
-[[37m15:10:16[96m][[37mpester.ps1[96m]   Executing [92mFileIntegrity.Tests.ps1[96m
-[[37m15:10:32[96m][[37mpester.ps1[96m]   Executing [92mHelp.Tests.ps1[96m
-[[37m15:10:35[96m][[37mpester.ps1[96m]   Executing [92mManifest.Tests.ps1[96m
-[[37m15:10:36[96m][[37mpester.ps1[96m]   Executing [92mPSScriptAnalyzer.Tests.ps1[96m

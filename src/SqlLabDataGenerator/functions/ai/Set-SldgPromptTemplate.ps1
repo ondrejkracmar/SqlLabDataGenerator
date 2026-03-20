@@ -1,4 +1,4 @@
-function Set-SldgPromptTemplate {
+﻿function Set-SldgPromptTemplate {
 	<#
 	.SYNOPSIS
 		Creates or updates a custom prompt template override.
@@ -40,6 +40,10 @@ function Set-SldgPromptTemplate {
 	.PARAMETER Force
 		Overwrite an existing custom prompt without confirmation.
 
+	.PARAMETER Confirm
+		If this switch is enabled, you will be prompted for confirmation before executing any operations that change state.
+	.PARAMETER WhatIf
+		If this switch is enabled, no actions are performed but informational messages will be displayed that explain what would happen if the command were to run.
 	.EXAMPLE
 		PS C:\> Set-SldgPromptTemplate -Purpose 'structured-value' -Variant 'default' -Content $myPrompt -Description 'Custom JSON/XML generator for reports'
 

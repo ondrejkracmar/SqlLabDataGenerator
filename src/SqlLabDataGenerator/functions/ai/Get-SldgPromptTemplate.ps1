@@ -1,4 +1,4 @@
-function Get-SldgPromptTemplate {
+﻿function Get-SldgPromptTemplate {
 	<#
 	.SYNOPSIS
 		Lists or reads AI prompt templates available to the module.
@@ -16,11 +16,17 @@ function Get-SldgPromptTemplate {
 		Show a specific variant. Defaults to the effective variant for the active provider.
 	.PARAMETER IncludeContent
 		Include the rendered template content in the output.
+	.PARAMETER Confirm
+		If this switch is enabled, you will be prompted for confirmation before executing any operations that change state.
+	.PARAMETER WhatIf
+		If this switch is enabled, no actions are performed but informational messages will be displayed that explain what would happen if the command were to run.
 	.EXAMPLE
-		Get-SldgPromptTemplate
+		PS C:\> Get-SldgPromptTemplate
+
 		Lists all available prompt templates.
 	.EXAMPLE
-		Get-SldgPromptTemplate -Purpose column-analysis -IncludeContent
+		PS C:\> Get-SldgPromptTemplate -Purpose column-analysis -IncludeContent
+
 		Shows the resolved column-analysis template with its content.
 	#>
 	[CmdletBinding()]
@@ -32,7 +38,7 @@ function Get-SldgPromptTemplate {
 		[switch]$IncludeContent
 	)
 
-	$builtInPath = Join-Path $script:ModuleRoot 'internal' 'prompts'
+	$builtInPath = Join-Path -Path (Join-Path -Path $script:ModuleRoot -ChildPath 'internal') -ChildPath 'prompts'
 	$customPath = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.AI.PromptPath'
 
 	# Collect all .prompt files

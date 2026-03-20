@@ -1,4 +1,4 @@
-function Remove-SldgPromptTemplate {
+﻿function Remove-SldgPromptTemplate {
 	<#
 	.SYNOPSIS
 		Removes a custom prompt template override.
@@ -22,6 +22,10 @@ function Remove-SldgPromptTemplate {
 	.PARAMETER Variant
 		The variant to remove. Defaults to 'default'.
 
+	.PARAMETER Confirm
+		If this switch is enabled, you will be prompted for confirmation before executing any operations that change state.
+	.PARAMETER WhatIf
+		If this switch is enabled, no actions are performed but informational messages will be displayed that explain what would happen if the command were to run.
 	.EXAMPLE
 		PS C:\> Remove-SldgPromptTemplate -Purpose 'structured-value'
 

@@ -1,4 +1,4 @@
-function Resolve-SldgPromptTemplate {
+﻿function Resolve-SldgPromptTemplate {
 	<#
 	.SYNOPSIS
 		Resolves and renders a prompt template file with variable substitution.
@@ -43,7 +43,7 @@ function Resolve-SldgPromptTemplate {
 		}
 	}
 
-	$builtInPath = Join-Path $script:ModuleRoot 'internal' 'prompts'
+	$builtInPath = Join-Path -Path (Join-Path -Path $script:ModuleRoot -ChildPath 'internal') -ChildPath 'prompts'
 	$customPath = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.AI.PromptPath'
 
 	# Build search candidates in priority order
