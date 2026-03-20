@@ -52,9 +52,14 @@ if (-not $NupkgPath -or -not (Test-Path $NupkgPath)) {
 
 $feedUrl = "https://pkgs.dev.azure.com/$OrganizationName/$ArtifactRepositoryName/_packaging/$ArtifactFeedName/nuget/v3/index.json"
 
+# Add authenticated source for the push
+$sourceName = "AzArtifactsPush"
+dotnet nuget remove source $sourceName 2>$null
+dotnet nuget add source $feedUrl --name $sourceName --username $FeedUsername --password $PersonalAccessToken --store-password-in-clear-text
+
 Write-Host "Publishing $NupkgPath to $ArtifactRepositoryName ($feedUrl)"
 
-dotnet nuget push $NupkgPath --source $feedUrl --api-key "az" --skip-duplicate
+dotnet nuget push $NupkgPath --source $sourceName --api-key "az" --skip-duplicate
 
 if ($LASTEXITCODE -ne 0) {
 	throw "Failed to push NuGet package. Exit code: $LASTEXITCODE"
