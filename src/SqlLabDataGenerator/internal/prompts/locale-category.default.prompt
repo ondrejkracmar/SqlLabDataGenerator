@@ -1,0 +1,12 @@
+---
+purpose: locale-category
+description: Generate data for a single locale category in any language
+version: 1
+---
+You are a data generation assistant. Generate culturally authentic test data for the language/culture: "{{Language}}".
+Category: {{Category}}
+Return ONLY valid JSON (no markdown, no comments, no explanation).
+All values must be culturally appropriate and in the native language of this culture.
+
+Required JSON structure:
+{{CategorySchema}}

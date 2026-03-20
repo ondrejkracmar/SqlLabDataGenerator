@@ -17,7 +17,7 @@
 		[string[]]$TableFilter
 	)
 
-	$conn = $ConnectionInfo.Connection
+	$conn = $ConnectionInfo.DbConnection
 
 	# Helper to execute a read-only query
 	$executeQuery = {
@@ -118,7 +118,7 @@ WHERE d.referenced_id IS NOT NULL
 ORDER BY TableSchema, TableName, ViewSchema, ViewName
 "@
 
-	Write-PSFMessage -Level Verbose -Message "Retrieved: $($tables.Rows.Count) tables, $($columns.Rows.Count) columns, $($foreignKeys.Rows.Count) FK relationships"
+	Write-PSFMessage -Level Verbose -String 'Schema.SqlServer.Retrieved' -StringValues $tables.Rows.Count, $columns.Rows.Count, $foreignKeys.Rows.Count
 
 	# Build normalized schema model
 	ConvertTo-SldgSchemaModel -Tables $tables -Columns $columns -ForeignKeys $foreignKeys `

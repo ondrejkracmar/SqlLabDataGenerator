@@ -33,7 +33,7 @@
 			$timestampCache.Remove("$CacheName|$key")
 		}
 		if ($expiredKeys.Count -gt 0) {
-			Write-PSFMessage -Level Verbose -Message "Cache '$CacheName': TTL-evicted $($expiredKeys.Count) expired entries"
+			Write-PSFMessage -Level Verbose -String 'Cache.TTLEvicted' -StringValues $CacheName, $expiredKeys.Count
 		}
 	}
 
@@ -51,5 +51,5 @@
 		if ($timestampCache) { $timestampCache.Remove("$CacheName|$($sortedKeys[$i])") }
 	}
 
-	Write-PSFMessage -Level Verbose -Message "Cache '$CacheName': size-evicted $toRemove entries (max: $maxEntries)"
+	Write-PSFMessage -Level Verbose -String 'Cache.SizeEvicted' -StringValues $CacheName, $toRemove, $maxEntries
 }

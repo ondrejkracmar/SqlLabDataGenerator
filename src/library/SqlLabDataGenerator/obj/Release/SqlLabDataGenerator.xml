@@ -1,0 +1,782 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>SqlLabDataGenerator</name>
+    </assembly>
+    <members>
+        <member name="T:SqlLabDataGenerator.AIModelOverride">
+            <summary>
+            Represents a per-purpose AI model override configuration.
+            </summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.AIModelOverride.Purpose">
+            <summary>The purpose this override applies to.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.AIModelOverride.Provider">
+            <summary>The AI provider for this purpose.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.AIModelOverride.Model">
+            <summary>The model name for this purpose.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.AIModelOverride.Endpoint">
+            <summary>The API endpoint for this purpose.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.AIModelOverride.MaxTokens">
+            <summary>Maximum tokens for this purpose.</summary>
+        </member>
+        <member name="M:SqlLabDataGenerator.AIModelOverride.#ctor">
+            <summary>Initializes a new instance of the <see cref="T:SqlLabDataGenerator.AIModelOverride"/> class.</summary>
+        </member>
+        <member name="T:SqlLabDataGenerator.AIPlanAdvice">
+            <summary>
+            Represents AI-generated advice for a generation plan.
+            </summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.AIPlanAdvice.Tables">
+            <summary>Per-table advice (key = FullName, value = { RowCount, TableType, Notes }).</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.AIPlanAdvice.CustomRules">
+            <summary>Custom generation rules suggested by AI.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.AIPlanAdvice.CrossTableRules">
+            <summary>Cross-table relationship rules.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.AIPlanAdvice.Source">
+            <summary>The AI provider that generated this advice.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.AIPlanAdvice.GeneratedAt">
+            <summary>When the advice was generated.</summary>
+        </member>
+        <member name="M:SqlLabDataGenerator.AIPlanAdvice.#ctor">
+            <summary>Initializes a new instance of the <see cref="T:SqlLabDataGenerator.AIPlanAdvice"/> class.</summary>
+        </member>
+        <member name="T:SqlLabDataGenerator.AIProviderInfo">
+            <summary>
+            Represents information about the configured AI provider.
+            </summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.AIProviderInfo.Provider">
+            <summary>The AI provider name ('OpenAI', 'AzureOpenAI', 'Ollama').</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.AIProviderInfo.Model">
+            <summary>The model name.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.AIProviderInfo.Endpoint">
+            <summary>The API endpoint URL.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.AIProviderInfo.ApiKeySet">
+            <summary>Whether an API key has been configured.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.AIProviderInfo.MaxTokens">
+            <summary>Maximum tokens for AI responses.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.AIProviderInfo.Temperature">
+            <summary>Temperature setting (Ollama).</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.AIProviderInfo.SkipCertCheck">
+            <summary>Whether to skip certificate checks (Ollama).</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.AIProviderInfo.AIGeneration">
+            <summary>Whether AI-powered generation is enabled.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.AIProviderInfo.AILocale">
+            <summary>Whether AI locale generation is enabled.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.AIProviderInfo.Locale">
+            <summary>The configured locale.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.AIProviderInfo.Purpose">
+            <summary>Purpose identifier when querying for a specific purpose.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.AIProviderInfo.IsOverride">
+            <summary>Whether this represents a per-purpose override vs base config.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.AIProviderInfo.ModelOverrides">
+            <summary>Array of per-purpose model override summaries.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.AIProviderInfo.Database">
+            <summary>Active database name, if connected.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.AIProviderInfo.ServerInstance">
+            <summary>Active server instance, if connected.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.AIProviderInfo.DatabaseProvider">
+            <summary>Active database provider, if connected.</summary>
+        </member>
+        <member name="M:SqlLabDataGenerator.AIProviderInfo.#ctor">
+            <summary>Initializes a new instance of the <see cref="T:SqlLabDataGenerator.AIProviderInfo"/> class.</summary>
+        </member>
+        <member name="T:SqlLabDataGenerator.AIProviderTestResult">
+            <summary>
+            Represents the result of testing an AI provider connection.
+            </summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.AIProviderTestResult.Provider">
+            <summary>The AI provider name.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.AIProviderTestResult.Model">
+            <summary>The model name.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.AIProviderTestResult.Endpoint">
+            <summary>The API endpoint URL.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.AIProviderTestResult.Status">
+            <summary>Connection status ('NotConfigured', 'Connected', 'NoResponse', 'Failed').</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.AIProviderTestResult.ResponseMs">
+            <summary>Response time in milliseconds, or null.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.AIProviderTestResult.Error">
+            <summary>Error message if the test failed.</summary>
+        </member>
+        <member name="M:SqlLabDataGenerator.AIProviderTestResult.#ctor">
+            <summary>Initializes a new instance of the <see cref="T:SqlLabDataGenerator.AIProviderTestResult"/> class.</summary>
+        </member>
+        <member name="T:SqlLabDataGenerator.ColumnClassification">
+            <summary>
+            Represents the classification of a database column by semantic analysis.
+            </summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.ColumnClassification.ColumnName">
+            <summary>The column name.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.ColumnClassification.TableName">
+            <summary>The fully qualified table name.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.ColumnClassification.SemanticType">
+            <summary>The resolved semantic type (e.g., 'person-first-name').</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.ColumnClassification.IsPII">
+            <summary>Whether the column contains personally identifiable information.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.ColumnClassification.Confidence">
+            <summary>Confidence score (0.0 to 1.0).</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.ColumnClassification.Source">
+            <summary>Classification source ('Pattern', 'AI', 'Cached').</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.ColumnClassification.MatchedRule">
+            <summary>The rule or hint that matched.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.ColumnClassification.ValueExamples">
+            <summary>Example values suggested by AI.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.ColumnClassification.ValuePattern">
+            <summary>Value pattern suggested by AI (e.g., regex).</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.ColumnClassification.CrossColumnDependency">
+            <summary>Cross-column dependency hint from AI.</summary>
+        </member>
+        <member name="M:SqlLabDataGenerator.ColumnClassification.#ctor">
+            <summary>Initializes a new instance of the <see cref="T:SqlLabDataGenerator.ColumnClassification"/> class.</summary>
+        </member>
+        <member name="T:SqlLabDataGenerator.PromptTemplate">
+            <summary>
+            Represents a prompt template for AI operations.
+            </summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.PromptTemplate.Purpose">
+            <summary>The prompt purpose identifier.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.PromptTemplate.Variant">
+            <summary>Provider-specific variant name.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.PromptTemplate.Description">
+            <summary>Description from YAML front matter.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.PromptTemplate.Version">
+            <summary>Version from YAML front matter.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.PromptTemplate.Path">
+            <summary>Full path to the .prompt file.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.PromptTemplate.IsCustom">
+            <summary>Whether this is a custom (user-overridden) template.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.PromptTemplate.Placeholders">
+            <summary>Placeholder names extracted from {{}} tokens.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.PromptTemplate.Content">
+            <summary>Template content (only populated with -IncludeContent).</summary>
+        </member>
+        <member name="M:SqlLabDataGenerator.PromptTemplate.#ctor">
+            <summary>Initializes a new instance of the <see cref="T:SqlLabDataGenerator.PromptTemplate"/> class.</summary>
+        </member>
+        <member name="T:SqlLabDataGenerator.Connection">
+            <summary>
+            Represents an active database connection.
+            </summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.Connection.DbConnection">
+            <summary>The underlying database connection object.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.Connection.ServerInstance">
+            <summary>The server instance (hostname or 'localhost' for SQLite).</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.Connection.Database">
+            <summary>The database name or file path.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.Connection.Provider">
+            <summary>The database provider ('SQLite' or 'SqlServer').</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.Connection.ConnectedAt">
+            <summary>When the connection was established.</summary>
+        </member>
+        <member name="M:SqlLabDataGenerator.Connection.#ctor">
+            <summary>Initializes a new instance of the <see cref="T:SqlLabDataGenerator.Connection"/> class.</summary>
+        </member>
+        <member name="T:SqlLabDataGenerator.ColumnPlan">
+            <summary>
+            Represents the generation plan for a single column.
+            </summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.ColumnPlan.ColumnName">
+            <summary>The column name.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.ColumnPlan.DataType">
+            <summary>The SQL data type.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.ColumnPlan.SemanticType">
+            <summary>The resolved semantic type.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.ColumnPlan.Generator">
+            <summary>The generator function name, or 'Fallback'.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.ColumnPlan.IsPII">
+            <summary>Whether the column contains personally identifiable information.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.ColumnPlan.IsPrimaryKey">
+            <summary>Whether the column is part of the primary key.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.ColumnPlan.IsUnique">
+            <summary>Whether the column has a unique constraint.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.ColumnPlan.IsNullable">
+            <summary>Whether the column allows NULL values.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.ColumnPlan.MaxLength">
+            <summary>Maximum character length, if applicable.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.ColumnPlan.ForeignKey">
+            <summary>Foreign key reference, if any.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.ColumnPlan.SchemaHint">
+            <summary>Schema hint for generation.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.ColumnPlan.Skip">
+            <summary>Whether to skip generation (identity/computed/timestamp).</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.ColumnPlan.CustomRule">
+            <summary>Custom generation rule, if set.</summary>
+        </member>
+        <member name="M:SqlLabDataGenerator.ColumnPlan.#ctor">
+            <summary>Initializes a new instance of the <see cref="T:SqlLabDataGenerator.ColumnPlan"/> class.</summary>
+        </member>
+        <member name="T:SqlLabDataGenerator.GenerationPlan">
+            <summary>
+            Represents the overall data generation plan for a database.
+            </summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.GenerationPlan.Database">
+            <summary>The database name or path.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.GenerationPlan.Mode">
+            <summary>Generation mode ('Synthetic', 'Masking', 'Scenario').</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.GenerationPlan.Tables">
+            <summary>Table generation plans in insertion order.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.GenerationPlan.TableCount">
+            <summary>Number of tables in the plan.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.GenerationPlan.TotalRows">
+            <summary>Total rows to generate across all tables.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.GenerationPlan.GeneratorMap">
+            <summary>Mapping of semantic type to generator function.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.GenerationPlan.CreatedAt">
+            <summary>When the plan was created.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.GenerationPlan.GenerationRules">
+            <summary>Custom generation rules per table/column.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.GenerationPlan.AIAdvice">
+            <summary>AI-generated plan advice, if available.</summary>
+        </member>
+        <member name="M:SqlLabDataGenerator.GenerationPlan.#ctor">
+            <summary>Initializes a new instance of the <see cref="T:SqlLabDataGenerator.GenerationPlan"/> class.</summary>
+        </member>
+        <member name="T:SqlLabDataGenerator.GenerationResult">
+            <summary>
+            Represents the overall result of a data generation run.
+            </summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.GenerationResult.Database">
+            <summary>The database name or path.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.GenerationResult.Mode">
+            <summary>Generation mode.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.GenerationResult.TableCount">
+            <summary>Number of tables processed.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.GenerationResult.TotalRows">
+            <summary>Total rows generated.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.GenerationResult.Tables">
+            <summary>Per-table results.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.GenerationResult.SuccessCount">
+            <summary>Number of tables that succeeded.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.GenerationResult.FailureCount">
+            <summary>Number of tables that failed.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.GenerationResult.StartedAt">
+            <summary>When generation started.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.GenerationResult.CompletedAt">
+            <summary>When generation completed.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.GenerationResult.Duration">
+            <summary>Total generation duration.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.GenerationResult.User">
+            <summary>The user who ran the generation.</summary>
+        </member>
+        <member name="M:SqlLabDataGenerator.GenerationResult.#ctor">
+            <summary>Initializes a new instance of the <see cref="T:SqlLabDataGenerator.GenerationResult"/> class.</summary>
+        </member>
+        <member name="T:SqlLabDataGenerator.RowSet">
+            <summary>
+            Represents a set of generated rows for a table.
+            </summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.RowSet.TableInfo">
+            <summary>The table info for which rows were generated.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.RowSet.DataTable">
+            <summary>The generated data table.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.RowSet.RowCount">
+            <summary>Number of rows generated.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.RowSet.GeneratedValues">
+            <summary>Generated PK/Unique values for cross-table reference (key = "schema.table.column").</summary>
+        </member>
+        <member name="M:SqlLabDataGenerator.RowSet.#ctor">
+            <summary>Initializes a new instance of the <see cref="T:SqlLabDataGenerator.RowSet"/> class.</summary>
+        </member>
+        <member name="T:SqlLabDataGenerator.ScenarioTemplate">
+            <summary>
+            Represents a scenario template for guided data generation.
+            </summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.ScenarioTemplate.Name">
+            <summary>Template name (e.g., 'eCommerce', 'Healthcare').</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.ScenarioTemplate.Description">
+            <summary>Human-readable description of the scenario.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.ScenarioTemplate.TableRoles">
+            <summary>Table role patterns with row count multipliers.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.ScenarioTemplate.ValueRules">
+            <summary>Column pattern to value rules mapping.</summary>
+        </member>
+        <member name="M:SqlLabDataGenerator.ScenarioTemplate.#ctor">
+            <summary>Initializes a new instance of the <see cref="T:SqlLabDataGenerator.ScenarioTemplate"/> class.</summary>
+        </member>
+        <member name="T:SqlLabDataGenerator.TablePlan">
+            <summary>
+            Represents the generation plan for a single table.
+            </summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.TablePlan.Order">
+            <summary>Topological insertion order.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.TablePlan.SchemaName">
+            <summary>The schema name.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.TablePlan.TableName">
+            <summary>The table name.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.TablePlan.FullName">
+            <summary>Fully qualified name in 'schema.table' format.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.TablePlan.RowCount">
+            <summary>Number of rows to generate.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.TablePlan.Columns">
+            <summary>Column generation plans.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.TablePlan.ForeignKeys">
+            <summary>Foreign key definitions from the schema.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.TablePlan.ColumnCount">
+            <summary>Number of columns.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.TablePlan.HasCircularDependency">
+            <summary>Whether the table has circular FK dependencies.</summary>
+        </member>
+        <member name="M:SqlLabDataGenerator.TablePlan.#ctor">
+            <summary>Initializes a new instance of the <see cref="T:SqlLabDataGenerator.TablePlan"/> class.</summary>
+        </member>
+        <member name="T:SqlLabDataGenerator.TableResult">
+            <summary>
+            Represents the result of data generation for a single table.
+            </summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.TableResult.TableName">
+            <summary>Fully qualified table name.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.TableResult.RowCount">
+            <summary>Number of rows generated or inserted.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.TableResult.Success">
+            <summary>Whether generation succeeded.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.TableResult.Error">
+            <summary>Error message if generation failed.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.TableResult.DataTable">
+            <summary>Generated data table (when PassThru is used, single chunk).</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.TableResult.DataTables">
+            <summary>Generated data tables (when PassThru is used, streaming).</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.TableResult.RolledBack">
+            <summary>Whether the transaction was rolled back.</summary>
+        </member>
+        <member name="M:SqlLabDataGenerator.TableResult.#ctor">
+            <summary>Initializes a new instance of the <see cref="T:SqlLabDataGenerator.TableResult"/> class.</summary>
+        </member>
+        <member name="T:SqlLabDataGenerator.Provider">
+            <summary>
+            Represents a registered database provider.
+            </summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.Provider.Name">
+            <summary>Provider name ('SQLite', 'SqlServer').</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.Provider.FunctionMap">
+            <summary>Function map (keys: Connect, GetSchema, WriteData, ReadData, Disconnect, optional DeleteData).</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.Provider.Registered">
+            <summary>When the provider was registered.</summary>
+        </member>
+        <member name="M:SqlLabDataGenerator.Provider.#ctor">
+            <summary>Initializes a new instance of the <see cref="T:SqlLabDataGenerator.Provider"/> class.</summary>
+        </member>
+        <member name="T:SqlLabDataGenerator.ColumnInfo">
+            <summary>
+            Represents column metadata discovered from a database schema.
+            </summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.ColumnInfo.ColumnName">
+            <summary>The name of the column.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.ColumnInfo.DataType">
+            <summary>The SQL data type.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.ColumnInfo.MaxLength">
+            <summary>Maximum character length, if applicable.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.ColumnInfo.NumericPrecision">
+            <summary>Numeric precision (SQL Server).</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.ColumnInfo.NumericScale">
+            <summary>Numeric scale (SQL Server).</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.ColumnInfo.OrdinalPosition">
+            <summary>Ordinal position in the table (SQL Server).</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.ColumnInfo.IsNullable">
+            <summary>Whether the column allows NULL values.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.ColumnInfo.IsPrimaryKey">
+            <summary>Whether the column is part of the primary key.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.ColumnInfo.IsIdentity">
+            <summary>Whether the column is an identity (auto-increment) column.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.ColumnInfo.IsComputed">
+            <summary>Whether the column is computed.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.ColumnInfo.IsUnique">
+            <summary>Whether the column has a unique constraint.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.ColumnInfo.DefaultValue">
+            <summary>The default value expression, if any.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.ColumnInfo.ForeignKey">
+            <summary>Foreign key reference, if this column references another table.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.ColumnInfo.CheckConstraints">
+            <summary>Check constraints defined on this column.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.ColumnInfo.SchemaHint">
+            <summary>Hint derived from view definitions (e.g., JSON/XML format).</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.ColumnInfo.ViewDetectedFormat">
+            <summary>Detected format from view definition ('Json', 'Xml', or null).</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.ColumnInfo.SemanticType">
+            <summary>Resolved semantic type (e.g., 'person-first-name').</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.ColumnInfo.Classification">
+            <summary>Column classification result.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.ColumnInfo.GenerationRule">
+            <summary>Custom generation rule, if set.</summary>
+        </member>
+        <member name="M:SqlLabDataGenerator.ColumnInfo.#ctor">
+            <summary>Initializes a new instance of the <see cref="T:SqlLabDataGenerator.ColumnInfo"/> class.</summary>
+        </member>
+        <member name="T:SqlLabDataGenerator.ForeignKeyInfo">
+            <summary>
+            Represents a foreign key relationship between tables.
+            </summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.ForeignKeyInfo.ForeignKeyName">
+            <summary>The name of the foreign key constraint.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.ForeignKeyInfo.ParentSchema">
+            <summary>The schema of the parent (referencing) table.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.ForeignKeyInfo.ParentTable">
+            <summary>The name of the parent (referencing) table.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.ForeignKeyInfo.ParentColumn">
+            <summary>The name of the parent (referencing) column.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.ForeignKeyInfo.ReferencedSchema">
+            <summary>The schema of the referenced table.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.ForeignKeyInfo.ReferencedTable">
+            <summary>The name of the referenced table.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.ForeignKeyInfo.ReferencedColumn">
+            <summary>The name of the referenced column.</summary>
+        </member>
+        <member name="M:SqlLabDataGenerator.ForeignKeyInfo.#ctor">
+            <summary>Initializes a new instance of the <see cref="T:SqlLabDataGenerator.ForeignKeyInfo"/> class.</summary>
+        </member>
+        <member name="T:SqlLabDataGenerator.ForeignKeyRef">
+            <summary>
+            Represents a foreign key reference from a column to a referenced table/column.
+            </summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.ForeignKeyRef.ForeignKeyName">
+            <summary>The name of the foreign key constraint.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.ForeignKeyRef.ReferencedSchema">
+            <summary>The schema of the referenced table.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.ForeignKeyRef.ReferencedTable">
+            <summary>The name of the referenced table.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.ForeignKeyRef.ReferencedColumn">
+            <summary>The name of the referenced column.</summary>
+        </member>
+        <member name="M:SqlLabDataGenerator.ForeignKeyRef.#ctor">
+            <summary>Initializes a new instance of the <see cref="T:SqlLabDataGenerator.ForeignKeyRef"/> class.</summary>
+        </member>
+        <member name="T:SqlLabDataGenerator.SchemaModel">
+            <summary>
+            Represents the complete schema model for a database.
+            </summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.SchemaModel.Database">
+            <summary>The database name or path.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.SchemaModel.Tables">
+            <summary>All tables discovered in the schema.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.SchemaModel.TableCount">
+            <summary>Number of tables in the schema.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.SchemaModel.DiscoveredAt">
+            <summary>When the schema was discovered.</summary>
+        </member>
+        <member name="M:SqlLabDataGenerator.SchemaModel.#ctor">
+            <summary>Initializes a new instance of the <see cref="T:SqlLabDataGenerator.SchemaModel"/> class.</summary>
+        </member>
+        <member name="T:SqlLabDataGenerator.TableInfo">
+            <summary>
+            Represents table metadata discovered from a database schema.
+            </summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.TableInfo.SchemaName">
+            <summary>The schema name (e.g., 'dbo').</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.TableInfo.TableName">
+            <summary>The table name.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.TableInfo.FullName">
+            <summary>Fully qualified name in 'schema.table' format.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.TableInfo.Columns">
+            <summary>Column metadata for all columns in the table.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.TableInfo.ForeignKeys">
+            <summary>Foreign key relationships defined on this table.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.TableInfo.ColumnCount">
+            <summary>Number of columns in the table.</summary>
+        </member>
+        <member name="M:SqlLabDataGenerator.TableInfo.#ctor">
+            <summary>Initializes a new instance of the <see cref="T:SqlLabDataGenerator.TableInfo"/> class.</summary>
+        </member>
+        <member name="T:SqlLabDataGenerator.EntraIdGroup">
+            <summary>
+            Represents a group object formatted for Microsoft Entra ID import.
+            </summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.EntraIdGroup.DisplayName">
+            <summary>The display name of the group.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.EntraIdGroup.MailNickname">
+            <summary>The mail nickname.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.EntraIdGroup.MailEnabled">
+            <summary>Whether the group is mail-enabled.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.EntraIdGroup.SecurityEnabled">
+            <summary>Whether the group is security-enabled.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.EntraIdGroup.GroupTypes">
+            <summary>Group types (e.g., ['Unified'] for Microsoft 365 groups).</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.EntraIdGroup.Description">
+            <summary>Group description.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.EntraIdGroup.Department">
+            <summary>Department associated with the group.</summary>
+        </member>
+        <member name="M:SqlLabDataGenerator.EntraIdGroup.#ctor">
+            <summary>Initializes a new instance of the <see cref="T:SqlLabDataGenerator.EntraIdGroup"/> class.</summary>
+        </member>
+        <member name="T:SqlLabDataGenerator.EntraIdUser">
+            <summary>
+            Represents a user object formatted for Microsoft Entra ID import.
+            </summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.EntraIdUser.AccountEnabled">
+            <summary>Whether the account is enabled.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.EntraIdUser.DisplayName">
+            <summary>The display name.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.EntraIdUser.GivenName">
+            <summary>The given (first) name.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.EntraIdUser.Surname">
+            <summary>The surname (last name).</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.EntraIdUser.UserPrincipalName">
+            <summary>The user principal name (UPN).</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.EntraIdUser.MailNickname">
+            <summary>The mail nickname.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.EntraIdUser.UsageLocation">
+            <summary>Usage location for licensing (ISO country code).</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.EntraIdUser.PasswordProfile">
+            <summary>Password profile with initial password and change requirement.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.EntraIdUser.Mail">
+            <summary>Email address.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.EntraIdUser.MobilePhone">
+            <summary>Mobile phone number.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.EntraIdUser.JobTitle">
+            <summary>Job title.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.EntraIdUser.Department">
+            <summary>Department.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.EntraIdUser.CompanyName">
+            <summary>Company name.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.EntraIdUser.City">
+            <summary>City.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.EntraIdUser.State">
+            <summary>State or province.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.EntraIdUser.Country">
+            <summary>Country.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.EntraIdUser.PostalCode">
+            <summary>Postal code.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.EntraIdUser.StreetAddress">
+            <summary>Street address.</summary>
+        </member>
+        <member name="M:SqlLabDataGenerator.EntraIdUser.#ctor">
+            <summary>Initializes a new instance of the <see cref="T:SqlLabDataGenerator.EntraIdUser"/> class.</summary>
+        </member>
+        <member name="T:SqlLabDataGenerator.Transformer">
+            <summary>
+            Represents a registered data transformer.
+            </summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.Transformer.Name">
+            <summary>Transformer name.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.Transformer.Description">
+            <summary>Human-readable description.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.Transformer.TransformFunction">
+            <summary>Name of the PowerShell function to invoke.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.Transformer.RequiredSemanticTypes">
+            <summary>Semantic types required by this transformer.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.Transformer.OutputType">
+            <summary>PSTypeName of the output objects.</summary>
+        </member>
+        <member name="M:SqlLabDataGenerator.Transformer.#ctor">
+            <summary>Initializes a new instance of the <see cref="T:SqlLabDataGenerator.Transformer"/> class.</summary>
+        </member>
+        <member name="T:SqlLabDataGenerator.ValidationResult">
+            <summary>
+            Represents the result of a data validation check.
+            </summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.ValidationResult.CheckType">
+            <summary>Type of validation check ('NotNull', 'RowCount', 'ForeignKey', 'PrimaryKey', 'UniqueConstraint').</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.ValidationResult.TableName">
+            <summary>Fully qualified table name.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.ValidationResult.ConstraintName">
+            <summary>Constraint or check name.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.ValidationResult.Column">
+            <summary>Column name, or null for table-level checks.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.ValidationResult.ReferencedTable">
+            <summary>Referenced table for FK checks.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.ValidationResult.ReferencedColumn">
+            <summary>Referenced column for FK checks.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.ValidationResult.Passed">
+            <summary>Whether the check passed.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.ValidationResult.Severity">
+            <summary>Severity level ('OK', 'Error', 'Warning').</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.ValidationResult.Details">
+            <summary>Human-readable details about the check result.</summary>
+        </member>
+        <member name="M:SqlLabDataGenerator.ValidationResult.#ctor">
+            <summary>Initializes a new instance of the <see cref="T:SqlLabDataGenerator.ValidationResult"/> class.</summary>
+        </member>
+    </members>
+</doc>

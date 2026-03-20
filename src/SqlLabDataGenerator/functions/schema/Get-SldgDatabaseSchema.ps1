@@ -27,6 +27,7 @@
 
 		Discovers only specific tables.
 	#>
+	[OutputType([SqlLabDataGenerator.SchemaModel])]
 	[CmdletBinding()]
 	param (
 		[string[]]$SchemaFilter,
@@ -38,11 +39,11 @@
 
 	if (-not $ConnectionInfo) { $ConnectionInfo = $script:SldgState.ActiveConnection }
 	if (-not $ConnectionInfo) {
-		Stop-PSFFunction -Message "No active database connection. Use Connect-SldgDatabase first." -EnableException $true
+		Stop-PSFFunction -String 'Connect.NoActiveConnection' -EnableException $true
 	}
 
 	# Connection staleness check
-	if ($ConnectionInfo.Connection -and $ConnectionInfo.Connection.State -ne 'Open') {
+	if ($ConnectionInfo.DbConnection -and $ConnectionInfo.DbConnection.State -ne 'Open') {
 		Stop-PSFFunction -Message ($script:strings.'Connect.HealthCheckFailed' -f $ConnectionInfo.Provider, $ConnectionInfo.ServerInstance, $ConnectionInfo.Database) -EnableException $true
 	}
 

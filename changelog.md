@@ -8,6 +8,39 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) with [Se
 
 ## [Unreleased]
 
+### Added — Context-Dependent Structured Data Generation
+- **`-AIGenerationHint`** parameter on `Set-SldgGenerationRule` — free-text instructions for AI-powered JSON/XML generation.
+- **`-CrossColumnDependency`** parameter on `Set-SldgGenerationRule` — links a structured column to another column whose value drives structure variation (e.g., JSON structure varies by report type).
+- **`-ValueExamples`** parameter on `Set-SldgGenerationRule` — provide example documents to guide AI generation format.
+- **Context-dependent AI prompt** — new `structured-value-contextual.default.prompt` template used when `-CrossColumnDependency` is set; includes context column/value in the AI prompt.
+- **Per-context caching** — cache key format `StructuredData|{Table}|{Column}|{Type}|ctx:{ContextValue}` ensures each dependency value gets its own pool of 10 AI-generated documents.
+- **Automatic column reordering** — columns with `-CrossColumnDependency` are generated after their dependency columns within each row.
+- **Row context tracking** — `$rowContext` hashtable tracks generated values per row, enabling cross-column data flow during generation.
+
+### Added — Compiled C# Type System
+- **Hybrid PS/C# module architecture** — compiled C# class library (`SqlLabDataGenerator.dll`, .NET 8.0) provides strongly-typed output objects.
+- 24 POCO classes in flat `SqlLabDataGenerator` namespace replacing all `PSTypeName` string annotations: `ColumnInfo`, `TableInfo`, `SchemaModel`, `ForeignKeyRef`, `ForeignKeyInfo`, `Connection`, `ColumnPlan`, `TablePlan`, `GenerationPlan`, `TableResult`, `GenerationResult`, `RowSet`, `ScenarioTemplate`, `AIPlanAdvice`, `AIProviderInfo`, `AIModelOverride`, `AIProviderTestResult`, `PromptTemplate`, `ColumnClassification`, `ValidationResult`, `Provider`, `Transformer`, `EntraIdUser`, `EntraIdGroup`.
+- `RequiredAssemblies = @('bin\SqlLabDataGenerator.dll')` in module manifest for automatic DLL loading.
+- All public functions return typed objects — enables IntelliSense, tab completion on properties, pipeline filtering, and Format-Table/Format-List views.
+
+### Added — Prompt Management
+- **`Get-SldgPromptTemplate`** — list and inspect built-in and custom .prompt templates with optional content retrieval.
+- **`Set-SldgPromptTemplate`** — create or update custom prompt overrides from string content, file, or pipeline input.
+- **`Remove-SldgPromptTemplate`** — delete custom prompt overrides (built-in templates are protected).
+- Externalized prompt templates as `.prompt` files with YAML front matter (`Purpose`, `Variant`, `Description`, `Version`) and `{{Variable}}` placeholders.
+- Resolution order: custom override → built-in template → error.
+- `AI.PromptPath` configuration key for custom prompt directory.
+
+### Added — Per-Purpose AI Model Overrides
+- **`Set-SldgAIProvider -Purpose`** — configure different AI models for different tasks (column-analysis, structured-value, batch-generation, plan-advice, locale-data, locale-category).
+- **`Get-SldgAIProvider -Purpose`** — inspect per-purpose model override configuration.
+- `AI.ModelOverrides` configuration stores purpose-specific model settings.
+- Provider-level credentials support via `-Credential` parameter on `Set-SldgAIProvider`.
+
+### Changed
+- `Connection` class property renamed to `DbConnection` (resolves CS0542 member-name-equals-type-name conflict).
+- Module manifest updated: 22 exported functions (added Get/Set/Remove-SldgPromptTemplate), RequiredAssemblies enabled.
+
 ### Added — Scenario Mode
 - **Scenario mode** (`New-SldgGenerationPlan -Mode Scenario`) — domain-specific data generation using built-in templates.
 - Five built-in scenario templates: **eCommerce**, **Healthcare**, **HR**, **Finance**, **Education**.

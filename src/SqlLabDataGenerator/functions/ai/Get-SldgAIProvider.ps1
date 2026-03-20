@@ -7,6 +7,12 @@
 		Shows which AI provider is configured, model, endpoint, and which AI features are enabled.
 		Returns a structured object useful for pipelines and display.
 
+		When per-purpose model overrides are configured (via Set-SldgAIProvider -Purpose),
+		they are included in the ModelOverrides property.
+
+	.PARAMETER Purpose
+		Show the effective AI configuration for a specific purpose, resolving overrides.
+
 	.EXAMPLE
 		PS C:\> Get-SldgAIProvider
 
@@ -19,20 +25,42 @@
 		AIGeneration   : True
 		AILocale       : True
 		Locale         : cs-CZ
+		ModelOverrides : {structured-value, batch-generation}
 
 	.EXAMPLE
 		PS C:\> (Get-SldgAIProvider).Provider
 		Ollama
+
+	.EXAMPLE
+		PS C:\> Get-SldgAIProvider -Purpose 'structured-value'
+
+		Shows which provider/model would be used for structured-value generation.
 	#>
 	[CmdletBinding()]
 	[OutputType('SqlLabDataGenerator.AIProviderInfo')]
-	param ()
+	param (
+		[ValidateSet('column-analysis', 'batch-generation', 'plan-advice', 'structured-value', 'locale-data', 'locale-category')]
+		[string]$Purpose
+	)
+
+	# If a specific purpose is requested, return the effective config for that purpose
+	if ($Purpose -and $script:SldgState.AIModelOverrides.ContainsKey($Purpose)) {
+		$ov = $script:SldgState.AIModelOverrides[$Purpose]
+		return [SqlLabDataGenerator.AIProviderInfo]@{
+			Purpose    = $Purpose
+			Provider   = $ov['Provider']
+			Model      = $ov['Model']
+			Endpoint   = $ov['Endpoint']
+			ApiKeySet  = [bool]$ov['ApiKey']
+			MaxTokens  = if ($ov['MaxTokens']) { $ov['MaxTokens'] } else { Get-PSFConfigValue -FullName 'SqlLabDataGenerator.AI.MaxTokens' }
+			IsOverride = $true
+		}
+	}
 
 	$provider = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.AI.Provider'
 	$apiKey = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.AI.ApiKey'
 
-	$result = [PSCustomObject]@{
-		PSTypeName     = 'SqlLabDataGenerator.AIProviderInfo'
+	$result = [SqlLabDataGenerator.AIProviderInfo]@{
 		Provider       = if ($provider) { $provider } else { 'None' }
 		Model          = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.AI.Model'
 		Endpoint       = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.AI.Endpoint'
@@ -45,12 +73,27 @@
 		Locale         = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.Generation.Locale'
 	}
 
+	if ($Purpose) {
+		$result.Purpose = $Purpose
+		$result.IsOverride = $false
+	}
+
+	# Include per-purpose overrides summary
+	$overrides = @($script:SldgState.AIModelOverrides.GetEnumerator() | ForEach-Object {
+		[PSCustomObject]@{
+			Purpose  = $_.Key
+			Provider = $_.Value['Provider']
+			Model    = $_.Value['Model']
+		}
+	})
+	$result.ModelOverrides = $overrides
+
 	# Add connection info if available
 	$conn = $script:SldgState.ActiveConnection
 	if ($conn) {
-		$result | Add-Member -NotePropertyName 'Database' -NotePropertyValue $conn.Database
-		$result | Add-Member -NotePropertyName 'ServerInstance' -NotePropertyValue $conn.ServerInstance
-		$result | Add-Member -NotePropertyName 'DatabaseProvider' -NotePropertyValue $conn.Provider
+		$result.Database = $conn.Database
+		$result.ServerInstance = $conn.ServerInstance
+		$result.DatabaseProvider = $conn.Provider
 	}
 
 	$result

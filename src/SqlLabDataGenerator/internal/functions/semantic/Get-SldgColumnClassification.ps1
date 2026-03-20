@@ -96,8 +96,7 @@
 
 	foreach ($rule in $patterns) {
 		if ($name -match $rule.Pattern) {
-			return [PSCustomObject]@{
-				PSTypeName   = 'SqlLabDataGenerator.ColumnClassification'
+			return [SqlLabDataGenerator.ColumnClassification]@{
 				ColumnName   = $Column.ColumnName
 				TableName    = $TableName
 				SemanticType = $rule.Type
@@ -112,8 +111,7 @@
 	# Fallback: classify by data type
 	$typeClass = Resolve-SldgSemanticType -DataType $dataType -MaxLength $Column.MaxLength -IsNullable $Column.IsNullable
 
-	[PSCustomObject]@{
-		PSTypeName   = 'SqlLabDataGenerator.ColumnClassification'
+	[SqlLabDataGenerator.ColumnClassification]@{
 		ColumnName   = $Column.ColumnName
 		TableName    = $TableName
 		SemanticType = $typeClass.Type

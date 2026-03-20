@@ -30,6 +30,12 @@ New-MarkdownCommandHelp -ModuleInfo $mod -OutputFolder ./docs/commands -Force -W
 - [Get-SldgAIProvider](Get-SldgAIProvider.md)
 - [Test-SldgAIProvider](Test-SldgAIProvider.md)
 
+## Prompt Management
+
+- [Get-SldgPromptTemplate](Get-SldgPromptTemplate.md)
+- [Set-SldgPromptTemplate](Set-SldgPromptTemplate.md)
+- [Remove-SldgPromptTemplate](Remove-SldgPromptTemplate.md)
+
 ## Schema & Analysis
 
 - [Get-SldgDatabaseSchema](Get-SldgDatabaseSchema.md)

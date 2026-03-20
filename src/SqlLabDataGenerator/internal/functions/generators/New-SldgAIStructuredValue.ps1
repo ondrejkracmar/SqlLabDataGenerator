@@ -2,6 +2,10 @@
 	<#
 	.SYNOPSIS
 		Uses AI to generate a single structured data value.
+	.DESCRIPTION
+		When ContextColumn/ContextValue are provided, generates structure-varied data
+		keyed by the context value (e.g., different JSON schemas per report type).
+		Results are cached per (table, column, type, context) for reuse.
 	#>
 	[CmdletBinding()]
 	param (
@@ -9,12 +13,18 @@
 		[string]$ColumnName,
 		[string]$TableName,
 		[string]$SchemaHint,
-		[int]$MaxLength
+		[int]$MaxLength,
+		[string]$AIGenerationHint,
+		[string]$ContextColumn,
+		[string]$ContextValue,
+		[string[]]$ValueExamples
 	)
 
-	$cacheKey = "StructuredData|$TableName|$ColumnName|$Type"
+	# Build cache key — include context value when present for per-variant caching
+	$contextSuffix = if ($ContextColumn -and $ContextValue) { "|ctx:$ContextValue" } else { '' }
+	$cacheKey = "StructuredData|$TableName|$ColumnName|$Type$contextSuffix"
 
-	# Return from template cache if we have previously generated a structure
+	# Return from template cache if we have previously generated values
 	if ($script:SldgState.AIValueCache.ContainsKey($cacheKey)) {
 		$cached = $script:SldgState.AIValueCache[$cacheKey]
 		if ($cached -and $cached.Count -gt 0) {
@@ -24,37 +34,58 @@
 
 	$format = if ($Type -eq 'Json') { 'JSON' } else { 'XML' }
 	$hintText = if ($SchemaHint) { "`nSchema hint (from view definition): $SchemaHint" } else { '' }
+	$aiHintText = if ($AIGenerationHint) { "`nGeneration context: $AIGenerationHint" } else { '' }
+	$contextText = if ($ContextColumn -and $ContextValue) {
+		"`nContext: The column '$ContextColumn' for this row has the value '$ContextValue'. Generate $format content that is appropriate for this specific $ContextColumn value. The structure and fields should reflect what '$ContextValue' means in business terms."
+	} else { '' }
+	$examplesText = if ($ValueExamples -and $ValueExamples.Count -gt 0) {
+		$exList = ($ValueExamples | ForEach-Object { "  - $_" }) -join "`n"
+		"`nExample values (use as structure reference):`n$exList"
+	} else { '' }
 
-	$systemPrompt = @"
-You are a test data generator. Generate 10 different realistic $format values for a database column.
+	# Use contextual prompt when we have context, standard otherwise
+	$promptPurpose = if ($ContextColumn -and $ContextValue) { 'structured-value-contextual' } else { 'structured-value' }
 
-Table: $TableName
-Column: $ColumnName
-Format: $format
-Max length: $MaxLength characters$hintText
+	$promptVars = @{
+		Format     = $format
+		TableName  = $TableName
+		ColumnName = $ColumnName
+		MaxLength  = $MaxLength
+		SchemaHint = $hintText
+	}
+	# Contextual prompt uses additional variables
+	if ($ContextColumn -and $ContextValue) {
+		$promptVars['AIGenerationHint'] = $aiHintText
+		$promptVars['ContextColumn'] = $ContextColumn
+		$promptVars['ContextValue'] = $ContextValue
+		$promptVars['ContextText'] = $contextText
+		$promptVars['ExamplesText'] = $examplesText
+	}
 
-Rules:
-- Each value must be valid, well-formed $format
-- Values should be realistic and varied — represent what a real application would store
-- Infer the likely structure from the table name, column name, and schema hint
-- For JSON: use appropriate nested objects, arrays, and data types (strings, numbers, booleans, nulls)
-- For XML: include a meaningful root element, attributes where appropriate, and realistic child elements
-- Keep each value under $MaxLength characters
-- For JSON columns with names like 'settings', 'config', 'preferences' — generate key-value configuration data
-- For JSON columns with names like 'metadata', 'properties', 'attributes' — generate descriptive metadata
-- For JSON columns with names like 'payload', 'data', 'content' — generate business-relevant structured data
-- For XML columns — generate well-formed XML with a root element appropriate for the context
+	$systemPrompt = Resolve-SldgPromptTemplate -Purpose $promptPurpose -Variables $promptVars
 
-Return ONLY a JSON array of 10 string values (each string is a valid $format document).
-No markdown, no explanation, just the JSON array of strings.
-"@
+	# Fall back to standard prompt if contextual template not found
+	if (-not $systemPrompt -and $promptPurpose -eq 'structured-value-contextual') {
+		$systemPrompt = Resolve-SldgPromptTemplate -Purpose 'structured-value' -Variables $promptVars
+	}
 
-	$userMessage = "Generate 10 realistic $format values for column '$ColumnName' in table '$TableName'."
+	if (-not $systemPrompt) {
+		Write-PSFMessage -Level Warning -String 'Prompt.ResolveFailed' -StringValues $promptPurpose
+		return $null
+	}
+
+	# Append AI hint and context to the standard prompt when not using contextual template
+	if ($promptPurpose -eq 'structured-value') {
+		$systemPrompt += $aiHintText + $contextText + $examplesText
+	}
+
+	$contextLabel = if ($ContextValue) { " (context: $ContextColumn=$ContextValue)" } else { '' }
+	$userMessage = "Generate 10 realistic $format values for column '$ColumnName' in table '$TableName'$contextLabel."
 
 	Write-PSFMessage -Level Verbose -Message ($script:strings.'StructuredData.AIGenerating' -f $Type, $TableName, $ColumnName)
 
 	try {
-		$response = Invoke-SldgAIRequest -SystemPrompt $systemPrompt -UserMessage $userMessage
+		$response = Invoke-SldgAIRequest -SystemPrompt $systemPrompt -UserMessage $userMessage -Purpose $promptPurpose
 
 		if (-not $response) { return $null }
 
@@ -76,7 +107,7 @@ No markdown, no explanation, just the JSON array of strings.
 			})
 
 			if ($valid.Count -gt 0) {
-				# Cache for reuse
+				# Cache for reuse (keyed by context for variant caching)
 				Invoke-SldgCacheEviction -Cache $script:SldgState.AIValueCache -CacheName 'AIValueCache'
 				$script:SldgState.AIValueCache[$cacheKey] = $valid
 				$script:SldgState.CacheTimestamps["AIValueCache|$cacheKey"] = [datetime]::UtcNow

@@ -4,6 +4,7 @@
 		Sends a request to the configured AI provider (OpenAI, Azure OpenAI, or Ollama).
 	.DESCRIPTION
 		Includes retry with exponential backoff, configurable timeout, and rate limiting.
+		When -Purpose is specified, checks for per-purpose model overrides first.
 	#>
 	[CmdletBinding()]
 	param (
@@ -11,24 +12,40 @@
 		[string]$SystemPrompt,
 
 		[Parameter(Mandatory)]
-		[string]$UserMessage
+		[string]$UserMessage,
+
+		[string]$Purpose
 	)
 
-	$aiProvider = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.AI.Provider'
-	$apiKeyRaw = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.AI.ApiKey'
+	# Resolve provider/model — per-purpose override takes priority over global config
+	$override = $null
+	if ($Purpose -and $script:SldgState.AIModelOverrides.ContainsKey($Purpose)) {
+		$override = $script:SldgState.AIModelOverrides[$Purpose]
+		Write-PSFMessage -Level Verbose -String 'AI.ModelOverrideUsing' -StringValues $Purpose, $override['Provider'], $override['Model']
+	}
+
+	$aiProvider = if ($override) { $override['Provider'] } else { Get-PSFConfigValue -FullName 'SqlLabDataGenerator.AI.Provider' }
+
 	$apiKey = $null
+	if ($override -and $override['ApiKey']) {
+		$apiKeyRaw = $override['ApiKey']
+	}
+	else {
+		$apiKeyRaw = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.AI.ApiKey'
+	}
 	try {
 		$apiKey = if ($apiKeyRaw -is [securestring]) {
 			[System.Net.NetworkCredential]::new('', $apiKeyRaw).Password
 		} elseif ($apiKeyRaw) { [string]$apiKeyRaw } else { $null }
 	}
 	catch {
-		Write-PSFMessage -Level Warning -Message "Failed to retrieve API key: $_"
+		Write-PSFMessage -Level Warning -String 'AI.ApiKeyFailed' -StringValues $_
 		return $null
 	}
-	$endpoint = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.AI.Endpoint'
-	$model = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.AI.Model'
-	$maxTokens = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.AI.MaxTokens'
+
+	$endpoint = if ($override -and $override['Endpoint']) { $override['Endpoint'] } else { Get-PSFConfigValue -FullName 'SqlLabDataGenerator.AI.Endpoint' }
+	$model = if ($override -and $override['Model']) { $override['Model'] } else { Get-PSFConfigValue -FullName 'SqlLabDataGenerator.AI.Model' }
+	$maxTokens = if ($override -and $override['MaxTokens']) { $override['MaxTokens'] } else { Get-PSFConfigValue -FullName 'SqlLabDataGenerator.AI.MaxTokens' }
 	$retryCount = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.AI.RetryCount'
 	$retryDelay = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.AI.RetryDelaySeconds'
 	$timeoutSec = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.AI.TimeoutSeconds'
@@ -78,7 +95,7 @@
 
 	# Ollama supports additional options
 	if ($aiProvider -eq 'Ollama') {
-		$temperature = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.AI.Ollama.Temperature'
+		$temperature = if ($override -and $null -ne $override['Temperature']) { $override['Temperature'] } else { Get-PSFConfigValue -FullName 'SqlLabDataGenerator.AI.Ollama.Temperature' }
 		if ($temperature) {
 			$body['options'] = @{ temperature = $temperature }
 		}
@@ -132,9 +149,9 @@
 		$skipCertCheck = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.AI.Ollama.SkipCertificateCheck'
 		if ($skipCertCheck -and $PSVersionTable.PSVersion.Major -ge 7) {
 			if (-not $env:SLDG_ALLOW_SKIP_TLS) {
-				Write-PSFMessage -Level Warning -Message "TLS certificate validation skip requested for Ollama but blocked. Set environment variable SLDG_ALLOW_SKIP_TLS=1 to allow this in development environments."
+				Write-PSFMessage -Level Warning -String 'AI.TLSSkipBlocked'
 			} else {
-				Write-PSFMessage -Level Warning -Message "TLS certificate validation is disabled for Ollama (SLDG_ALLOW_SKIP_TLS is set). This should NEVER be used in production environments."
+				Write-PSFMessage -Level Warning -String 'AI.TLSSkipActive'
 				$params['SkipCertificateCheck'] = $true
 			}
 		}

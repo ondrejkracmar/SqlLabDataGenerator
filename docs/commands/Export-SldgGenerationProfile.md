@@ -35,6 +35,9 @@ Saves the generation plan configuration including table row counts,
 column semantic types, PII flags, and custom rules to a JSON file.
 This profile can be imported later for consistent data generation.
 
+Custom rules including `-AIGenerationHint`, `-CrossColumnDependency`, and `-ValueExamples`
+are preserved in the exported profile. ScriptBlock rules are excluded from export for security.
+
 ## EXAMPLES
 
 ### EXAMPLE 1

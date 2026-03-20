@@ -24,7 +24,7 @@
 		[System.Data.SqlClient.SqlTransaction]$Transaction
 	)
 
-	$conn = $ConnectionInfo.Connection
+	$conn = $ConnectionInfo.DbConnection
 	$qualifiedName = Get-SldgSafeSqlName -SchemaName $SchemaName -TableName $TableName
 
 	try {
@@ -60,7 +60,7 @@
 			try { [void]$cmd.ExecuteNonQuery() } finally { $cmd.Dispose() }
 		}
 
-		Write-PSFMessage -Level Verbose -Message "Inserted $($Data.Rows.Count) rows into $qualifiedName"
+		Write-PSFMessage -Level Verbose -String 'Schema.SqlServer.Inserted' -StringValues $Data.Rows.Count, $qualifiedName
 		$Data.Rows.Count
 	}
 	catch {

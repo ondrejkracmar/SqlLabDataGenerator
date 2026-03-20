@@ -20,7 +20,7 @@ Returns the current AI provider configuration.
 ### __AllParameterSets
 
 ```
-Get-SldgAIProvider [<CommonParameters>]
+Get-SldgAIProvider [[-Purpose] <string>] [<CommonParameters>]
 ```
 
 ## ALIASES
@@ -31,6 +31,7 @@ This cmdlet has the following aliases,
 ## DESCRIPTION
 
 Shows which AI provider is configured, model, endpoint, and which AI features are enabled.
+Also shows any active per-purpose model overrides and the current database connection info.
 Returns a structured object useful for pipelines and display.
 
 ## EXAMPLES
@@ -54,7 +55,47 @@ Locale         : cs-CZ
 (Get-SldgAIProvider).Provider
 Ollama
 
+### EXAMPLE 3
+
+(Get-SldgAIProvider).ModelOverrides
+
+Shows all per-purpose AI model overrides configured via Set-SldgAIProvider -Purpose.
+
+### EXAMPLE 4
+
+Get-SldgAIProvider -Purpose 'batch-generation'
+
+Returns the effective AI configuration for batch data generation (override or global).
+
 ## PARAMETERS
+
+### -Purpose
+
+Optional. Return the effective AI configuration for a specific purpose.
+If an override exists for that purpose, its values are returned.
+
+```yaml
+Type: System.String
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 0
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues:
+- column-analysis
+- batch-generation
+- plan-advice
+- structured-value
+- locale-data
+- locale-category
+HelpMessage: ''
+```
 
 ### CommonParameters
 
@@ -77,3 +118,4 @@ This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable
 
 - [Set-SldgAIProvider](Set-SldgAIProvider.md)
 - [Test-SldgAIProvider](Test-SldgAIProvider.md)
+- [Get-SldgPromptTemplate](Get-SldgPromptTemplate.md)

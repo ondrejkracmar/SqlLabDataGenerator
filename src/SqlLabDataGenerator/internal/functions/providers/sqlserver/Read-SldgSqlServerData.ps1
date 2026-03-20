@@ -17,7 +17,7 @@
 		[int]$TopN = 0
 	)
 
-	$conn = $ConnectionInfo.Connection
+	$conn = $ConnectionInfo.DbConnection
 	$safeName = Get-SldgSafeSqlName -SchemaName $SchemaName -TableName $TableName
 
 	$query = if ($TopN -gt 0) {
@@ -40,6 +40,6 @@
 		$cmd.Dispose()
 	}
 
-	Write-PSFMessage -Level Verbose -Message "Read $($dataTable.Rows.Count) rows from $safeName"
+	Write-PSFMessage -Level Verbose -String 'Schema.SqlServer.Read' -StringValues $dataTable.Rows.Count, $safeName
 	$dataTable
 }

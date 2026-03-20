@@ -27,7 +27,7 @@
 		$Transaction
 	)
 
-	$conn = $ConnectionInfo.Connection
+	$conn = $ConnectionInfo.DbConnection
 	$insertedCount = 0
 
 	if ($Data.Rows.Count -eq 0) { return 0 }
@@ -97,7 +97,7 @@
 	catch {
 		if ($localTransaction) {
 			try { $localTransaction.Rollback() } catch {
-				Write-PSFMessage -Level Warning -Message "SQLite transaction rollback failed: $_"
+				Write-PSFMessage -Level Warning -String 'Connect.SQLite.RollbackFailed' -StringValues $_
 			}
 		}
 		throw

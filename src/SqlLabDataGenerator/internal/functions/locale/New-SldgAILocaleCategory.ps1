@@ -121,15 +121,15 @@
 		}
 	}
 
-	$systemPrompt = @"
-You are a data generation assistant. Generate culturally authentic test data for the language/culture: "$Language".
-Category: $Category
-Return ONLY valid JSON (no markdown, no comments, no explanation).
-All values must be culturally appropriate and in the native language of this culture.
+	$systemPrompt = Resolve-SldgPromptTemplate -Purpose 'locale-category' -Variables @{
+		Language       = $Language
+		Category       = $Category
+		CategorySchema = $categorySchema
+	}
 
-Required JSON structure:
-$categorySchema
-"@
+	if (-not $systemPrompt) {
+		Stop-PSFFunction -String 'Locale.CategoryPromptResolveFailed' -StringValues $Language, $Category -EnableException $true
+	}
 
 	if ($CustomInstructions) {
 		# Sanitize: limit length and strip control characters to mitigate prompt injection
@@ -140,7 +140,7 @@ $categorySchema
 
 	$userMessage = "Generate $Category data for language/culture: $Language. Return ONLY the JSON object."
 
-	$response = Invoke-SldgAIRequest -SystemPrompt $systemPrompt -UserMessage $userMessage
+	$response = Invoke-SldgAIRequest -SystemPrompt $systemPrompt -UserMessage $userMessage -Purpose 'locale-category'
 
 	if (-not $response) {
 		Stop-PSFFunction -Message ($script:strings.'Locale.AICategoryFailed' -f $Category, $Language) -EnableException $true

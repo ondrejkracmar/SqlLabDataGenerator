@@ -92,6 +92,22 @@ Set-SldgGenerationRule -Plan $plan -TableName 'dbo.Customer' -ColumnName 'Status
 Set-SldgGenerationRule -Plan $plan -TableName 'dbo.Order' -ColumnName 'Currency' -StaticValue 'CZK'
 ```
 
+Context-dependent JSON/XML — vary structured data based on another column's value:
+
+```powershell
+# ReportType drives the structure of ReportData JSON
+Set-SldgGenerationRule -Plan $plan -TableName 'dbo.UsageReport' `
+    -ColumnName 'ReportType' -ValueList @('UserActivity', 'MailboxUsage', 'TeamsDeviceUsage')
+
+Set-SldgGenerationRule -Plan $plan -TableName 'dbo.UsageReport' `
+    -ColumnName 'ReportData' -Generator 'Json' `
+    -AIGenerationHint 'M365 usage report data; structure varies by report type' `
+    -CrossColumnDependency 'ReportType'
+```
+
+The `-CrossColumnDependency` parameter tells the engine to pass the current row's `ReportType`
+value to AI, so each report type gets a different JSON structure. See [AI Configuration](ai-configuration.md) for a full walkthrough.
+
 ### 5. Generate Data
 
 ```powershell
@@ -182,6 +198,49 @@ Export-SldgTransformedData -Data $result.Tables[0].DataTable `
 
 ---
 
+## Prompt Management
+
+All AI prompts are externalized as `.prompt` template files. You can inspect, customize, or override any prompt.
+
+```powershell
+# List all available prompts
+Get-SldgPromptTemplate
+
+# View a specific prompt with content
+Get-SldgPromptTemplate -Purpose column-analysis -IncludeContent
+
+# Create a custom override
+Set-SldgPromptTemplate -Purpose 'structured-value' -Content $myPrompt -Description 'Custom JSON generator'
+
+# Copy built-in and modify
+Get-SldgPromptTemplate -Purpose structured-value -IncludeContent | Set-SldgPromptTemplate -Force
+
+# Remove custom override (falls back to built-in)
+Remove-SldgPromptTemplate -Purpose 'structured-value'
+```
+
+---
+
+## Per-Purpose AI Model Overrides
+
+Use different AI models for different tasks:
+
+```powershell
+# Global: GPT-4o for classification and planning
+Set-SldgAIProvider -Provider OpenAI -Model 'gpt-4o' -ApiKey $key
+
+# Override: Ollama for batch data generation (faster, free)
+Set-SldgAIProvider -Provider Ollama -Model 'llama3' -Purpose 'batch-generation'
+
+# Override: codellama for structured JSON/XML
+Set-SldgAIProvider -Provider Ollama -Model 'codellama' -Purpose 'structured-value'
+
+# Check active overrides
+(Get-SldgAIProvider).ModelOverrides
+```
+
+---
+
 ## Configuration Reference
 
 All settings use PSFramework configuration system (`Set-PSFConfig` / `Get-PSFConfigValue`).
@@ -203,10 +262,13 @@ The `Set-SldgAIProvider` cmdlet wraps the most common settings.
 | `Generation.AILocale` | `$false` | Auto-generate locale data via AI |
 | `Generation.AIGeneration` | `$false` | AI-first data generation |
 | `Generation.Mode` | `Synthetic` | Generation mode: Synthetic, Masking, Scenario |
+| `AI.PromptPath` | _(empty)_ | Path to custom prompt templates directory |
+| `AI.ModelOverrides` | `@{}` | Per-purpose AI model overrides (managed via `Set-SldgAIProvider -Purpose`) |
 
 ---
 
 ## Next Steps
 
-- [AI Configuration & Training](ai-configuration.md) — deep dive into AI setup and custom model training
+- [AI Configuration & Training](ai-configuration.md) — deep dive into AI setup, prompt customization, and custom model training
+- [Extending](extending.md) — custom database providers, transformers, locales
 - [Command Reference](commands/) — detailed help for every command

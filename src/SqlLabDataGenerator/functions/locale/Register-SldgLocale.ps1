@@ -78,6 +78,7 @@
 	[CmdletBinding(DefaultParameterSetName = 'Manual')]
 	param (
 		[Parameter(Mandatory)]
+		[ValidatePattern('^[a-zA-Z][a-zA-Z0-9]*(-[a-zA-Z][a-zA-Z0-9]*)*$')]
 		[string]$Name,
 
 		[Parameter(Mandatory, ParameterSetName = 'Manual')]
@@ -138,7 +139,7 @@
 				$lang = $MixFrom[$category]
 				$validCategories = @('PersonNames', 'Addresses', 'PhoneFormat', 'Companies', 'Identifiers', 'Email', 'Text')
 				if ($category -notin $validCategories) {
-					Write-PSFMessage -Level Warning -Message "Unknown category '$category'. Valid: $($validCategories -join ', ')"
+					Write-PSFMessage -Level Warning -String 'Locale.UnknownCategory' -StringValues $category, ($validCategories -join ', ')
 					continue
 				}
 

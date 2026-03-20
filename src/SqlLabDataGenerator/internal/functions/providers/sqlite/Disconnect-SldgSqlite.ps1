@@ -9,14 +9,14 @@
 		$ConnectionInfo
 	)
 
-	if ($ConnectionInfo.Connection) {
+	if ($ConnectionInfo.DbConnection) {
 		try {
-			$ConnectionInfo.Connection.Close()
-			$ConnectionInfo.Connection.Dispose()
-			Write-PSFMessage -Level Verbose -Message "Disconnected from SQLite database '$($ConnectionInfo.Database)'"
+			$ConnectionInfo.DbConnection.Close()
+			$ConnectionInfo.DbConnection.Dispose()
+			Write-PSFMessage -Level Verbose -String 'Connect.SQLite.Disconnected' -StringValues $ConnectionInfo.Database
 		}
 		catch {
-			Write-PSFMessage -Level Warning -Message "Error disconnecting from SQLite: $_"
+			Write-PSFMessage -Level Warning -String 'Connect.SQLite.DisconnectFailed' -StringValues $_
 		}
 	}
 }

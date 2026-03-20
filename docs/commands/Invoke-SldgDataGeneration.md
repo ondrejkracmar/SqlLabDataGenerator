@@ -195,6 +195,11 @@ This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable
 
 ## NOTES
 
+When columns have `-CrossColumnDependency` rules (set via `Set-SldgGenerationRule`), the engine
+automatically reorders column generation within each row so that dependency columns are generated
+first. The dependency column's value is then passed to AI as context for generating the dependent
+column (e.g., a JSON column that varies its structure based on a report type column).
+
 ## RELATED LINKS
 
 - [New-SldgGenerationPlan](New-SldgGenerationPlan.md)

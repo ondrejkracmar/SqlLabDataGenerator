@@ -22,7 +22,9 @@ Sets custom generation rules for specific columns or tables.
 ```
 Set-SldgGenerationRule [-Plan] <Object> [-TableName] <string> [-ColumnName] <string>
  [[-ValueList] <string[]>] [[-StaticValue] <Object>] [[-Generator] <string>]
- [[-GeneratorParams] <hashtable>] [[-ScriptBlock] <scriptblock>] [<CommonParameters>]
+ [[-GeneratorParams] <hashtable>] [[-ScriptBlock] <scriptblock>]
+ [[-AIGenerationHint] <string>] [[-CrossColumnDependency] <string>]
+ [[-ValueExamples] <string[]>] [<CommonParameters>]
 ```
 
 ## ALIASES
@@ -38,6 +40,9 @@ Supports:
 - StaticValue: always use the same value
 - Generator: override the semantic type mapping
 - ScriptBlock: custom generation logic
+- AIGenerationHint: instructions for AI-powered structured data generation
+- CrossColumnDependency: vary generated content based on another column's value
+- ValueExamples: provide example values to guide AI generation
 
 ## EXAMPLES
 
@@ -52,6 +57,45 @@ Set-SldgGenerationRule -Plan $plan -TableName 'dbo.Order' -ColumnName 'Currency'
 ### EXAMPLE 3
 
 Set-SldgGenerationRule -Plan $plan -TableName 'dbo.Product' -ColumnName 'SKU' -ScriptBlock { "SKU-$(Get-Random -Minimum 10000 -Maximum 99999)" }
+
+### EXAMPLE 4 — Context-Dependent JSON Generation
+
+```powershell
+# ReportType column has a ValueList rule; ReportData depends on it
+Set-SldgGenerationRule -Plan $plan -TableName 'dbo.UsageReport' `
+    -ColumnName 'ReportType' -ValueList @(
+        'UserActivity', 'MailboxUsage', 'OneDriveUsage',
+        'TeamsDeviceUsage', 'SharePointSiteUsage'
+    )
+
+Set-SldgGenerationRule -Plan $plan -TableName 'dbo.UsageReport' `
+    -ColumnName 'ReportData' `
+    -Generator 'Json' `
+    -AIGenerationHint 'Generate Microsoft 365 usage report data. Structure varies by report type: UserActivity has sessions/actions, MailboxUsage has storage/itemCount, TeamsDeviceUsage has deviceType/usageMinutes.' `
+    -CrossColumnDependency 'ReportType'
+```
+
+During generation, the `ReportData` column reads its dependency column `ReportType` from the
+current row. If `ReportType = 'MailboxUsage'`, AI generates JSON with `storage`, `itemCount`,
+`quotaUsed` fields. If `ReportType = 'TeamsDeviceUsage'`, AI generates `deviceType`,
+`usageMinutes`, `lastActivity`. Cache keys include the context value, so each report type
+gets its own set of 10 cached JSON documents.
+
+### EXAMPLE 5 — AI Hint with Value Examples
+
+```powershell
+Set-SldgGenerationRule -Plan $plan -TableName 'dbo.Config' `
+    -ColumnName 'SettingsJson' `
+    -Generator 'Json' `
+    -AIGenerationHint 'Application configuration with theme, language, and notification preferences' `
+    -ValueExamples @(
+        '{"theme":"dark","language":"cs","notifications":{"email":true,"push":false}}',
+        '{"theme":"light","language":"en","notifications":{"email":false,"push":true}}'
+    )
+```
+
+The `-ValueExamples` values are passed to AI to illustrate the expected document structure.
+AI uses them as reference, not as a fixed list — it generates new variations in the same style.
 
 ## PARAMETERS
 
@@ -223,6 +267,78 @@ AcceptedValues: []
 HelpMessage: ''
 ```
 
+### -AIGenerationHint
+
+Instructions for AI-powered generation. Provides context about what kind of data
+to generate — especially useful for JSON/XML columns where the structure should
+vary based on business context.
+
+```yaml
+Type: System.String
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+### -CrossColumnDependency
+
+Specifies another column name in the same table that this column depends on.
+During generation, the value of the dependency column is passed to AI so it can
+generate context-appropriate data. For example, a 'Report' JSON column might
+depend on 'ReportId' to vary its structure by report type.
+
+The dependency column must be generated **before** this column. The module automatically
+reorders columns so that dependency columns are processed first.
+
+```yaml
+Type: System.String
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+### -ValueExamples
+
+Example values that illustrate the expected format. Passed to AI to guide generation.
+For JSON/XML columns, provide example documents showing the expected structure.
+
+```yaml
+Type: System.String[]
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
 ### CommonParameters
 
 This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
@@ -235,6 +351,14 @@ This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable
 ## OUTPUTS
 
 ## NOTES
+
+The `-AIGenerationHint`, `-CrossColumnDependency`, and `-ValueExamples` parameters are stored
+in the column's `CustomRule` hashtable. They are used by the AI structured-value generation
+pipeline (`New-SldgStructuredData` → `New-SldgAIStructuredValue`) when the column's generator
+is `Json` or `Xml`.
+
+When `-CrossColumnDependency` is set, cache keys include the context value, so each unique
+dependency value produces its own pool of 10 AI-generated documents.
 
 ## RELATED LINKS
 

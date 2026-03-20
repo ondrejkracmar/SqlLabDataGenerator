@@ -28,8 +28,7 @@
 	$model = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.AI.Model'
 
 	if (-not $provider -or $provider -eq 'None') {
-		[PSCustomObject]@{
-			PSTypeName = 'SqlLabDataGenerator.AIProviderTestResult'
+		[SqlLabDataGenerator.AIProviderTestResult]@{
 			Provider   = 'None'
 			Model      = $null
 			Status     = 'NotConfigured'
@@ -61,8 +60,7 @@
 		$errorMessage = $_.Exception.Message
 	}
 
-	$result = [PSCustomObject]@{
-		PSTypeName = 'SqlLabDataGenerator.AIProviderTestResult'
+	$result = [SqlLabDataGenerator.AIProviderTestResult]@{
 		Provider   = $provider
 		Model      = $model
 		Endpoint   = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.AI.Endpoint'

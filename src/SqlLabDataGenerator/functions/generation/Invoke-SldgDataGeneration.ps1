@@ -8,6 +8,11 @@
 		unique constraints, and custom rules. Data is generated in topological order
 		so that parent tables are populated before child tables.
 
+		Within each row, columns with -CrossColumnDependency rules (set via Set-SldgGenerationRule)
+		are automatically reordered so that dependency columns are generated first. This enables
+		context-dependent AI generation — e.g., a JSON column can vary its structure based on
+		the value of a report-type column in the same row.
+
 	.PARAMETER Plan
 		The generation plan from New-SldgGenerationPlan.
 
@@ -58,6 +63,7 @@
 
 		Independent tables are generated in parallel (PS 7+ only), up to 4 at a time.
 	#>
+	[OutputType([SqlLabDataGenerator.GenerationResult])]
 	[CmdletBinding(SupportsShouldProcess)]
 	param (
 		[Parameter(Mandatory)]
@@ -78,11 +84,11 @@
 
 	if (-not $ConnectionInfo) { $ConnectionInfo = $script:SldgState.ActiveConnection }
 	if (-not $ConnectionInfo -and -not $NoInsert) {
-		Stop-PSFFunction -Message "No active database connection. Use Connect-SldgDatabase first, or use -NoInsert." -EnableException $true
+		Stop-PSFFunction -String 'Connect.NoActiveConnectionOrNoInsert' -EnableException $true
 	}
 
 	# Connection staleness check
-	if ($ConnectionInfo -and $ConnectionInfo.Connection -and $ConnectionInfo.Connection.State -ne 'Open') {
+	if ($ConnectionInfo -and $ConnectionInfo.DbConnection -and $ConnectionInfo.DbConnection.State -ne 'Open') {
 		Stop-PSFFunction -Message ($script:strings.'Connect.HealthCheckFailed' -f $ConnectionInfo.Provider, $ConnectionInfo.ServerInstance, $ConnectionInfo.Database) -EnableException $true
 	}
 
@@ -108,12 +114,12 @@
 		[System.Security.Principal.WindowsIdentity]::GetCurrent().Name
 	}
 
-	Write-PSFMessage -Level Verbose -Message "Generation audit: user=$executingUser, database=$($Plan.Database), tables=$($Plan.TableCount), mode=$($Plan.Mode)"
+	Write-PSFMessage -Level Verbose -String 'Generation.AuditStart' -StringValues $executingUser, $Plan.Database, $Plan.TableCount, $Plan.Mode
 
 	# Start a transaction if requested
 	if ($UseTransaction -and -not $NoInsert -and $ConnectionInfo) {
-		$transaction = $ConnectionInfo.Connection.BeginTransaction()
-		Write-PSFMessage -Level Verbose -Message "Transaction started for data generation (provider: $($ConnectionInfo.Provider))"
+		$transaction = $ConnectionInfo.DbConnection.BeginTransaction()
+		Write-PSFMessage -Level Verbose -String 'Generation.TransactionStarted' -StringValues $ConnectionInfo.Provider
 	}
 
 	# Streaming config for large tables
@@ -129,8 +135,8 @@
 
 	# S4: Auto-enable transaction for masking mode to prevent data loss from DELETE+INSERT
 	if ($isMaskingMode -and -not $NoInsert -and $ConnectionInfo -and -not $transaction) {
-		$transaction = $ConnectionInfo.Connection.BeginTransaction()
-		Write-PSFMessage -Level Verbose -Message "Transaction auto-started for masking mode (destructive DELETE+INSERT requires atomicity)"
+		$transaction = $ConnectionInfo.DbConnection.BeginTransaction()
+		Write-PSFMessage -Level Verbose -String 'Generation.MaskingTransactionStarted'
 	}
 
 	$tableIndex = 0
@@ -139,35 +145,35 @@
 	# A2: Pre-scan and disable FK constraints for ALL circular dependency tables before insertion
 	$circularTables = @($Plan.Tables | Where-Object { $_.HasCircularDependency })
 	$disabledCircularFKs = [System.Collections.Generic.List[object]]::new()
-	if ($circularTables.Count -gt 0 -and -not $NoInsert -and $ConnectionInfo -and $ConnectionInfo.Connection) {
+	if ($circularTables.Count -gt 0 -and -not $NoInsert -and $ConnectionInfo -and $ConnectionInfo.DbConnection) {
 		if ($ConnectionInfo.Provider -eq 'SQLite') {
 			# SQLite PRAGMA is connection-global — disable once
 			try {
-				$fkCmd = $ConnectionInfo.Connection.CreateCommand()
+				$fkCmd = $ConnectionInfo.DbConnection.CreateCommand()
 				if ($transaction) { $fkCmd.Transaction = $transaction }
 				$fkCmd.CommandText = "PRAGMA foreign_keys = OFF"
 				try { [void]$fkCmd.ExecuteNonQuery() } finally { $fkCmd.Dispose() }
 				$disabledCircularFKs.AddRange($circularTables)
-				Write-PSFMessage -Level Verbose -Message "Disabled FK constraints (PRAGMA) for $($circularTables.Count) circular dependency tables"
+				Write-PSFMessage -Level Verbose -String 'Generation.FKDisabledPragma' -StringValues $circularTables.Count
 			}
 			catch {
-				Write-PSFMessage -Level Warning -Message "Could not disable FK constraints (PRAGMA): $_"
+				Write-PSFMessage -Level Warning -String 'Generation.FKDisablePragmaFailed' -StringValues $_
 			}
 		}
 		else {
 			# SQL Server — disable per-table so entire cycle is unconstrained during insertion
 			foreach ($ct in $circularTables) {
 				try {
-					$fkCmd = $ConnectionInfo.Connection.CreateCommand()
+					$fkCmd = $ConnectionInfo.DbConnection.CreateCommand()
 					if ($transaction) { $fkCmd.Transaction = $transaction }
 					$safeName = Get-SldgSafeSqlName -SchemaName $ct.SchemaName -TableName $ct.TableName
 					$fkCmd.CommandText = "ALTER TABLE $safeName NOCHECK CONSTRAINT ALL"
 					try { [void]$fkCmd.ExecuteNonQuery() } finally { $fkCmd.Dispose() }
 					$disabledCircularFKs.Add($ct)
-					Write-PSFMessage -Level Verbose -Message "Disabled FK constraints for circular dependency table $($ct.FullName)"
+					Write-PSFMessage -Level Verbose -String 'Generation.FKDisabledTable' -StringValues $ct.FullName
 				}
 				catch {
-					Write-PSFMessage -Level Warning -Message "Could not disable FK constraints for $($ct.FullName): $_"
+					Write-PSFMessage -Level Warning -String 'Generation.FKDisableTableFailed' -StringValues $ct.FullName, $_
 				}
 			}
 		}
@@ -204,9 +210,7 @@
 				Stop-PSFFunction -Message $script:strings.'Generation.MaskingNotSupported' -EnableException $true
 			}
 
-			Write-PSFMessage -Level Host -Message ($script:strings.'Generation.MaskingStarting' -f $tablePlan.RowCount, $tablePlan.SchemaName, $tablePlan.TableName)
-
-			try {
+			Invoke-PSFProtectedCommand -ActionString 'Generation.MaskingTable' -ActionStringValues $tablePlan.RowCount, $tablePlan.SchemaName, $tablePlan.TableName -Target $tablePlan.FullName -ScriptBlock {
 				# Read existing data
 				$readParams = @{
 					ConnectionInfo = $ConnectionInfo
@@ -218,15 +222,14 @@
 
 				# Safety guard: skip masking if no rows were read (prevents data loss from DELETE)
 				if (-not $existingData -or $existingData.Rows.Count -eq 0) {
-					Write-PSFMessage -Level Warning -Message "No rows read from $($tablePlan.FullName) — skipping masking to prevent data loss"
-					$tableResults.Add([PSCustomObject]@{
-							PSTypeName = 'SqlLabDataGenerator.TableResult'
+					Write-PSFMessage -Level Warning -String 'Generation.MaskingNoRows' -StringValues $tablePlan.FullName
+					$tableResults.Add([SqlLabDataGenerator.TableResult]@{
 							TableName  = $tablePlan.FullName
 							RowCount   = 0
 							Success    = $true
 							Error      = 'Skipped — no rows to mask'
 					})
-					continue
+					return
 				}
 
 				# Mask PII columns using the generation plan rules
@@ -266,7 +269,7 @@
 						& $provider.FunctionMap.DeleteData @deleteParams
 					} else {
 						# Fallback: execute DELETE directly
-						$delCmd = $ConnectionInfo.Connection.CreateCommand()
+						$delCmd = $ConnectionInfo.DbConnection.CreateCommand()
 						if ($transaction) { $delCmd.Transaction = $transaction }
 						$safeName = Get-SldgSafeSqlName -SchemaName $tablePlan.SchemaName -TableName $tablePlan.TableName -SQLite:($ConnectionInfo.Provider -eq 'SQLite')
 						$delCmd.CommandText = "DELETE FROM $safeName"
@@ -291,37 +294,35 @@
 				$totalInserted += $insertedCount
 				Write-PSFMessage -Level Host -Message ($script:strings.'Generation.MaskingComplete' -f $tablePlan.SchemaName, $tablePlan.TableName, $insertedCount)
 
-				$tableResult = [PSCustomObject]@{
-					PSTypeName = 'SqlLabDataGenerator.TableResult'
+				$tableResult = [SqlLabDataGenerator.TableResult]@{
 					TableName  = $tablePlan.FullName
 					RowCount   = $insertedCount
 					Success    = $true
 					Error      = $null
 				}
 				if ($PassThru) {
-					$tableResult | Add-Member -NotePropertyName DataTable -NotePropertyValue $existingData
+					$tableResult.DataTable = $existingData
 				}
 				$tableResults.Add($tableResult)
-			}
-			catch {
-				Write-PSFMessage -Level Warning -Message ($script:strings.'Generation.Failed' -f $tablePlan.SchemaName, $tablePlan.TableName, $_)
-				$tableResults.Add([PSCustomObject]@{
-						PSTypeName = 'SqlLabDataGenerator.TableResult'
+			} -PSCmdlet $PSCmdlet -EnableException $false
+
+			if (Test-PSFFunctionInterrupt) {
+				$tableResults.Add([SqlLabDataGenerator.TableResult]@{
 						TableName  = $tablePlan.FullName
 						RowCount   = 0
 						Success    = $false
-						Error      = $_.Exception.Message
+						Error      = $Error[0].Exception.Message
 					})
 				if ($transaction) {
 					$generationFailed = $true
-					Write-PSFMessage -Level Warning -Message "Rolling back transaction due to masking failure in $($tablePlan.FullName)"
-					try { $transaction.Rollback() }
-					catch {
-						Write-PSFMessage -Level Error -Message "CRITICAL: Transaction rollback failed for masking operation — database may be in inconsistent state: $_"
+				Write-PSFMessage -Level Warning -String 'Generation.MaskingRollingBack' -StringValues $tablePlan.FullName
+				try { $transaction.Rollback() }
+				catch {
+					Write-PSFMessage -Level Error -String 'Generation.MaskingRollbackCritical' -StringValues $_
 					}
 					$transaction = $null
 					$totalInserted = 0
-					Stop-PSFFunction -Message "Masking rolled back due to failure in $($tablePlan.FullName): $($_.Exception.Message)" -EnableException $true -ErrorRecord $_
+				Stop-PSFFunction -String 'Generation.MaskingRolledBack' -StringValues $tablePlan.FullName -EnableException $true
 				}
 			}
 			continue
@@ -360,7 +361,7 @@
 			ForeignKeys = $tablePlan.ForeignKeys
 		}
 
-		try {
+		Invoke-PSFProtectedCommand -ActionString 'Generation.InsertingTable' -ActionStringValues $tablePlan.RowCount, $tablePlan.SchemaName, $tablePlan.TableName -Target $tablePlan.FullName -ScriptBlock {
 			# Streaming mode: large tables generate and write in chunks to keep memory bounded
 			if ($streamingThreshold -gt 0 -and $tablePlan.RowCount -gt $streamingThreshold) {
 				Write-PSFMessage -Level Host -Message ($script:strings.'Generation.StreamingStarting' -f $tablePlan.FullName, $tablePlan.RowCount, $streamingChunkSize)
@@ -416,47 +417,44 @@
 			$totalInserted += $insertedCount
 			Write-PSFMessage -Level Host -Message ($script:strings.'Generation.TableComplete' -f $tablePlan.FullName, $insertedCount)
 
-			$tableResult = [PSCustomObject]@{
-				PSTypeName = 'SqlLabDataGenerator.TableResult'
+			$tableResult = [SqlLabDataGenerator.TableResult]@{
 				TableName  = $tablePlan.FullName
 				RowCount   = $insertedCount
 				Success    = $true
 				Error      = $null
 			}
 			if ($PassThru -and $rowSet) {
-				$tableResult | Add-Member -NotePropertyName DataTable -NotePropertyValue $rowSet.DataTable
+				$tableResult.DataTable = $rowSet.DataTable
 			}
 			elseif ($PassThru -and $streamResult -and $streamResult.DataTables) {
-				$tableResult | Add-Member -NotePropertyName DataTables -NotePropertyValue $streamResult.DataTables
+				$tableResult.DataTables = $streamResult.DataTables
 			}
 			$tableResults.Add($tableResult)
-		}
-		catch {
-			Write-PSFMessage -Level Warning -Message ($script:strings.'Generation.Failed' -f $tablePlan.SchemaName, $tablePlan.TableName, $_)
-			$tableResults.Add([PSCustomObject]@{
-					PSTypeName = 'SqlLabDataGenerator.TableResult'
+		} -PSCmdlet $PSCmdlet -EnableException $false
+
+		if (Test-PSFFunctionInterrupt) {
+			$tableResults.Add([SqlLabDataGenerator.TableResult]@{
 					TableName  = $tablePlan.FullName
 					RowCount   = 0
 					Success    = $false
-					Error      = $_.Exception.Message
+					Error      = $Error[0].Exception.Message
 				})
 
 			if ($transaction) {
 				$generationFailed = $true
-				Write-PSFMessage -Level Warning -Message "Rolling back transaction due to failure in $($tablePlan.FullName)"
+				Write-PSFMessage -Level Warning -String 'Generation.RollingBack' -StringValues $tablePlan.FullName
 				try { $transaction.Rollback() }
 				catch {
-					Write-PSFMessage -Level Error -Message "CRITICAL: Transaction rollback failed — database may be in inconsistent state: $_"
+					Write-PSFMessage -Level Error -String 'Generation.RollbackCritical' -StringValues $_
 				}
 				$transaction = $null
-				# Zero out previously successful counts since they were rolled back
 				$totalInserted = 0
 				foreach ($tr in $tableResults) {
 					if ($tr.Success) {
-						$tr | Add-Member -NotePropertyName 'RolledBack' -NotePropertyValue $true -Force
+						$tr.RolledBack = $true
 					}
 				}
-				Stop-PSFFunction -Message "Data generation rolled back due to failure in $($tablePlan.FullName): $($_.Exception.Message)" -EnableException $true -ErrorRecord $_
+				Stop-PSFFunction -String 'Generation.DataRolledBack' -StringValues $tablePlan.FullName -EnableException $true
 			}
 		}
 	}
@@ -464,31 +462,31 @@
 	} # end: sequential/parallel branch
 
 	# Re-enable FK constraints for all circular dependency tables after insertion
-	if ($disabledCircularFKs.Count -gt 0 -and $ConnectionInfo -and $ConnectionInfo.Connection -and -not $generationFailed) {
+	if ($disabledCircularFKs.Count -gt 0 -and $ConnectionInfo -and $ConnectionInfo.DbConnection -and -not $generationFailed) {
 		if ($ConnectionInfo.Provider -eq 'SQLite') {
 			try {
-				$fkCmd = $ConnectionInfo.Connection.CreateCommand()
+				$fkCmd = $ConnectionInfo.DbConnection.CreateCommand()
 				if ($transaction) { $fkCmd.Transaction = $transaction }
 				$fkCmd.CommandText = "PRAGMA foreign_keys = ON"
 				try { [void]$fkCmd.ExecuteNonQuery() } finally { $fkCmd.Dispose() }
-				Write-PSFMessage -Level Verbose -Message "Re-enabled FK constraints (PRAGMA) for circular dependency tables"
+				Write-PSFMessage -Level Verbose -String 'Generation.FKReenabledPragma'
 			}
 			catch {
-				Write-PSFMessage -Level Warning -Message "Could not re-enable FK constraints (PRAGMA): $_"
+				Write-PSFMessage -Level Warning -String 'Generation.FKReenablePragmaFailed' -StringValues $_
 			}
 		}
 		else {
 			foreach ($ct in $disabledCircularFKs) {
 				try {
-					$fkCmd = $ConnectionInfo.Connection.CreateCommand()
+					$fkCmd = $ConnectionInfo.DbConnection.CreateCommand()
 					if ($transaction) { $fkCmd.Transaction = $transaction }
 					$safeName = Get-SldgSafeSqlName -SchemaName $ct.SchemaName -TableName $ct.TableName
 					$fkCmd.CommandText = "ALTER TABLE $safeName WITH CHECK CHECK CONSTRAINT ALL"
 					try { [void]$fkCmd.ExecuteNonQuery() } finally { $fkCmd.Dispose() }
-					Write-PSFMessage -Level Verbose -Message "Re-enabled FK constraints for $($ct.FullName)"
+					Write-PSFMessage -Level Verbose -String 'Generation.FKReenabledTable' -StringValues $ct.FullName
 				}
 				catch {
-					Write-PSFMessage -Level Warning -Message "Could not re-enable FK constraints for $($ct.FullName): $_"
+					Write-PSFMessage -Level Warning -String 'Generation.FKReenableTableFailed' -StringValues $ct.FullName, $_
 				}
 			}
 		}
@@ -498,13 +496,13 @@
 	if ($transaction -and -not $generationFailed) {
 		try {
 			$transaction.Commit()
-			Write-PSFMessage -Level Verbose -Message "Transaction committed successfully"
+			Write-PSFMessage -Level Verbose -String 'Generation.TransactionCommitted'
 		}
 		catch {
-			Write-PSFMessage -Level Warning -Message "Transaction commit failed, rolling back: $_"
+			Write-PSFMessage -Level Warning -String 'Generation.CommitFailed' -StringValues $_
 			try { $transaction.Rollback() }
 			catch {
-				Write-PSFMessage -Level Error -Message "CRITICAL: Transaction rollback after commit failure also failed — database may be in inconsistent state: $_"
+				Write-PSFMessage -Level Error -String 'Generation.CommitRollbackCritical' -StringValues $_
 			}
 			$totalInserted = 0
 			$generationFailed = $true
@@ -515,7 +513,7 @@
 
 	$generationDuration = (Get-Date) - $generationStartTime
 	Write-PSFMessage -Level Host -Message ($script:strings.'Generation.Complete' -f $Plan.TableCount, $totalInserted)
-	Write-PSFMessage -Level Verbose -Message "Generation audit complete: user=$executingUser, rows=$totalInserted, duration=$($generationDuration.TotalSeconds.ToString('F1'))s, failed=$generationFailed"
+	Write-PSFMessage -Level Verbose -String 'Generation.AuditComplete' -StringValues $executingUser, $totalInserted, $generationDuration.TotalSeconds.ToString('F1'), $generationFailed
 
 	# Persistent audit log — append a JSON record for compliance/traceability
 	$auditLogPath = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.Audit.LogPath'
@@ -540,18 +538,17 @@
 			}
 			$auditJson = $auditRecord | ConvertTo-Json -Depth 4 -Compress
 			Add-Content -Path $auditLogPath -Value $auditJson -Encoding UTF8
-			Write-PSFMessage -Level Verbose -Message "Audit log entry written to: $auditLogPath"
+			Write-PSFMessage -Level Verbose -String 'Generation.AuditWritten' -StringValues $auditLogPath
 		}
 		catch {
-			Write-PSFMessage -Level Warning -Message "Failed to write audit log entry: $_"
+			Write-PSFMessage -Level Warning -String 'Generation.AuditWriteFailed' -StringValues $_
 		}
 	}
 
 	# Store generated data reference
 	$script:SldgState.GeneratedData[$Plan.Database] = $tableResults
 
-	[PSCustomObject]@{
-		PSTypeName    = 'SqlLabDataGenerator.GenerationResult'
+	[SqlLabDataGenerator.GenerationResult]@{
 		Database      = $Plan.Database
 		Mode          = $Plan.Mode
 		TableCount    = $Plan.TableCount

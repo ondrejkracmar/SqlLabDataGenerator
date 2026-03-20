@@ -12,3 +12,6 @@ $moduleRoot = Split-Path (Split-Path $PSScriptRoot)
 
 # Load the strings used in messages
 "$moduleRoot\internal\scripts\strings.ps1"
+
+# Load SQLite and other binary assemblies
+"$moduleRoot\bin\assembly.ps1"

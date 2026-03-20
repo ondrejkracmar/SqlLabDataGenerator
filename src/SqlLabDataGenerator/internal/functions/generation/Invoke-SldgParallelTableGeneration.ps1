@@ -119,8 +119,7 @@
 
 				if ($result.Error) {
 					Write-PSFMessage -Level Warning -Message ($script:strings.'Generation.Failed' -f $tablePlan.SchemaName, $tablePlan.TableName, $result.Error)
-					$tableResults.Add([PSCustomObject]@{
-						PSTypeName = 'SqlLabDataGenerator.TableResult'
+					$tableResults.Add([SqlLabDataGenerator.TableResult]@{
 						TableName  = $tablePlan.FullName
 						RowCount   = 0
 						Success    = $false
@@ -148,8 +147,7 @@
 					}
 					catch {
 						Write-PSFMessage -Level Warning -Message ($script:strings.'Generation.Failed' -f $tablePlan.SchemaName, $tablePlan.TableName, $_)
-						$tableResults.Add([PSCustomObject]@{
-							PSTypeName = 'SqlLabDataGenerator.TableResult'
+						$tableResults.Add([SqlLabDataGenerator.TableResult]@{
 							TableName  = $tablePlan.FullName
 							RowCount   = 0
 							Success    = $false
@@ -165,15 +163,14 @@
 				$totalInserted += $insertedCount
 				Write-PSFMessage -Level Host -Message ($script:strings.'Generation.TableComplete' -f $tablePlan.FullName, $insertedCount)
 
-				$tableResult = [PSCustomObject]@{
-					PSTypeName = 'SqlLabDataGenerator.TableResult'
+				$tableResult = [SqlLabDataGenerator.TableResult]@{
 					TableName  = $tablePlan.FullName
 					RowCount   = $insertedCount
 					Success    = $true
 					Error      = $null
 				}
 				if ($PassThru -and $result.RowSet) {
-					$tableResult | Add-Member -NotePropertyName DataTable -NotePropertyValue $result.RowSet.DataTable
+					$tableResult.DataTable = $result.RowSet.DataTable
 				}
 				$tableResults.Add($tableResult)
 			}
@@ -259,25 +256,23 @@
 
 					$totalInserted += $insertedCount
 					Write-PSFMessage -Level Host -Message ($script:strings.'Generation.TableComplete' -f $tablePlan.FullName, $insertedCount)
-					$tableResult = [PSCustomObject]@{
-						PSTypeName = 'SqlLabDataGenerator.TableResult'
+					$tableResult = [SqlLabDataGenerator.TableResult]@{
 						TableName  = $tablePlan.FullName
 						RowCount   = $insertedCount
 						Success    = $true
 						Error      = $null
 					}
 					if ($PassThru -and $rowSet) {
-						$tableResult | Add-Member -NotePropertyName DataTable -NotePropertyValue $rowSet.DataTable
+						$tableResult.DataTable = $rowSet.DataTable
 					}
 					elseif ($PassThru -and $streamResult -and $streamResult.DataTables) {
-						$tableResult | Add-Member -NotePropertyName DataTables -NotePropertyValue $streamResult.DataTables
+						$tableResult.DataTables = $streamResult.DataTables
 					}
 					$tableResults.Add($tableResult)
 				}
 				catch {
 					Write-PSFMessage -Level Warning -Message ($script:strings.'Generation.Failed' -f $tablePlan.SchemaName, $tablePlan.TableName, $_)
-					$tableResults.Add([PSCustomObject]@{
-						PSTypeName = 'SqlLabDataGenerator.TableResult'
+					$tableResults.Add([SqlLabDataGenerator.TableResult]@{
 						TableName  = $tablePlan.FullName
 						RowCount   = 0
 						Success    = $false
@@ -285,11 +280,11 @@
 					})
 					if ($Transaction) {
 						$generationFailed = $true
-						Write-PSFMessage -Level Warning -Message "Rolling back transaction due to failure in $($tablePlan.FullName)"
+						Write-PSFMessage -Level Warning -String 'Generation.RollingBack' -StringValues $tablePlan.FullName
 						try { $Transaction.Rollback() }
-						catch { Write-PSFMessage -Level Error -Message "CRITICAL: Transaction rollback failed — database may be in inconsistent state: $_" }
+						catch { Write-PSFMessage -Level Error -String 'Generation.RollbackCritical' -StringValues $_ }
 						$totalInserted = 0
-						foreach ($tr in $tableResults) { if ($tr.Success) { $tr | Add-Member -NotePropertyName 'RolledBack' -NotePropertyValue $true -Force } }
+						foreach ($tr in $tableResults) { if ($tr.Success) { $tr.RolledBack = $true } }
 						break
 					}
 				}

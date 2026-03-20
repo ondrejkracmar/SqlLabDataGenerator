@@ -44,6 +44,7 @@
 
 		AI generates Czech-specific value examples and recognizes Czech column names.
 	#>
+	[OutputType([SqlLabDataGenerator.SchemaModel])]
 	[CmdletBinding()]
 	param (
 		[Parameter(Mandatory)]
@@ -53,6 +54,7 @@
 
 		[string]$IndustryHint,
 
+		[ValidatePattern('^[a-zA-Z]{2}(-[a-zA-Z]{2,})?$')]
 		[string]$Locale
 	)
 

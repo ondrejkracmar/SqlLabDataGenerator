@@ -21,6 +21,7 @@
 
 		Lists Entra ID-related transformers.
 	#>
+	[OutputType([SqlLabDataGenerator.Transformer])]
 	[CmdletBinding()]
 	param (
 		[string]$Name = '*'

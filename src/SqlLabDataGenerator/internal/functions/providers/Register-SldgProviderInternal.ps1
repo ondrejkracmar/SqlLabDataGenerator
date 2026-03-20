@@ -23,7 +23,7 @@
 		if ($funcName -is [string]) {
 			$funcCmd = Get-Command -Name $funcName -ErrorAction SilentlyContinue
 			if (-not $funcCmd) {
-				Stop-PSFFunction -Message "Provider '$Name' references function '$funcName' for '$key' but it does not exist." -EnableException $true
+				Stop-PSFFunction -String 'Provider.FunctionNotExists' -StringValues $Name, $funcName, $key -EnableException $true
 			}
 		}
 	}
@@ -43,15 +43,14 @@
 				$funcParams = $funcCmd.Parameters.Keys
 				foreach ($requiredParam in $expectedParams[$funcKey]) {
 					if ($requiredParam -notin $funcParams) {
-						Stop-PSFFunction -Message "Provider '$Name': function '$funcName' for '$funcKey' is missing required parameter '-$requiredParam'." -EnableException $true
+						Stop-PSFFunction -String 'Provider.MissingParameter' -StringValues $Name, $funcName, $funcKey, $requiredParam -EnableException $true
 					}
 				}
 			}
 		}
 	}
 
-	$script:SldgState.Providers[$Name] = [PSCustomObject]@{
-		PSTypeName  = 'SqlLabDataGenerator.Provider'
+	$script:SldgState.Providers[$Name] = [SqlLabDataGenerator.Provider]@{
 		Name        = $Name
 		FunctionMap = $FunctionMap
 		Registered  = Get-Date

@@ -9,16 +9,16 @@
 	GUID = '82fb705b-c1c0-4c63-b5f0-aae7e9b5f962'
 	
 	# Author of this module
-	Author = 'KracmarOndrej'
+	Author = 'Ondrej Kracmar'
 	
 	# Company or vendor of this module
-	CompanyName = 'KracmarOndrej'
-	
+	CompanyName = 'i-system'
+
 	# Copyright statement for this module
-	Copyright = 'Copyright (c) 2026 KracmarOndrej'
+	Copyright = 'Copyright (c) 2026 i-system'
 	
 	# Description of the functionality provided by this module
-	Description = 'AI-assisted synthetic data generation platform for SQL Server, SQLite and more. Discovers database schema, classifies columns semantically (with OpenAI, Azure OpenAI, or Ollama), generates realistic FK-consistent test data with locale support (en-US, cs-CZ, ...), and transforms output to Entra ID objects and other formats.'
+	Description = 'AI-assisted synthetic data generation platform for SQL Server, SQLite and more. Discovers database schema, classifies columns semantically (with OpenAI, Azure OpenAI, or Ollama), generates realistic FK-consistent test data with locale support (en-US, cs-CZ, ...), context-dependent JSON/XML generation via cross-column AI dependencies, and transforms output to Entra ID objects and other formats.'
 	
 	# Minimum version of the Windows PowerShell engine required by this module
 	PowerShellVersion = '5.1'
@@ -30,10 +30,11 @@
 	)
 	
 	# Assemblies that must be loaded prior to importing this module
-	# RequiredAssemblies = @('bin\SqlLabDataGenerator.dll')
+	# Assembly loading is centralized in bin\assembly.ps1
+	RequiredAssemblies = @()
 	
 	# Type files (.ps1xml) to be loaded when importing this module
-	# TypesToProcess = @('types\SqlLabDataGenerator.Types.ps1xml')
+	TypesToProcess = @('types\SqlLabDataGenerator.Types.ps1xml')
 	
 	# Format files (.ps1xml) to be loaded when importing this module
 	FormatsToProcess = @('views\SqlLabDataGenerator.Format.ps1xml')
@@ -47,6 +48,7 @@
 		'Get-SldgAIProvider',
 		'Get-SldgColumnAnalysis',
 		'Get-SldgDatabaseSchema',
+		'Get-SldgPromptTemplate',
 		'Get-SldgTransformer',
 		'Import-SldgGenerationProfile',
 		'Invoke-SldgDataGeneration',
@@ -54,8 +56,10 @@
 		'Register-SldgLocale',
 		'Register-SldgProvider',
 		'Register-SldgTransformer',
+		'Remove-SldgPromptTemplate',
 		'Set-SldgAIProvider',
 		'Set-SldgGenerationRule',
+		'Set-SldgPromptTemplate',
 		'Test-SldgAIProvider',
 		'Test-SldgGeneratedData'
 	)
@@ -85,16 +89,16 @@
 			Tags = @('SQL', 'SqlServer', 'SQLite', 'TestData', 'SyntheticData', 'DataGeneration', 'LabData', 'Database', 'AI', 'Ollama', 'OpenAI', 'DataMasking', 'DevOps', 'Testing', 'EntraID', 'AzureAD', 'Locale', 'i18n')
 			
 			# A URL to the license for this module.
-			LicenseUri = 'https://github.com/KBConsulting/SqlLabDataGenerator/blob/main/LICENSE'
+			LicenseUri = ''
 			
 			# A URL to the main website for this project.
-			ProjectUri = 'https://github.com/KBConsulting/SqlLabDataGenerator'
+			ProjectUri = ''
 			
 			# A URL to an icon representing this module.
 			# IconUri = ''
 			
 			# ReleaseNotes of this module
-			ReleaseNotes = 'v1.1.0: Added Ollama AI provider, locale system (en-US, cs-CZ), SQLite provider, data transformation layer (Entra ID users/groups).'
+			ReleaseNotes = ''
 			
 		} # End of PSData hashtable
 		

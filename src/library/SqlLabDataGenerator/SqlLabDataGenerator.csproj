@@ -1,0 +1,48 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <AssemblyName>SqlLabDataGenerator</AssemblyName>
+    <RootNamespace>SqlLabDataGenerator</RootNamespace>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <OutputPath>..\..\SqlLabDataGenerator\bin\</OutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.3" />
+    <PackageReference Include="System.Data.Common" Version="4.3.0" />
+  </ItemGroup>
+
+  <Target Name="RemoveUnwantedOutputs" AfterTargets="Build">
+    <RemoveDir Directories="$(OutputPath)ref" />
+    <!-- Keep only common platform runtimes for PowerShell 7 -->
+    <ItemGroup>
+      <UnwantedRuntimes Include="$(OutputPath)runtimes\**" />
+      <UnwantedRuntimes Remove="$(OutputPath)runtimes\win-x64\**" />
+      <UnwantedRuntimes Remove="$(OutputPath)runtimes\win-arm64\**" />
+      <UnwantedRuntimes Remove="$(OutputPath)runtimes\linux-x64\**" />
+      <UnwantedRuntimes Remove="$(OutputPath)runtimes\linux-arm64\**" />
+      <UnwantedRuntimes Remove="$(OutputPath)runtimes\osx-x64\**" />
+      <UnwantedRuntimes Remove="$(OutputPath)runtimes\osx-arm64\**" />
+    </ItemGroup>
+    <Delete Files="@(UnwantedRuntimes)" />
+    <RemoveDir Directories="$(OutputPath)runtimes\browser-wasm" />
+    <RemoveDir Directories="$(OutputPath)runtimes\linux-arm" />
+    <RemoveDir Directories="$(OutputPath)runtimes\linux-armel" />
+    <RemoveDir Directories="$(OutputPath)runtimes\linux-mips64" />
+    <RemoveDir Directories="$(OutputPath)runtimes\linux-musl-arm" />
+    <RemoveDir Directories="$(OutputPath)runtimes\linux-musl-arm64" />
+    <RemoveDir Directories="$(OutputPath)runtimes\linux-musl-s390x" />
+    <RemoveDir Directories="$(OutputPath)runtimes\linux-musl-x64" />
+    <RemoveDir Directories="$(OutputPath)runtimes\linux-ppc64le" />
+    <RemoveDir Directories="$(OutputPath)runtimes\linux-s390x" />
+    <RemoveDir Directories="$(OutputPath)runtimes\linux-x86" />
+    <RemoveDir Directories="$(OutputPath)runtimes\maccatalyst-arm64" />
+    <RemoveDir Directories="$(OutputPath)runtimes\maccatalyst-x64" />
+    <RemoveDir Directories="$(OutputPath)runtimes\win-arm" />
+    <RemoveDir Directories="$(OutputPath)runtimes\win-x86" />
+  </Target>
+
+</Project>

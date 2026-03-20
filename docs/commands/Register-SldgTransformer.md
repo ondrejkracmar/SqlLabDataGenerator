@@ -90,7 +90,7 @@ HelpMessage: ''
 
 ### -OutputType
 
-Optional PSTypeName of the output objects.
+Optional type name of the output objects (e.g. `SqlLabDataGenerator.EntraIdUser`).
 
 ```yaml
 Type: System.String

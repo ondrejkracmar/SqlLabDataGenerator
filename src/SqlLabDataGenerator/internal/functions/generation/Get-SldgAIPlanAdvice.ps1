@@ -22,7 +22,10 @@
 	)
 
 	$aiProvider = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.AI.Provider'
-	if ($aiProvider -eq 'None') { return $null }
+	if ($aiProvider -eq 'None') {
+		Write-PSFMessage -Level Verbose -String 'AI.PlanAdviceSkipped'
+		return $null
+	}
 
 	if (-not $Locale) {
 		$Locale = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.Generation.Locale'
@@ -45,44 +48,15 @@
 	}
 	$schemaText = $schemaSummary -join "`n`n"
 
-	$systemPrompt = @"
-You are a test data architect. Analyze the database schema and suggest optimal data generation parameters.
-Base target: approximately $BaseRowCount rows for main entity tables.
-Locale: $Locale
+	$systemPrompt = Resolve-SldgPromptTemplate -Purpose 'plan-advice' -Variables @{
+		BaseRowCount = $BaseRowCount
+		Locale       = $Locale
+	}
 
-Analyze table relationships and suggest:
-1. Row counts per table that make business sense (lookup tables: fewer rows, transaction tables: more rows, respect parent:child ratios)
-2. Identify lookup/reference tables vs transaction/fact tables
-3. Suggest custom generation rules for columns where default generators might not be ideal
-4. Identify cross-table consistency requirements
-
-Return ONLY valid JSON with this structure:
-{
-  "tables": {
-    "schema.table": {
-      "rowCount": 100,
-      "tableType": "Lookup|Entity|Transaction|Junction",
-      "notes": "explanation"
-    }
-  },
-  "customRules": [
-    {
-      "tableName": "schema.table",
-      "columnName": "column",
-      "ruleType": "ValueList|Pattern|Hint",
-      "values": ["val1", "val2"],
-      "hint": "generation instruction"
-    }
-  ],
-  "crossTableRules": [
-    {
-      "description": "what consistency rule",
-      "tables": ["table1", "table2"],
-      "columns": ["col1", "col2"]
-    }
-  ]
-}
-"@
+	if (-not $systemPrompt) {
+		Write-PSFMessage -Level Warning -String 'Prompt.ResolveFailed' -StringValues 'plan-advice'
+		return $null
+	}
 
 	if ($IndustryHint) {
 		$systemPrompt += "`n`nIndustry: $IndustryHint. Use domain knowledge for realistic ratios and business patterns."
@@ -92,9 +66,12 @@ Return ONLY valid JSON with this structure:
 
 	Write-PSFMessage -Level Verbose -Message ($script:strings.'AI.PlanAdviceRequesting' -f $SchemaModel.TableCount)
 
-	$response = Invoke-SldgAIRequest -SystemPrompt $systemPrompt -UserMessage $userMessage
+	$response = Invoke-SldgAIRequest -SystemPrompt $systemPrompt -UserMessage $userMessage -Purpose 'plan-advice'
 
-	if (-not $response) { return $null }
+	if (-not $response) {
+		Write-PSFMessage -Level Warning -String 'AI.PlanAdviceNoResponse'
+		return $null
+	}
 
 	$jsonText = $response
 	if ($jsonText -match '```(?:json)?\s*\n?([\s\S]*?)\n?```') {
@@ -151,8 +128,7 @@ Return ONLY valid JSON with this structure:
 
 		Write-PSFMessage -Level Verbose -Message ($script:strings.'AI.PlanAdviceReceived' -f $tableSuggestions.Count, $customRules.Count)
 
-		[PSCustomObject]@{
-			PSTypeName      = 'SqlLabDataGenerator.AIPlanAdvice'
+		[SqlLabDataGenerator.AIPlanAdvice]@{
 			Tables          = $tableSuggestions
 			CustomRules     = $customRules
 			CrossTableRules = $crossTableRules

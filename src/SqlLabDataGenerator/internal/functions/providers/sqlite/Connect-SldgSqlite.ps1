@@ -14,12 +14,11 @@
 		[int]$ConnectionTimeout = 30
 	)
 
-	# SQLite uses Microsoft.Data.Sqlite (modern) or System.Data.SQLite
-	# Try to find available assembly
+	# SQLite assemblies are loaded at module import via bin\assembly.ps1
+	# Verify that a supported SQLite provider is available
 	$assemblyLoaded = $false
 	foreach ($typeName in @('Microsoft.Data.Sqlite.SqliteConnection', 'System.Data.SQLite.SQLiteConnection')) {
 		try {
-			$null = [System.Type]::GetType($typeName, $false)
 			if ([System.Type]::GetType($typeName, $false)) {
 				$assemblyLoaded = $true
 				break
@@ -29,12 +28,7 @@
 	}
 
 	if (-not $assemblyLoaded) {
-		# Try loading from NuGet package cache or module bin
-		$sqliteDll = Join-Path $PSScriptRoot '..\..\..\..\bin\Microsoft.Data.Sqlite.dll'
-		if (Test-Path $sqliteDll) {
-			Add-Type -Path $sqliteDll
-			$assemblyLoaded = $true
-		}
+		Stop-PSFFunction -Message ($script:strings.'Connect.Failed' -f 'SQLite', $Database, '', 'No SQLite ADO.NET provider found. Microsoft.Data.Sqlite assembly failed to load at module import.') -EnableException $true
 	}
 
 	# Resolve database path
@@ -77,15 +71,14 @@
 		}
 
 		$connection.Open()
-		Write-PSFMessage -Level Verbose -Message "Connected to SQLite database '$dbPath'"
+		Write-PSFMessage -Level Verbose -String 'Connect.SQLite.Connected' -StringValues $dbPath
 	}
 	catch {
 		Stop-PSFFunction -Message ($script:strings.'Connect.Failed' -f 'SQLite', $dbPath, '', $_) -EnableException $true -ErrorRecord $_
 	}
 
-	[PSCustomObject]@{
-		PSTypeName     = 'SqlLabDataGenerator.Connection'
-		Connection     = $connection
+	[SqlLabDataGenerator.Connection]@{
+		DbConnection   = $connection
 		ServerInstance = 'localhost'
 		Database       = $dbPath
 		Provider       = 'SQLite'

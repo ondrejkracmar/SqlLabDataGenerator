@@ -34,6 +34,23 @@
 	.PARAMETER ScriptBlock
 		Custom scriptblock that generates a value.
 
+	.PARAMETER AIGenerationHint
+		Instructions for AI-powered generation. Provides context about what kind of data
+		to generate — especially useful for JSON/XML columns where the structure should
+		vary based on business context.
+		Example: 'Generate M365 usage report data. Vary JSON structure by report type:
+		UserActivity, MailboxUsage, OneDriveUsage, TeamsDeviceUsage, SharePointSiteUsage.'
+
+	.PARAMETER CrossColumnDependency
+		Specifies another column name in the same table that this column depends on.
+		During generation, the value of the dependency column is passed to AI so it can
+		generate context-appropriate data. For example, a 'Report' JSON column might
+		depend on 'ReportId' to vary its structure by report type.
+
+	.PARAMETER ValueExamples
+		Example values that illustrate the expected format. Passed to AI to guide generation.
+		For JSON/XML columns, provide example documents showing the expected structure.
+
 	.EXAMPLE
 		PS C:\> Set-SldgGenerationRule -Plan $plan -TableName 'dbo.Customer' -ColumnName 'Status' -ValueList @('Active', 'Inactive', 'Pending')
 
@@ -48,6 +65,21 @@
 		PS C:\> Set-SldgGenerationRule -Plan $plan -TableName 'dbo.Product' -ColumnName 'SKU' -ScriptBlock { "SKU-$(Get-Random -Minimum 10000 -Maximum 99999)" }
 
 		Sets the SKU column to use a custom scriptblock for value generation.
+
+	.EXAMPLE
+		PS C:\> Set-SldgGenerationRule -Plan $plan -TableName 'dbo.UsageReport' -ColumnName 'ReportData' `
+		    -Generator 'Json' `
+		    -AIGenerationHint 'Generate Microsoft 365 usage report data. Structure varies by report type: UserActivity has sessions/actions, MailboxUsage has storage/itemCount, TeamsDeviceUsage has deviceType/usageMinutes.' `
+		    -CrossColumnDependency 'ReportType'
+
+		Sets the ReportData JSON column to use AI generation, varying the JSON structure
+		based on the ReportType column value in each row.
+
+	.NOTES
+		SECURITY WARNING: The -ScriptBlock parameter executes arbitrary PowerShell code
+		during data generation. Only use ScriptBlocks from trusted sources. ScriptBlocks
+		are intentionally NOT supported in JSON profiles (Import-SldgGenerationProfile)
+		to prevent code injection from untrusted files.
 	#>
 	[CmdletBinding()]
 	param (
@@ -68,7 +100,13 @@
 
 		[hashtable]$GeneratorParams,
 
-		[scriptblock]$ScriptBlock
+		[scriptblock]$ScriptBlock,
+
+		[string]$AIGenerationHint,
+
+		[string]$CrossColumnDependency,
+
+		[string[]]$ValueExamples
 	)
 
 	$rule = @{}
@@ -77,6 +115,9 @@
 	if ($Generator) { $rule['Generator'] = $Generator }
 	if ($GeneratorParams) { $rule['Params'] = $GeneratorParams }
 	if ($ScriptBlock) { $rule['ScriptBlock'] = $ScriptBlock }
+	if ($AIGenerationHint) { $rule['AIGenerationHint'] = $AIGenerationHint }
+	if ($CrossColumnDependency) { $rule['CrossColumnDependency'] = $CrossColumnDependency }
+	if ($ValueExamples) { $rule['ValueExamples'] = $ValueExamples }
 
 	# Store rule in plan
 	if (-not $Plan.GenerationRules.ContainsKey($TableName)) {
@@ -87,12 +128,12 @@
 	# Also update the column plan
 	$tablePlan = $Plan.Tables | Where-Object { $_.FullName -eq $TableName } | Select-Object -First 1
 	if (-not $tablePlan) {
-		Write-PSFMessage -Level Warning -Message "Table '$TableName' not found in plan. Rule stored but may not be applied during generation."
+		Write-PSFMessage -Level Warning -String 'GenerationRule.TableNotFound' -StringValues $TableName
 	}
 	else {
 		$colPlan = $tablePlan.Columns | Where-Object { $_.ColumnName -eq $ColumnName } | Select-Object -First 1
 		if (-not $colPlan) {
-			Write-PSFMessage -Level Warning -Message "Column '$ColumnName' not found in table '$TableName'. Rule stored but may not be applied during generation."
+			Write-PSFMessage -Level Warning -String 'GenerationRule.ColumnNotFound' -StringValues $ColumnName, $TableName
 		}
 		else {
 			$colPlan.CustomRule = $rule

@@ -11,6 +11,7 @@
 	[CmdletBinding()]
 	param (
 		[Parameter(Mandatory)]
+		[ValidatePattern('^[a-zA-Z]{2}(-[a-zA-Z]{2,})?$')]
 		[string]$Locale,
 
 		[int]$PoolSize = 30,
@@ -36,80 +37,18 @@
 
 	Write-PSFMessage -Level Host -Message ($script:strings.'Locale.AIGenerating' -f $Locale, $aiProvider)
 
-	$systemPrompt = @"
-You are a data generation assistant. Generate culturally authentic test data for the locale "$Locale".
-Return ONLY valid JSON (no markdown, no comments, no explanation).
-All string arrays must contain exactly $PoolSize items. All items must be culturally appropriate for $Locale.
-Use the native language and naming conventions of this culture.
+	$systemPrompt = Resolve-SldgPromptTemplate -Purpose 'locale-data' -Variables @{
+		Locale   = $Locale
+		PoolSize = $PoolSize
+	}
 
-Required JSON structure:
-{
-  "MaleNames": ["..."],
-  "FemaleNames": ["..."],
-  "LastNames": ["..."],
-  "StreetNames": ["..."],
-  "StreetTypes": ["..."],
-  "Locations": [{"City":"...","State":"...","ZipPrefix":"..."}],
-  "Countries": ["..."],
-  "ZipFormat": "{Prefix}{Suffix:D2}",
-  "AddressFormat": "{Number} {Street} {StreetType}",
-  "StateLabel": "...",
-  "EmailDomains": ["..."],
-  "PhoneFormat": {
-    "AreaCodes": ["..."],
-    "Formats": {
-      "Standard": "...",
-      "International": "...",
-      "Simple": "..."
-    },
-    "ExchangeMin": 100,
-    "ExchangeMax": 999,
-    "SubscriberMin": 1000,
-    "SubscriberMax": 9999
-  },
-  "CompanyPrefixes": ["..."],
-  "CompanyCores": ["..."],
-  "CompanySuffixes": ["..."],
-  "Departments": ["..."],
-  "JobTitles": ["..."],
-  "Industries": ["..."],
-  "NationalIdFormat": "...",
-  "TaxIdFormat": "...",
-  "IBANCountries": ["..."],
-  "Currencies": ["..."],
-  "Statuses": ["..."],
-  "Genders": ["..."],
-  "Categories": ["..."]
-}
-
-Rules:
-- MaleNames: Common male first names in this culture
-- FemaleNames: Common female first names in this culture
-- LastNames: Common surnames in this culture
-- StreetNames: Realistic street names in native language
-- StreetTypes: Street type abbreviations (St, Ave, ul., nám., Str., etc.)
-- Locations: Real cities in this country with region/state and postal code prefix
-- Countries: Country name variants (native name, ISO code, English name)
-- ZipFormat: Postal code format using {Prefix} and {Suffix:D2} placeholders. Use space if needed.
-- AddressFormat: How addresses are formatted ({Number} {Street} {StreetType} or {Street} {Number}, etc.)
-- StateLabel: What regions are called (State, Region, Kraj, Bundesland, etc.)
-- EmailDomains: Popular email providers in this country + generic ones
-- PhoneFormat.AreaCodes: Real phone area/mobile codes for this country
-- PhoneFormat.Formats: Standard (local), International (with country code), Simple (digits only)
-- CompanyPrefixes/Cores/Suffixes: Business name parts in native language
-- Departments/JobTitles: In native language
-- Industries: In native language
-- NationalIdFormat/TaxIdFormat: Format strings matching the country's national ID and tax ID patterns
-- IBANCountries: ISO country codes for this region
-- Currencies: Primary currency + common trading currencies
-- Statuses: Workflow statuses in native language
-- Genders: Gender options in native language
-- Categories: Generic categories in native language
-"@
+	if (-not $systemPrompt) {
+		Stop-PSFFunction -String 'Locale.PromptResolveFailed' -StringValues $Locale -EnableException $true
+	}
 
 	$userMessage = "Generate culturally authentic test data for locale: $Locale. Return ONLY the JSON object, nothing else."
 
-	$response = Invoke-SldgAIRequest -SystemPrompt $systemPrompt -UserMessage $userMessage
+	$response = Invoke-SldgAIRequest -SystemPrompt $systemPrompt -UserMessage $userMessage -Purpose 'locale-data'
 
 	if (-not $response) {
 		Stop-PSFFunction -Message ($script:strings.'Locale.AIFailed' -f $Locale) -EnableException $true

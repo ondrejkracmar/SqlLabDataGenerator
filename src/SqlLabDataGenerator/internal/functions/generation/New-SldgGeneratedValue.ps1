@@ -5,6 +5,11 @@
 	.DESCRIPTION
 		Core value generation function. Handles FK lookups, identity skipping,
 		nullable randomization, custom value lists, and generator dispatch.
+
+		When a CustomRule contains AIGenerationHint and/or CrossColumnDependency,
+		and the column generator is Json or Xml, passes the AI hint and the dependency
+		column value (from RowContext) to New-SldgStructuredData for context-dependent
+		AI-powered structured data generation.
 	#>
 	[CmdletBinding()]
 	param (
@@ -17,7 +22,9 @@
 
 		[hashtable]$CustomRule,
 
-		[int]$NullProbability = -1
+		[int]$NullProbability = -1,
+
+		[hashtable]$RowContext
 	)
 
 	# Skip identity and computed columns
@@ -109,6 +116,21 @@
 		if ($Column.TableName) { $params['TableName'] = $Column.TableName }
 		if ($Column.SchemaHint) { $params['SchemaHint'] = $Column.SchemaHint }
 		if ($Column.MaxLength -and $Column.MaxLength -gt 0) { $params['MaxLength'] = $Column.MaxLength }
+
+		# AI generation hint from rule or column metadata
+		$hint = if ($CustomRule -and $CustomRule.AIGenerationHint) { $CustomRule.AIGenerationHint } else { $null }
+		if ($hint) { $params['AIGenerationHint'] = $hint }
+
+		# Value examples from rule or column metadata
+		$examples = if ($CustomRule -and $CustomRule.ValueExamples) { $CustomRule.ValueExamples } else { $null }
+		if ($examples) { $params['ValueExamples'] = $examples }
+
+		# Cross-column dependency: pass context from already-generated columns in this row
+		$depCol = if ($CustomRule -and $CustomRule.CrossColumnDependency) { $CustomRule.CrossColumnDependency } else { $null }
+		if ($depCol -and $RowContext -and $RowContext.ContainsKey($depCol)) {
+			$params['ContextColumn'] = $depCol
+			$params['ContextValue'] = [string]$RowContext[$depCol]
+		}
 	}
 
 	& $gen.Function @params

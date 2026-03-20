@@ -18,6 +18,10 @@ Discovers database schema, classifies columns semantically (with OpenAI, Azure O
 | **Database Providers** | SQL Server, SQLite (extensible via `Register-SldgProvider`) |
 | **Transform Layer** | Convert generated data to Entra ID users/groups, custom formats |
 | **Validation** | FK integrity, unique constraints, NOT NULL, row count checks |
+| **Prompt Management** | Externalized `.prompt` templates with YAML front matter; customize or override any AI prompt |
+| **Per-Purpose AI Models** | Use different AI models for different tasks (e.g., GPT-4o for analysis, Ollama for generation) |
+| **Context-Dependent JSON/XML** | AI generates structured data that varies by cross-column dependencies (e.g., JSON structure driven by report type) |
+| **Hybrid Module** | Compiled C# type system (`SqlLabDataGenerator.dll`) for strongly-typed objects with PowerShell flexibility |
 
 ## Requirements
 
@@ -62,9 +66,16 @@ Disconnect-SldgDatabase
 ### AI
 | Command | Description |
 |---|---|
-| `Set-SldgAIProvider` | Configure AI provider, model, endpoint, and features |
-| `Get-SldgAIProvider` | Show current AI configuration |
+| `Set-SldgAIProvider` | Configure AI provider, model, endpoint, and features; supports per-purpose model overrides |
+| `Get-SldgAIProvider` | Show current AI configuration and model overrides |
 | `Test-SldgAIProvider` | Test AI connectivity with response time |
+
+### Prompt Management
+| Command | Description |
+|---|---|
+| `Get-SldgPromptTemplate` | List or read AI prompt templates (built-in and custom) |
+| `Set-SldgPromptTemplate` | Create or update a custom prompt template override |
+| `Remove-SldgPromptTemplate` | Remove a custom prompt override (falls back to built-in) |
 
 ### Schema & Analysis
 | Command | Description |
@@ -76,7 +87,7 @@ Disconnect-SldgDatabase
 | Command | Description |
 |---|---|
 | `New-SldgGenerationPlan` | Create an ordered execution plan |
-| `Set-SldgGenerationRule` | Override generation for specific columns |
+| `Set-SldgGenerationRule` | Override generation for specific columns (ValueList, StaticValue, ScriptBlock, AI hints, cross-column dependencies) |
 | `Invoke-SldgDataGeneration` | Execute data generation |
 | `Test-SldgGeneratedData` | Validate generated data integrity |
 
@@ -103,23 +114,9 @@ Disconnect-SldgDatabase
 Detailed documentation is available in the [docs/](docs/) folder:
 
 - [Getting Started](docs/getting-started.md) — installation, first run, basic workflow
-- [AI Configuration & Training](docs/ai-configuration.md) — providers, custom Ollama models, fine-tuning
+- [AI Configuration & Training](docs/ai-configuration.md) — providers, custom Ollama models, prompt customization, fine-tuning
+- [Extending](docs/extending.md) — custom database providers, transformers, locales
 - [Command Reference](docs/commands/) — platyPS-generated help for every exported command
-
-## Project Structure
-
-```
-src/
-  SqlLabDataGenerator/           # PowerShell module
-    functions/                   # Public commands (ai/, connection/, generation/, …)
-    internal/                    # Private functions (semantic/, generation/, locale/, …)
-    en-us/                       # String resources
-    views/                       # Format.ps1xml
-    types/                       # Types.ps1xml
-  tests/                         # Pester tests
-  build/                         # CI/CD scripts
-docs/                            # Detailed documentation
-```
 
 ## License
 

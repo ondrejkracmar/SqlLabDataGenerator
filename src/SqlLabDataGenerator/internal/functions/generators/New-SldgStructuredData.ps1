@@ -7,10 +7,9 @@
 		optional schema hint from views) to AI to infer the expected structure and generate
 		realistic content. Falls back to static templates when AI is unavailable.
 
-		Schema hints can come from:
-		- View definitions that reference the underlying column (AI can infer structure)
-		- Column/table naming conventions
-		- Explicit AIGenerationHint on the column
+		Supports context-dependent generation: when ContextColumn and ContextValue are
+		provided (e.g., ReportType = 'MailboxUsage'), AI generates structures that match
+		the context, producing varied schemas per context value.
 
 		For JSON: returns a valid JSON string.
 		For XML: returns a valid XML string with a root element.
@@ -28,7 +27,15 @@
 
 		[int]$MaxLength = 4000,
 
-		[int]$Count = 1
+		[int]$Count = 1,
+
+		[string]$AIGenerationHint,
+
+		[string]$ContextColumn,
+
+		[string]$ContextValue,
+
+		[string[]]$ValueExamples
 	)
 
 	$aiProvider = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.AI.Provider'
@@ -39,7 +46,18 @@
 
 		# Try AI generation when configured
 		if ($useAI -and $aiProvider -ne 'None') {
-			$result = New-SldgAIStructuredValue -Type $Type -ColumnName $ColumnName -TableName $TableName -SchemaHint $SchemaHint -MaxLength $MaxLength
+			$aiParams = @{
+				Type       = $Type
+				ColumnName = $ColumnName
+				TableName  = $TableName
+				SchemaHint = $SchemaHint
+				MaxLength  = $MaxLength
+			}
+			if ($AIGenerationHint) { $aiParams['AIGenerationHint'] = $AIGenerationHint }
+			if ($ContextColumn) { $aiParams['ContextColumn'] = $ContextColumn }
+			if ($ContextValue) { $aiParams['ContextValue'] = $ContextValue }
+			if ($ValueExamples) { $aiParams['ValueExamples'] = $ValueExamples }
+			$result = New-SldgAIStructuredValue @aiParams
 		}
 
 		# Static fallback

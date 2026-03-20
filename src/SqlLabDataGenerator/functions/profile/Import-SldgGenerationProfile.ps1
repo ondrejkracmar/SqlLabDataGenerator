@@ -8,6 +8,10 @@
 		custom generation rules for specific tables and columns. This allows
 		consistent, repeatable data generation across environments.
 
+		Supported column rule keys: valueList, staticValue, generator, generatorParams,
+		aiGenerationHint, crossColumnDependency, and valueExamples.
+		scriptBlock keys are rejected during import to prevent code injection.
+
 		The JSON format is:
 		{
 		    "tables": {
@@ -16,7 +20,12 @@
 		            "columns": {
 		                "Status": { "valueList": ["Active", "Inactive"] },
 		                "Currency": { "staticValue": "USD" },
-		                "Email": { "generator": "Email" }
+		                "Email": { "generator": "Email" },
+		                "ReportData": {
+		                    "generator": "Json",
+		                    "aiGenerationHint": "M365 usage report data",
+		                    "crossColumnDependency": "ReportType"
+		                }
 		            }
 		        }
 		    }
@@ -48,6 +57,9 @@
 
 	$profileData = Get-Content -Path $Path -Raw | ConvertFrom-Json
 
+	# Build known generator whitelist from the generator map
+	$knownGenerators = @((Get-SldgGeneratorMap).Keys)
+
 	$ruleCount = 0
 	$columnOverrides = 0
 
@@ -73,7 +85,13 @@
 					# Security guard: reject scriptBlock keys from JSON profiles to prevent code injection (case-insensitive)
 					$hasScriptBlock = $colProfile.PSObject.Properties.Name | Where-Object { $_ -ieq 'scriptBlock' }
 					if ($hasScriptBlock) {
-						Write-PSFMessage -Level Warning -Message "Profile '$Path': column '$colName' in table '$tableName' contains a 'scriptBlock' key — skipped for security."
+						Write-PSFMessage -Level Warning -String 'Profile.ScriptBlockSkipped' -StringValues $Path, $colName, $tableName
+						continue
+					}
+
+					# Generator whitelist: reject unknown generator names to prevent injection
+					if ($colProfile.generator -and $colProfile.generator -notin $knownGenerators) {
+						Write-PSFMessage -Level Warning -String 'Profile.UnknownGenerator' -StringValues $Path, $colName, $tableName, $colProfile.generator, ($knownGenerators -join ', ')
 						continue
 					}
 

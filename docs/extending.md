@@ -31,11 +31,11 @@ function Connect-MyDatabase {
     )
 
     # Open connection and return a connection info object
-    [PSCustomObject]@{
-        Provider   = 'MyDatabase'
-        Connection = $conn          # The open connection object
-        Server     = $Server
-        Database   = $Database
+    [SqlLabDataGenerator.Connection]@{
+        Provider     = 'MyDatabase'
+        DbConnection = $conn          # The open connection object
+        ServerInstance = $Server
+        Database     = $Database
     }
 }
 ```
@@ -115,8 +115,8 @@ function Disconnect-MyDatabase {
         [Parameter(Mandatory)]$ConnectionInfo
     )
 
-    $ConnectionInfo.Connection.Close()
-    $ConnectionInfo.Connection.Dispose()
+    $ConnectionInfo.DbConnection.Close()
+    $ConnectionInfo.DbConnection.Dispose()
 }
 ```
 
@@ -140,6 +140,7 @@ Connect-SldgDatabase -Provider 'MyDatabase' -Server 'localhost' -Database 'TestD
 - Always use **parameterized queries** in WriteData — never concatenate user data into SQL.
 - Support the optional `-Transaction` parameter so `Invoke-SldgDataGeneration -UseTransaction` works with your provider.
 - Return a `[System.Data.DataTable]` from ReadData for compatibility with the validation pipeline.
+- The module uses compiled C# types (namespace `SqlLabDataGenerator`) for all core objects. Your Connect function should return a `[SqlLabDataGenerator.Connection]` object with `DbConnection`, `ServerInstance`, `Database`, and `Provider` properties.
 
 ---
 
@@ -297,5 +298,37 @@ Set-SldgGenerationRule -Table 'Products' -Column 'SKU' `
 Set-SldgGenerationRule -Table 'Invoices' -Column 'InvoiceNumber' `
     -Pattern 'INV-{0:D8}' -Sequential
 ```
+
+### AI-Powered Generation Hints
+
+Guide AI generation with hints and cross-column dependencies:
+
+```powershell
+# Simple AI hint — tell AI what to generate
+Set-SldgGenerationRule -Plan $plan -TableName 'dbo.Project' `
+    -ColumnName 'Settings' -Generator 'Json' `
+    -AIGenerationHint 'Project settings with theme, notification preferences, and sprint configuration'
+
+# Context-dependent JSON — structure varies based on another column
+Set-SldgGenerationRule -Plan $plan -TableName 'dbo.UsageReport' `
+    -ColumnName 'ReportData' -Generator 'Json' `
+    -AIGenerationHint 'M365 usage report data. Structure varies by report type.' `
+    -CrossColumnDependency 'ReportType'
+
+# Provide examples to guide AI output format
+Set-SldgGenerationRule -Plan $plan -TableName 'dbo.Config' `
+    -ColumnName 'SettingsJson' -Generator 'Json' `
+    -AIGenerationHint 'Application configuration' `
+    -ValueExamples @(
+        '{"theme":"dark","language":"cs","notifications":{"email":true}}',
+        '{"theme":"light","language":"en","notifications":{"email":false}}'
+    )
+```
+
+| Parameter | Purpose |
+|---|---|
+| `-AIGenerationHint` | Free-text instructions for AI about what to generate |
+| `-CrossColumnDependency` | Column name whose value drives structure variation (auto-reorders columns) |
+| `-ValueExamples` | Example documents showing expected format (AI uses as reference) |
 
 Rules are stored in the generation plan and applied during `Invoke-SldgDataGeneration`. They take priority over semantic type-based generation.

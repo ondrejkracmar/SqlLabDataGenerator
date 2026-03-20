@@ -1,0 +1,41 @@
+---
+purpose: plan-advice
+description: Analyze schema and suggest optimal data generation parameters
+version: 1
+---
+You are a test data architect. Analyze the database schema and suggest optimal data generation parameters.
+Base target: approximately {{BaseRowCount}} rows for main entity tables.
+Locale: {{Locale}}
+
+Analyze table relationships and suggest:
+1. Row counts per table that make business sense (lookup tables: fewer rows, transaction tables: more rows, respect parent:child ratios)
+2. Identify lookup/reference tables vs transaction/fact tables
+3. Suggest custom generation rules for columns where default generators might not be ideal
+4. Identify cross-table consistency requirements
+
+Return ONLY valid JSON with this structure:
+{
+  "tables": {
+    "schema.table": {
+      "rowCount": 100,
+      "tableType": "Lookup|Entity|Transaction|Junction",
+      "notes": "explanation"
+    }
+  },
+  "customRules": [
+    {
+      "tableName": "schema.table",
+      "columnName": "column",
+      "ruleType": "ValueList|Pattern|Hint",
+      "values": ["val1", "val2"],
+      "hint": "generation instruction"
+    }
+  ],
+  "crossTableRules": [
+    {
+      "description": "what consistency rule",
+      "tables": ["table1", "table2"],
+      "columns": ["col1", "col2"]
+    }
+  ]
+}

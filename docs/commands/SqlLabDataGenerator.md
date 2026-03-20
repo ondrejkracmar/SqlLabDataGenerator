@@ -36,7 +36,7 @@ Transforms generated data into a target format (e.g., Entra ID users, Entra ID g
 
 ### [Get-SldgAIProvider](Get-SldgAIProvider.md)
 
-Returns the current AI provider configuration.
+Returns the current AI provider configuration and any per-purpose model overrides.
 
 ### [Get-SldgColumnAnalysis](Get-SldgColumnAnalysis.md)
 
@@ -76,7 +76,7 @@ Registers a custom data transformer.
 
 ### [Set-SldgAIProvider](Set-SldgAIProvider.md)
 
-Configures the AI provider for semantic analysis and data generation.
+Configures the AI provider for semantic analysis and data generation. Supports per-purpose model overrides.
 
 ### [Set-SldgGenerationRule](Set-SldgGenerationRule.md)
 
@@ -89,4 +89,16 @@ Tests connectivity to the configured AI provider.
 ### [Test-SldgGeneratedData](Test-SldgGeneratedData.md)
 
 Validates the quality and integrity of generated data.
+
+### [Get-SldgPromptTemplate](Get-SldgPromptTemplate.md)
+
+Lists or reads AI prompt templates available to the module (built-in and custom).
+
+### [Set-SldgPromptTemplate](Set-SldgPromptTemplate.md)
+
+Creates or updates a custom prompt template override.
+
+### [Remove-SldgPromptTemplate](Remove-SldgPromptTemplate.md)
+
+Removes a custom prompt template override (falls back to built-in).
 

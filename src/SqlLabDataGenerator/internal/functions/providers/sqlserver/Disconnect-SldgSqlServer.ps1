@@ -9,9 +9,9 @@
 		$ConnectionInfo
 	)
 
-	if ($ConnectionInfo.Connection -and $ConnectionInfo.Connection.State -ne 'Closed') {
-		$ConnectionInfo.Connection.Close()
-		$ConnectionInfo.Connection.Dispose()
-		Write-PSFMessage -Level Verbose -Message "Disconnected from SQL Server '$($ConnectionInfo.ServerInstance)'"
+	if ($ConnectionInfo.DbConnection -and $ConnectionInfo.DbConnection.State -ne 'Closed') {
+		$ConnectionInfo.DbConnection.Close()
+		$ConnectionInfo.DbConnection.Dispose()
+		Write-PSFMessage -Level Verbose -String 'Connect.SqlServer.Disconnected' -StringValues $ConnectionInfo.ServerInstance
 	}
 }

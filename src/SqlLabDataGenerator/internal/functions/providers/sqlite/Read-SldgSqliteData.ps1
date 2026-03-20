@@ -20,7 +20,7 @@
 		[int]$TopN = 0
 	)
 
-	$conn = $ConnectionInfo.Connection
+	$conn = $ConnectionInfo.DbConnection
 
 	$colExpr = if ($ColumnFilter) {
 		($ColumnFilter | ForEach-Object { "[$_]" }) -join ', '

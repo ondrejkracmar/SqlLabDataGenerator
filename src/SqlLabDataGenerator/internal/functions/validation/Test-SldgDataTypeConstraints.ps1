@@ -14,7 +14,7 @@
 	)
 
 	$results = [System.Collections.Generic.List[object]]::new()
-	$conn = $ConnectionInfo.Connection
+	$conn = $ConnectionInfo.DbConnection
 
 	foreach ($table in $SchemaModel.Tables) {
 		# Check NOT NULL violations
@@ -37,8 +37,7 @@
 			}
 
 			$passed = $nullCount -eq 0
-			$results.Add([PSCustomObject]@{
-				PSTypeName       = 'SqlLabDataGenerator.ValidationResult'
+			$results.Add([SqlLabDataGenerator.ValidationResult]@{
 				CheckType        = 'NotNull'
 				TableName        = $table.FullName
 				ConstraintName   = "$($col.ColumnName)_NotNull"
@@ -63,8 +62,7 @@
 			$cmd.Dispose()
 		}
 
-		$results.Add([PSCustomObject]@{
-			PSTypeName       = 'SqlLabDataGenerator.ValidationResult'
+		$results.Add([SqlLabDataGenerator.ValidationResult]@{
 			CheckType        = 'RowCount'
 			TableName        = $table.FullName
 			ConstraintName   = 'RowCount'

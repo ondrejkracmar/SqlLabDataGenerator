@@ -32,6 +32,7 @@ $script:SldgState = @{
 	AIValueCache           = @{}
 	AIRequestTimestamps    = [System.Collections.Generic.List[datetime]]::new()
 	CacheTimestamps        = @{}
+	AIModelOverrides       = @{}
 }
 
 # Import behavior
@@ -68,6 +69,10 @@ Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'Generation.Mode' -Value 'Synt
 # Magic-number extraction — centralised thresholds and limits
 Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'Generation.MaxUniqueRetries' -Value 10 -Initialize -Validation 'integerpositive' -Description "Maximum retry attempts when generating a unique value before giving up."
 Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'AI.ConfidenceThreshold' -Value 0.6 -Initialize -Validation 'double' -Description "Minimum confidence score for AI semantic classification to be accepted."
+
+# AI prompt template settings
+Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'AI.PromptVariant' -Value 'default' -Initialize -Validation 'string' -Description "Which prompt template variant to use. 'default' auto-selects by AI provider (openai, ollama). Set to a custom name to use your own prompt files (e.g. 'mycompany', 'anthropic')."
+Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'AI.PromptPath' -Value '' -Initialize -Validation 'string' -Description "Path to a folder with custom .prompt template overrides. Files here take priority over built-in templates. Format: {purpose}.{variant}.prompt with YAML front matter."
 
 # Streaming — chunked generation for tables exceeding the threshold to prevent out-of-memory
 Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'Generation.StreamingThreshold' -Value 100000 -Initialize -Validation 'integer' -Description "Row count threshold above which streaming (chunked) generation is used. Set 0 to disable streaming. Default: 100000."

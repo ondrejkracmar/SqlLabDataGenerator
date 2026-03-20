@@ -1,4 +1,4 @@
-﻿function Get-SldgAIColumnAnalysis {
+function Get-SldgAIColumnAnalysis {
 	<#
 	.SYNOPSIS
 		Uses an AI provider for deep semantic analysis of database columns.
@@ -53,46 +53,14 @@
 	}
 	$schemaText = $schemaSummary -join "`n`n"
 
-	$systemPrompt = @"
-You are an expert database analyst and test data architect. Analyze the database schema below and provide deep semantic understanding of every column.
+	$systemPrompt = Resolve-SldgPromptTemplate -Purpose 'column-analysis' -Variables @{
+		Locale = $Locale
+	}
 
-Your goal: understand what each column represents in the real world — from the column name, data type, table context, foreign keys, and naming conventions. Column names may be in ANY language (English, Czech, German, etc.) or use abbreviations.
-
-For each column, determine:
-1. SemanticType: What real-world concept it represents
-2. IsPII: Whether it contains personally identifiable information
-3. GenerationHint: Specific instructions for generating realistic test data
-4. ValueExamples: 3-5 example values that would be appropriate
-5. ValuePattern: Format pattern if applicable (regex or description)
-6. CrossColumnDependency: Other columns this value should be consistent with
-
-Locale for generated data: $Locale
-
-Return ONLY a JSON array. Each object must have:
-{
-  "TableName": "schema.table",
-  "ColumnName": "column",
-  "SemanticType": "one of the types listed below",
-  "IsPII": true/false,
-  "GenerationHint": "specific instruction for realistic data generation",
-  "ValueExamples": ["example1", "example2", "example3"],
-  "ValuePattern": "format description or regex",
-  "CrossColumnDependency": "e.g. Email should use FirstName+LastName" or null
-}
-
-Valid SemanticTypes: FirstName, LastName, FullName, MiddleName, Email, Phone, Street, City, State, ZipCode, Country, SSN, NationalId, TaxId, IBAN, CreditCard, BankAccount, Money, Currency, BirthDate, PastDate, FutureDate, Timestamp, BusinessNumber, CompanyName, Department, JobTitle, Url, IpAddress, Username, Password, Text, Status, Category, Gender, Age, Boolean, Quantity, Percentage, Integer, Decimal, Guid, Code
-
-IMPORTANT recognition rules:
-- "DisplayName" or "display_name" = FullName (combine first + last)
-- "Name" in a Person/User/Employee table = FullName
-- "Name" in a Company/Organization table = CompanyName
-- "Name" in a Product/Category table = Text (product/category name)
-- Recognize Czech: Jmeno=FirstName, Prijmeni=LastName, Telefon=Phone, Email=Email, Adresa=Street, Mesto=City, PSC=ZipCode, Oddeleni=Department, Pozice=JobTitle, RodneCislo=NationalId
-- Recognize German: Vorname=FirstName, Nachname=LastName, Strasse=Street, Ort=City, PLZ=ZipCode, Abteilung=Department
-- Recognize column context: if table is "Orders" and column is "Total", it's Money, not Integer
-- Detect cross-column dependencies: Email should match FirstName+LastName pattern
-- For Status columns: suggest realistic status values based on the table context
-"@
+	if (-not $systemPrompt) {
+		Write-PSFMessage -Level Warning -String 'Semantic.PromptResolveFailed'
+		return $null
+	}
 
 	if ($IndustryHint) {
 		$systemPrompt += "`n`nThe database is from the $IndustryHint industry. Use industry-specific terminology, common patterns, realistic value ranges, and domain knowledge for generation hints."
@@ -100,7 +68,7 @@ IMPORTANT recognition rules:
 
 	$userMessage = "Analyze this database schema and provide detailed semantic classification for every column:`n`n$schemaText"
 
-	$response = Invoke-SldgAIRequest -SystemPrompt $systemPrompt -UserMessage $userMessage
+	$response = Invoke-SldgAIRequest -SystemPrompt $systemPrompt -UserMessage $userMessage -Purpose 'column-analysis'
 
 	if (-not $response) { return $null }
 
@@ -116,8 +84,7 @@ IMPORTANT recognition rules:
 		$parsed = $jsonContent | ConvertFrom-Json
 
 		foreach ($item in $parsed) {
-			[PSCustomObject]@{
-				PSTypeName            = 'SqlLabDataGenerator.ColumnClassification'
+			[SqlLabDataGenerator.ColumnClassification]@{
 				ColumnName            = $item.ColumnName
 				TableName             = $item.TableName
 				SemanticType          = $item.SemanticType

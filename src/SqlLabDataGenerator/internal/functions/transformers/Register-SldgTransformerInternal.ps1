@@ -19,8 +19,7 @@
 		[string]$OutputType
 	)
 
-	$script:SldgState.Transformers[$Name] = [PSCustomObject]@{
-		PSTypeName            = 'SqlLabDataGenerator.Transformer'
+	$script:SldgState.Transformers[$Name] = [SqlLabDataGenerator.Transformer]@{
 		Name                  = $Name
 		Description           = $Description
 		TransformFunction     = $TransformFunction

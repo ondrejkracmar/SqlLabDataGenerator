@@ -25,7 +25,7 @@
 	$changed = $true
 	while ($changed) {
 		if ($iteration++ -ge $maxIterations) {
-			Write-PSFMessage -Level Warning -Message "Level computation stopped after $maxIterations iterations — possible circular FK dependency. Results may be approximate."
+			Write-PSFMessage -Level Warning -String 'Generation.LevelComputationStopped' -StringValues $maxIterations
 			break
 		}
 		$changed = $false
@@ -64,6 +64,6 @@
 		}
 	}
 
-	Write-PSFMessage -Level Verbose -Message "Table dependency levels: $($groups.Count) levels, max parallelism at level 0: $($groups[0].Tables.Count) tables"
+	Write-PSFMessage -Level Verbose -String 'Generation.DependencyLevels' -StringValues $groups.Count, $groups[0].Tables.Count
 	$groups.ToArray()
 }

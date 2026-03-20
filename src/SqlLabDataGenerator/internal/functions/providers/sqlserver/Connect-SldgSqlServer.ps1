@@ -40,15 +40,14 @@
 	if ($Credential) { $builder['Password'] = '' }
 	try {
 		$connection.Open()
-		Write-PSFMessage -Level Verbose -Message "Connected to SQL Server '$ServerInstance' database '$Database'"
+		Write-PSFMessage -Level Verbose -String 'Connect.SqlServer.Connected' -StringValues $ServerInstance, $Database
 	}
 	catch {
 		Stop-PSFFunction -Message ($script:strings.'Connect.Failed' -f 'SqlServer', $ServerInstance, $Database, $_) -EnableException $true -ErrorRecord $_
 	}
 
-	[PSCustomObject]@{
-		PSTypeName     = 'SqlLabDataGenerator.Connection'
-		Connection     = $connection
+	[SqlLabDataGenerator.Connection]@{
+		DbConnection   = $connection
 		ServerInstance = $ServerInstance
 		Database       = $Database
 		Provider       = 'SqlServer'

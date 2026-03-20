@@ -64,8 +64,7 @@
 		$mailNickname = ($upnLocal -replace '\.', '').ToLower()
 		if (-not $mailNickname) { $mailNickname = "user$(Get-Random -Minimum 1000 -Maximum 9999)" }
 
-		$user = [PSCustomObject]@{
-			PSTypeName                = 'SqlLabDataGenerator.EntraIdUser'
+		$user = [SqlLabDataGenerator.EntraIdUser]@{
 			accountEnabled            = $true
 			displayName               = $displayName
 			givenName                 = $firstName
@@ -88,7 +87,7 @@
 		$optionalProps = @('mail', 'mobilePhone', 'jobTitle', 'department', 'companyName', 'city', 'state', 'country', 'postalCode', 'streetAddress')
 		foreach ($prop in $optionalProps) {
 			if ($ColumnMapping[$prop] -and $row[$ColumnMapping[$prop]] -isnot [DBNull]) {
-				$user | Add-Member -NotePropertyName $prop -NotePropertyValue $row[$ColumnMapping[$prop]]
+				$user.$prop = $row[$ColumnMapping[$prop]]
 			}
 		}
 

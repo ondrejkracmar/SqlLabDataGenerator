@@ -45,6 +45,7 @@
 
 		Connects to a SQLite database file (ServerInstance is not required).
 	#>
+	[OutputType([SqlLabDataGenerator.Connection])]
 	[CmdletBinding(DefaultParameterSetName = 'Server')]
 	param (
 		[Parameter(Mandatory, ParameterSetName = 'Server')]
@@ -80,7 +81,7 @@
 	$connectionInfo = & $providerInfo.FunctionMap.Connect @params
 
 	# Validate connection is alive before storing
-	if ($connectionInfo.Connection -and $connectionInfo.Connection.State -ne 'Open') {
+	if ($connectionInfo.DbConnection -and $connectionInfo.DbConnection.State -ne 'Open') {
 		Stop-PSFFunction -Message ($script:strings.'Connect.Failed' -f $Provider, $displayServer, $Database, 'Connection is not in Open state after connect.') -EnableException $true
 	}
 

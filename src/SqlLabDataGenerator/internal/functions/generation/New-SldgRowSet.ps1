@@ -9,6 +9,12 @@
 		When AI generation is enabled (Generation.AIGeneration = $true), attempts to
 		generate entire rows via AI for richer, contextually-consistent data.
 		Falls back to static generators when AI is unavailable or fails.
+
+		Supports context-dependent structured data: columns with CrossColumnDependency
+		rules are automatically reordered so that the dependency column is generated first.
+		A per-row $rowContext hashtable tracks generated values, enabling downstream columns
+		(e.g., a JSON column) to read the dependency value and vary their output accordingly.
+
 		Returns a System.Data.DataTable ready for insertion.
 
 	.NOTES
@@ -100,6 +106,23 @@
 		}
 	}
 
+	# Reorder: columns with cross-column dependencies go after their dependency columns
+	$dependentCols = @()
+	$independentCols = @()
+	foreach ($col in $activeColumns) {
+		$depCol = $null
+		if ($TableRules -and $TableRules.ContainsKey($col.ColumnName) -and $TableRules[$col.ColumnName].CrossColumnDependency) {
+			$depCol = $TableRules[$col.ColumnName].CrossColumnDependency
+		}
+		elseif ($col.CustomRule -is [hashtable] -and $col.CustomRule.CrossColumnDependency) {
+			$depCol = $col.CustomRule.CrossColumnDependency
+		}
+		if ($depCol) { $dependentCols += $col } else { $independentCols += $col }
+	}
+	if ($dependentCols.Count -gt 0) {
+		$activeColumns = @($independentCols) + @($dependentCols)
+	}
+
 	# Determine which columns are FK-bound (AI shouldn't generate these)
 	$nonFkColumns = @($activeColumns | Where-Object { -not $_.ForeignKey -or -not $ForeignKeyValues })
 
@@ -128,6 +151,7 @@
 
 		while (-not $rowValid -and $retryCount -lt $maxUniqueRetries) {
 			$rowValid = $true
+			$rowContext = @{}
 			foreach ($col in $activeColumns) {
 				$customRule = $null
 				if ($TableRules -and $TableRules.ContainsKey($col.ColumnName)) {
@@ -146,7 +170,7 @@
 
 				# Fall back to standard generator
 				if ($null -eq $value) {
-					$value = New-SldgGeneratedValue -Column $col -GeneratorMap $GeneratorMap -ForeignKeyValues $ForeignKeyValues -CustomRule $customRule -NullProbability $cachedNullProbability
+					$value = New-SldgGeneratedValue -Column $col -GeneratorMap $GeneratorMap -ForeignKeyValues $ForeignKeyValues -CustomRule $customRule -NullProbability $cachedNullProbability -RowContext $rowContext
 				}
 
 				if ($null -eq $value) { continue }
@@ -172,6 +196,9 @@
 					# Unwrap PSObject to raw .NET type for DataTable compatibility
 					$row[$col.ColumnName] = $value.psobject.BaseObject
 				}
+
+				# Track generated value for cross-column dependency context
+				$rowContext[$col.ColumnName] = $value
 			}
 
 			if ($rowValid -and $hasCompositePK) {
@@ -215,8 +242,7 @@
 		}
 	}
 
-	[PSCustomObject]@{
-		PSTypeName      = 'SqlLabDataGenerator.RowSet'
+	[SqlLabDataGenerator.RowSet]@{
 		TableInfo       = $TableInfo
 		DataTable       = $dataTable
 		RowCount        = $dataTable.Rows.Count

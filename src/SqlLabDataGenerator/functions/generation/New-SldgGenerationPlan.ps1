@@ -58,6 +58,7 @@
 
 		Generates a Scenario plan: lookup tables get ~5 rows, customers 100, orders 300, order items 800.
 	#>
+	[OutputType([SqlLabDataGenerator.GenerationPlan])]
 	[CmdletBinding()]
 	param (
 		[Parameter(Mandatory)]
@@ -142,8 +143,7 @@
 			$semanticType = if ($col.SemanticType) { $col.SemanticType } else { (Resolve-SldgSemanticType -DataType $col.DataType -MaxLength $col.MaxLength -IsNullable $col.IsNullable).Type }
 			$gen = $generatorMap[$semanticType]
 
-			[PSCustomObject]@{
-				PSTypeName    = 'SqlLabDataGenerator.ColumnPlan'
+			[SqlLabDataGenerator.ColumnPlan]@{
 				ColumnName    = $col.ColumnName
 				DataType      = $col.DataType
 				SemanticType  = $semanticType
@@ -160,8 +160,7 @@
 			}
 		}
 
-		$tablePlans.Add([PSCustomObject]@{
-				PSTypeName              = 'SqlLabDataGenerator.TablePlan'
+		$tablePlans.Add([SqlLabDataGenerator.TablePlan]@{
 				Order                   = $order
 				SchemaName              = $table.SchemaName
 				TableName               = $table.TableName
@@ -174,8 +173,7 @@
 			})
 	}
 
-	$plan = [PSCustomObject]@{
-		PSTypeName     = 'SqlLabDataGenerator.GenerationPlan'
+	$plan = [SqlLabDataGenerator.GenerationPlan]@{
 		Database       = $Schema.Database
 		Mode           = $Mode
 		Tables         = $tablePlans.ToArray()

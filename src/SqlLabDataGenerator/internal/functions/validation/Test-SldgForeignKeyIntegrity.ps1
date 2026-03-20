@@ -33,7 +33,7 @@ WHERE child.$parentCol IS NOT NULL
   )
 "@
 
-			$conn = $ConnectionInfo.Connection
+			$conn = $ConnectionInfo.DbConnection
 			$cmd = $conn.CreateCommand()
 			$cmd.CommandText = $query
 			$cmd.CommandTimeout = 120
@@ -45,8 +45,7 @@ WHERE child.$parentCol IS NOT NULL
 			}
 
 			$passed = $orphanCount -eq 0
-			$results.Add([PSCustomObject]@{
-				PSTypeName       = 'SqlLabDataGenerator.ValidationResult'
+			$results.Add([SqlLabDataGenerator.ValidationResult]@{
 				CheckType        = 'ForeignKey'
 				TableName        = $table.FullName
 				ConstraintName   = $fk.ForeignKeyName

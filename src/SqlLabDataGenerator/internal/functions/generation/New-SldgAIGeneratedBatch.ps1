@@ -51,7 +51,10 @@
 	}
 
 	$aiProvider = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.AI.Provider'
-	if ($aiProvider -eq 'None') { return $null }
+	if ($aiProvider -eq 'None') {
+		Write-PSFMessage -Level Verbose -String 'AI.BatchSkipped' -StringValues $TableName
+		return $null
+	}
 
 	# Build column descriptions for the prompt
 	$colDescriptions = foreach ($col in $Columns) {
@@ -75,31 +78,19 @@
 	$jsonExample = $colNames | ForEach-Object { "`"$_`": `"value`"" }
 	$jsonRow = "{ $($jsonExample -join ', ') }"
 
-	$systemPrompt = @"
-You are a test data generation AI. Generate exactly $BatchSize rows of realistic, consistent test data.
+	$systemPrompt = Resolve-SldgPromptTemplate -Purpose 'batch-generation' -Variables @{
+		BatchSize          = $BatchSize
+		TableName          = $TableName
+		Locale             = $Locale
+		ColumnDescriptions = $colText
+		ColumnNames        = ($colNames -join ', ')
+		JsonExample        = $jsonRow
+	}
 
-Table: $TableName
-Locale: $Locale (generate culturally-appropriate data for this locale/language)
-Columns:
-$colText
-
-Rules:
-- Generate data in the native language of the locale ($Locale)
-- Values must be realistic and internally consistent (e.g., Email matches the person's name)
-- Respect data types and max lengths
-- For cross-column dependencies, make values consistent (e.g., if there's FirstName and Email, the email should contain the first name)
-- Vary the data — don't repeat the same patterns
-- For Status/Category columns, use realistic business values appropriate for the table context
-- For nullable columns, occasionally include null (use JSON null)
-- For numeric columns, use appropriate ranges
-- For date columns, use ISO format (YYYY-MM-DD or YYYY-MM-DDTHH:mm:ss)
-
-Return ONLY a JSON array of $BatchSize objects. Each object must have exactly these keys: $($colNames -join ', ')
-No markdown, no explanation, just the JSON array.
-
-Example row format:
-$jsonRow
-"@
+	if (-not $systemPrompt) {
+		Write-PSFMessage -Level Warning -String 'Prompt.ResolveFailed' -StringValues 'batch-generation'
+		return $null
+	}
 
 	if ($IndustryHint) {
 		# Sanitize: limit length and strip control characters to mitigate prompt injection
@@ -112,9 +103,12 @@ $jsonRow
 
 	Write-PSFMessage -Level Verbose -Message ($script:strings.'AI.BatchGenerating' -f $TableName, $BatchSize, $Locale)
 
-	$response = Invoke-SldgAIRequest -SystemPrompt $systemPrompt -UserMessage $userMessage
+	$response = Invoke-SldgAIRequest -SystemPrompt $systemPrompt -UserMessage $userMessage -Purpose 'batch-generation'
 
-	if (-not $response) { return $null }
+	if (-not $response) {
+		Write-PSFMessage -Level Warning -String 'AI.BatchNoResponse' -StringValues $TableName
+		return $null
+	}
 
 	# Parse JSON response
 	$jsonText = $response

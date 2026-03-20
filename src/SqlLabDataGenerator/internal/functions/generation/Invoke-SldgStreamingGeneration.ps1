@@ -64,7 +64,7 @@
 	for ($chunk = 0; $chunk -lt $chunkCount; $chunk++) {
 		$rowsInChunk = [math]::Min($ChunkSize, $TotalRowCount - ($chunk * $ChunkSize))
 
-		Write-PSFMessage -Level Verbose -Message "Streaming chunk $($chunk + 1)/${chunkCount}: generating $rowsInChunk rows for $($TableInfo.FullName)"
+		Write-PSFMessage -Level Verbose -String 'Generation.StreamingChunk' -StringValues ($chunk + 1), $chunkCount, $rowsInChunk, $TableInfo.FullName
 
 		$rowSet = New-SldgRowSet -TableInfo $TableInfo -RowCount $rowsInChunk `
 			-GeneratorMap $GeneratorMap -ForeignKeyValues $ForeignKeyValues `
@@ -80,15 +80,21 @@
 
 		# Write chunk to database
 		if (-not $NoInsert -and $ConnectionInfo -and $WriteFunction) {
-			$writeParams = @{
-				ConnectionInfo = $ConnectionInfo
-				SchemaName     = $TableInfo.SchemaName
-				TableName      = $TableInfo.TableName
-				Data           = $rowSet.DataTable
-				BatchSize      = $BatchSize
+			try {
+				$writeParams = @{
+					ConnectionInfo = $ConnectionInfo
+					SchemaName     = $TableInfo.SchemaName
+					TableName      = $TableInfo.TableName
+					Data           = $rowSet.DataTable
+					BatchSize      = $BatchSize
+				}
+				if ($Transaction) { $writeParams['Transaction'] = $Transaction }
+				$insertedTotal += & $WriteFunction @writeParams
 			}
-			if ($Transaction) { $writeParams['Transaction'] = $Transaction }
-			$insertedTotal += & $WriteFunction @writeParams
+			catch {
+				Write-PSFMessage -Level Warning -String 'Generation.StreamingChunkFailed' -StringValues ($chunk + 1), $chunkCount, $TableInfo.FullName, $_
+				throw
+			}
 		}
 		else {
 			$insertedTotal += $rowSet.RowCount

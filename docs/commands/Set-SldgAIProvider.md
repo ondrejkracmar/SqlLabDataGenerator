@@ -22,6 +22,7 @@ Configures the AI provider for semantic analysis and data generation.
 ```
 Set-SldgAIProvider [-Provider] <string> [[-Model] <string>] [[-Endpoint] <string>]
  [[-ApiKey] <string>] [[-MaxTokens] <int>] [[-Temperature] <double>] [[-Locale] <string>]
+ [[-Purpose] <string>] [[-Credential] <pscredential>]
  [-EnableAIGeneration] [-EnableAILocale] [-SkipCertificateCheck] [<CommonParameters>]
 ```
 
@@ -40,6 +41,10 @@ For Ollama, no API key is required — just specify the model name and optionall
 the endpoint (defaults to http://localhost:11434).
 
 Optionally enables AI-powered data generation and AI-powered locale generation.
+
+Use -Purpose to configure a different AI model for a specific task. This allows
+combining models — e.g. GPT-4 for column analysis but a local Ollama model
+for batch data generation.
 
 ## EXAMPLES
 
@@ -73,6 +78,20 @@ Set-SldgAIProvider -Provider None
 
 Disables AI entirely.
 Falls back to pattern matching and static generators.
+
+### EXAMPLE 6
+
+Set-SldgAIProvider -Provider Ollama -Model 'codellama' -Purpose 'structured-value'
+
+Uses Ollama codellama specifically for JSON/XML structured value generation,
+while other AI tasks use the global provider.
+
+### EXAMPLE 7
+
+Set-SldgAIProvider -Provider OpenAI -Model 'gpt-4o' -ApiKey $key
+PS C:\> Set-SldgAIProvider -Provider Ollama -Model 'llama3' -Purpose 'batch-generation'
+
+Global: GPT-4o for classification and planning. Override: Ollama for batch data generation.
 
 ## PARAMETERS
 
@@ -302,7 +321,57 @@ This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable
 -ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
 [about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
 
-## INPUTS
+### -Credential
+
+PSCredential object whose password is used as the API key.
+Alternative to -ApiKey for secure credential management.
+
+```yaml
+Type: System.Management.Automation.PSCredential
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+### -Purpose
+
+Set a per-purpose AI model override instead of the global default.
+Valid purposes: column-analysis, batch-generation, plan-advice, structured-value,
+locale-data, locale-category.
+When AI runs for that purpose, the override is used instead of the global config.
+
+```yaml
+Type: System.String
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues:
+- column-analysis
+- batch-generation
+- plan-advice
+- structured-value
+- locale-data
+- locale-category
+HelpMessage: ''
+```
 
 ## OUTPUTS
 
@@ -312,4 +381,5 @@ This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable
 
 - [Get-SldgAIProvider](Get-SldgAIProvider.md)
 - [Test-SldgAIProvider](Test-SldgAIProvider.md)
+- [Get-SldgPromptTemplate](Get-SldgPromptTemplate.md)
 - [Get-SldgColumnAnalysis](Get-SldgColumnAnalysis.md)

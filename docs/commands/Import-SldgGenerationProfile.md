@@ -43,7 +43,12 @@ The JSON format is:
             "columns": {
                 "Status": { "valueList": ["Active", "Inactive"] },
                 "Currency": { "staticValue": "USD" },
-                "Email": { "generator": "Email" }
+                "Email": { "generator": "Email" },
+                "ReportData": {
+                    "generator": "Json",
+                    "aiGenerationHint": "M365 usage report data",
+                    "crossColumnDependency": "ReportType"
+                }
             }
         }
     }
@@ -114,6 +119,10 @@ This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable
 ## OUTPUTS
 
 ## NOTES
+
+The import recognizes these column rule keys: `valueList`, `staticValue`, `generator`,
+`generatorParams`, `aiGenerationHint`, `crossColumnDependency`, and `valueExamples`.
+`scriptBlock` keys are **rejected** during import to prevent code injection.
 
 ## RELATED LINKS
 

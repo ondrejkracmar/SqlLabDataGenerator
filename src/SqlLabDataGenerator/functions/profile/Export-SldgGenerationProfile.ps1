@@ -8,6 +8,9 @@
 		column semantic types, PII flags, and custom rules to a JSON file.
 		This profile can be imported later for consistent data generation.
 
+		Custom rules including AIGenerationHint, CrossColumnDependency, and ValueExamples
+		are preserved in the exported profile. ScriptBlock rules are excluded for security.
+
 	.PARAMETER Plan
 		The generation plan to export.
 
@@ -33,11 +36,13 @@
 		[switch]$IncludeSemanticAnalysis
 	)
 
-	# Validate path is not traversing outside intended location
+	# Resolve and normalize path — reject relative segments that could escape the caller's working directory
 	$resolvedPath = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Path)
-	if ($resolvedPath -ne [System.IO.Path]::GetFullPath($resolvedPath)) {
-		Stop-PSFFunction -Message "Invalid export path: $Path" -EnableException $true
+	$normalizedPath = [System.IO.Path]::GetFullPath($resolvedPath)
+	if ($normalizedPath -ne $resolvedPath) {
+		Stop-PSFFunction -String 'Profile.ExportPathInvalid' -StringValues $Path -EnableException $true
 	}
+	$Path = $normalizedPath
 
 	Write-PSFMessage -Level Host -Message ($script:strings.'Profile.Exporting' -f $Path)
 
@@ -101,5 +106,5 @@
 
 	$export | ConvertTo-Json -Depth 10 | Set-Content -Path $Path -Encoding UTF8
 
-	Write-PSFMessage -Level Host -Message "Profile exported to: $Path"
+	Write-PSFMessage -Level Host -String 'Profile.Exported' -StringValues $Path
 }

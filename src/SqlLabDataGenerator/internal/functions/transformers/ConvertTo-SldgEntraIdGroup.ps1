@@ -45,8 +45,7 @@
 		if ($mailNickname.Length -gt 64) { $mailNickname = $mailNickname.Substring(0, 64) }
 		if (-not $mailNickname) { $mailNickname = "grp$(Get-Random -Minimum 1000 -Maximum 9999)" }
 
-		$group = [PSCustomObject]@{
-			PSTypeName    = 'SqlLabDataGenerator.EntraIdGroup'
+		$group = [SqlLabDataGenerator.EntraIdGroup]@{
 			displayName   = $displayName
 			mailNickname  = $mailNickname
 			mailEnabled   = $GroupType -eq 'Microsoft365' -or $GroupType -eq 'DistributionList'
@@ -58,12 +57,12 @@
 		}
 
 		if ($description) {
-			$group | Add-Member -NotePropertyName description -NotePropertyValue $description
+			$group.Description = $description
 		}
 
 		# Add department tag if available
 		if ($ColumnMapping['department'] -and $row[$ColumnMapping['department']] -isnot [DBNull]) {
-			$group | Add-Member -NotePropertyName department -NotePropertyValue $row[$ColumnMapping['department']]
+			$group.Department = $row[$ColumnMapping['department']]
 		}
 
 		$group

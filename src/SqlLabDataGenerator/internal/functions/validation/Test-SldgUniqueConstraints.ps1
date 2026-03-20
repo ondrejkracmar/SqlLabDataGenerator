@@ -14,7 +14,7 @@
 	)
 
 	$results = [System.Collections.Generic.List[object]]::new()
-	$conn = $ConnectionInfo.Connection
+	$conn = $ConnectionInfo.DbConnection
 
 	foreach ($table in $SchemaModel.Tables) {
 		$uniqueCols = $table.Columns | Where-Object { $_.IsUnique -or $_.IsPrimaryKey }
@@ -49,8 +49,7 @@ HAVING COUNT(*) > 1
 			$passed = $dt.Rows.Count -eq 0
 			$duplicateCount = ($dt.Rows | Measure-Object -Property DuplicateCount -Sum).Sum
 
-			$results.Add([PSCustomObject]@{
-				PSTypeName     = 'SqlLabDataGenerator.ValidationResult'
+			$results.Add([SqlLabDataGenerator.ValidationResult]@{
 				CheckType      = if ($col.IsPrimaryKey) { 'PrimaryKey' } else { 'UniqueConstraint' }
 				TableName      = $table.FullName
 				ConstraintName = "$($col.ColumnName)_Unique"

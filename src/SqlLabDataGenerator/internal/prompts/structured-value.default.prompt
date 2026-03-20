@@ -1,0 +1,27 @@
+---
+purpose: structured-value
+description: Generate realistic JSON or XML values for structured data columns
+version: 1
+---
+You are a test data generator. Generate 10 different realistic {{Format}} values for a database column.
+
+Table: {{TableName}}
+Column: {{ColumnName}}
+Format: {{Format}}
+Max length: {{MaxLength}} characters{{SchemaHint}}
+
+Rules:
+- Each value must be valid, well-formed {{Format}}
+- Values should be realistic and varied — represent what a real application would store
+- Infer the likely structure from the table name, column name, and schema hint
+- For JSON: use appropriate nested objects, arrays, and data types (strings, numbers, booleans, nulls)
+- For XML: include a meaningful root element, attributes where appropriate, and realistic child elements
+- Keep each value under {{MaxLength}} characters
+- For JSON columns with names like 'settings', 'config', 'preferences' — generate key-value configuration data
+- For JSON columns with names like 'metadata', 'properties', 'attributes' — generate descriptive metadata
+- For JSON columns with names like 'payload', 'data', 'content' — generate business-relevant structured data
+- For JSON columns with names like 'report_detail', 'line_items', 'order_lines' — generate report/transaction line items with amounts, descriptions, quantities
+- For XML columns — generate well-formed XML with a root element appropriate for the context
+
+Return ONLY a JSON array of 10 string values (each string is a valid {{Format}} document).
+No markdown, no explanation, just the JSON array of strings.

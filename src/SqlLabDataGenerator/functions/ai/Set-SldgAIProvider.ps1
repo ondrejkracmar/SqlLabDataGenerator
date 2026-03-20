@@ -12,6 +12,10 @@
 
 		Optionally enables AI-powered data generation and AI-powered locale generation.
 
+		Use -Purpose to configure a different AI model for a specific task. This allows
+		combining models — e.g. GPT-4 for column analysis but a local Ollama model
+		for structured JSON/XML generation.
+
 	.PARAMETER Provider
 		The AI provider: Ollama, OpenAI, AzureOpenAI, or None (to disable AI).
 
@@ -48,6 +52,11 @@
 	.PARAMETER Credential
 		PSCredential object whose password is used as the API key. Alternative to -ApiKey.
 
+	.PARAMETER Purpose
+		Set a per-purpose AI model override instead of the global default. Valid purposes:
+		column-analysis, batch-generation, plan-advice, structured-value, locale-data, locale-category.
+		When AI runs for that purpose, the override is used instead of the global config.
+
 	.EXAMPLE
 		PS C:\> Set-SldgAIProvider -Provider Ollama -Model 'llama3'
 
@@ -72,6 +81,18 @@
 		PS C:\> Set-SldgAIProvider -Provider None
 
 		Disables AI entirely. Falls back to pattern matching and static generators.
+
+	.EXAMPLE
+		PS C:\> Set-SldgAIProvider -Provider Ollama -Model 'codellama' -Purpose 'structured-value'
+
+		Uses Ollama codellama specifically for JSON/XML structured value generation,
+		while other AI tasks use the global provider.
+
+	.EXAMPLE
+		PS C:\> Set-SldgAIProvider -Provider OpenAI -Model 'gpt-4o' -ApiKey $key
+		PS C:\> Set-SldgAIProvider -Provider Ollama -Model 'llama3' -Endpoint 'http://gpu:11434' -Purpose 'batch-generation'
+
+		Global: GPT-4o for classification and planning. Override: Ollama for batch data generation.
 	#>
 	[CmdletBinding()]
 	param (
@@ -97,10 +118,45 @@
 
 		[switch]$SkipCertificateCheck,
 
-		[string]$Locale
+		[string]$Locale,
+
+		[ValidateSet('column-analysis', 'batch-generation', 'plan-advice', 'structured-value', 'locale-data', 'locale-category')]
+		[string]$Purpose
 	)
 
-	# Provider
+	# Per-purpose override mode
+	if ($Purpose) {
+		$override = @{ Provider = $Provider }
+
+		if ($Model) { $override['Model'] = $Model }
+		elseif ($Provider -eq 'Ollama') { $override['Model'] = 'llama3' }
+
+		if ($Endpoint) { $override['Endpoint'] = $Endpoint }
+		elseif ($Provider -eq 'Ollama') { $override['Endpoint'] = 'http://localhost:11434' }
+
+		if ($Credential) {
+			$override['ApiKey'] = $Credential.Password
+		}
+		elseif ($ApiKey) {
+			$override['ApiKey'] = $ApiKey
+		}
+
+		if ($MaxTokens -gt 0) { $override['MaxTokens'] = $MaxTokens }
+		if ($PSBoundParameters.ContainsKey('Temperature')) { $override['Temperature'] = $Temperature }
+
+		$script:SldgState.AIModelOverrides[$Purpose] = $override
+		Write-PSFMessage -Level Host -String 'AI.OverrideSet' -StringValues $Purpose, $Provider, $override['Model']
+
+		return [SqlLabDataGenerator.AIModelOverride]@{
+			Purpose    = $Purpose
+			Provider   = $Provider
+			Model      = $override['Model']
+			Endpoint   = $override['Endpoint']
+			MaxTokens  = $override['MaxTokens']
+		}
+	}
+
+	# Global provider configuration
 	Set-PSFConfig -FullName 'SqlLabDataGenerator.AI.Provider' -Value $Provider
 
 	# Model
@@ -143,7 +199,7 @@
 
 	# SkipCertificateCheck (Ollama)
 	if ($SkipCertificateCheck) {
-		Write-PSFMessage -Level Warning -Message "TLS certificate validation is disabled for the AI endpoint. This is insecure and should only be used in development environments with self-signed certificates."
+		Write-PSFMessage -Level Warning -String 'AI.TLSDisabledWarning'
 		Set-PSFConfig -FullName 'SqlLabDataGenerator.AI.Ollama.SkipCertificateCheck' -Value $true
 	}
 

@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="utf-16"?>
+<Types>
+	<!-- SchemaModel -->
+	<Type>
+		<Name>SqlLabDataGenerator.SchemaModel</Name>
+		<Members>
+			<ScriptProperty>
+				<Name>TableNames</Name>
+				<GetScriptBlock>$this.Tables | ForEach-Object { $_.FullName }</GetScriptBlock>
+			</ScriptProperty>
+		</Members>
+	</Type>
+	<!-- TableInfo -->
+	<Type>
+		<Name>SqlLabDataGenerator.TableInfo</Name>
+		<Members>
+			<ScriptProperty>
+				<Name>PrimaryKeyColumns</Name>
+				<GetScriptBlock>$this.Columns | Where-Object { $_.IsPrimaryKey } | ForEach-Object { $_.ColumnName }</GetScriptBlock>
+			</ScriptProperty>
+			<ScriptProperty>
+				<Name>ForeignKeyCount</Name>
+				<GetScriptBlock>if ($this.ForeignKeys) { $this.ForeignKeys.Count } else { 0 }</GetScriptBlock>
+			</ScriptProperty>
+			<ScriptMethod>
+				<Name>GetColumn</Name>
+				<Script>param([string]$Name) $this.Columns | Where-Object { $_.ColumnName -eq $Name } | Select-Object -First 1</Script>
+			</ScriptMethod>
+		</Members>
+	</Type>
+	<!-- ColumnInfo -->
+	<Type>
+		<Name>SqlLabDataGenerator.ColumnInfo</Name>
+		<Members>
+			<ScriptProperty>
+				<Name>ForeignKeyTarget</Name>
+				<GetScriptBlock>if ($this.ForeignKey) { "$($this.ForeignKey.ReferencedTable).$($this.ForeignKey.ReferencedColumn)" } else { $null }</GetScriptBlock>
+			</ScriptProperty>
+			<ScriptProperty>
+				<Name>HasForeignKey</Name>
+				<GetScriptBlock>[bool]$this.ForeignKey</GetScriptBlock>
+			</ScriptProperty>
+		</Members>
+	</Type>
+	<!-- GenerationPlan -->
+	<Type>
+		<Name>SqlLabDataGenerator.GenerationPlan</Name>
+		<Members>
+			<ScriptProperty>
+				<Name>TableNames</Name>
+				<GetScriptBlock>$this.Tables | ForEach-Object { $_.FullName }</GetScriptBlock>
+			</ScriptProperty>
+			<ScriptProperty>
+				<Name>HasAIAdvice</Name>
+				<GetScriptBlock>[bool]$this.AIAdvice</GetScriptBlock>
+			</ScriptProperty>
+		</Members>
+	</Type>
+	<!-- GenerationResult -->
+	<Type>
+		<Name>SqlLabDataGenerator.GenerationResult</Name>
+		<Members>
+			<ScriptProperty>
+				<Name>SuccessRate</Name>
+				<GetScriptBlock>if ($this.TableCount -gt 0) { [math]::Round(($this.SuccessCount / $this.TableCount) * 100, 1) } else { 0 }</GetScriptBlock>
+			</ScriptProperty>
+			<ScriptProperty>
+				<Name>FailedTables</Name>
+				<GetScriptBlock>$this.Tables | Where-Object { -not $_.Success }</GetScriptBlock>
+			</ScriptProperty>
+		</Members>
+	</Type>
+	<!-- AIProviderInfo -->
+	<Type>
+		<Name>SqlLabDataGenerator.AIProviderInfo</Name>
+		<Members>
+			<ScriptProperty>
+				<Name>IsConfigured</Name>
+				<GetScriptBlock>[bool]($this.Provider -and $this.Provider -ne 'None' -and $this.Endpoint)</GetScriptBlock>
+			</ScriptProperty>
+			<ScriptProperty>
+				<Name>OverrideCount</Name>
+				<GetScriptBlock>if ($this.ModelOverrides) { $this.ModelOverrides.Count } else { 0 }</GetScriptBlock>
+			</ScriptProperty>
+		</Members>
+	</Type>
+	<!-- AIProviderTestResult -->
+	<Type>
+		<Name>SqlLabDataGenerator.AIProviderTestResult</Name>
+		<Members>
+			<ScriptProperty>
+				<Name>IsSuccess</Name>
+				<GetScriptBlock>$this.Status -eq 'OK'</GetScriptBlock>
+			</ScriptProperty>
+		</Members>
+	</Type>
+	<!-- Connection -->
+	<Type>
+		<Name>SqlLabDataGenerator.Connection</Name>
+		<Members>
+			<ScriptProperty>
+				<Name>IsOpen</Name>
+				<GetScriptBlock>$this.DbConnection -and $this.DbConnection.State -eq 'Open'</GetScriptBlock>
+			</ScriptProperty>
+			<ScriptProperty>
+				<Name>ConnectionAge</Name>
+				<GetScriptBlock>(Get-Date) - $this.ConnectedAt</GetScriptBlock>
+			</ScriptProperty>
+		</Members>
+	</Type>
+	<!-- ValidationResult -->
+	<Type>
+		<Name>SqlLabDataGenerator.ValidationResult</Name>
+		<Members>
+			<ScriptProperty>
+				<Name>IsError</Name>
+				<GetScriptBlock>$this.Severity -eq 'Error'</GetScriptBlock>
+			</ScriptProperty>
+		</Members>
+	</Type>
+</Types>

@@ -146,8 +146,7 @@
 			$tableFkRows = if ($fkByParent.ContainsKey($tableKey)) { $fkByParent[$tableKey] } else { @() }
 			foreach ($fkRow in $tableFkRows) {
 				if ([string]$fkRow.ParentColumn -eq $colName) {
-					$fkRef = [PSCustomObject]@{
-						PSTypeName       = 'SqlLabDataGenerator.ForeignKeyRef'
+					$fkRef = [SqlLabDataGenerator.ForeignKeyRef]@{
 						ForeignKeyName   = [string]$fkRow.ForeignKeyName
 						ReferencedSchema = [string]$fkRow.ReferencedSchema
 						ReferencedTable  = [string]$fkRow.ReferencedTable
@@ -189,8 +188,7 @@
 				}
 			}
 
-			$column = [PSCustomObject]@{
-				PSTypeName         = 'SqlLabDataGenerator.ColumnInfo'
+			$column = [SqlLabDataGenerator.ColumnInfo]@{
 				ColumnName         = $colName
 				DataType           = [string]$colRow.DATA_TYPE
 				MaxLength          = if ($colRow.CHARACTER_MAXIMUM_LENGTH -is [DBNull]) { $null } else { $colRow.CHARACTER_MAXIMUM_LENGTH }
@@ -218,8 +216,7 @@
 		$tableFKs = [System.Collections.Generic.List[object]]::new()
 		$fkRowsForTable = if ($fkByParent.ContainsKey($tableKey)) { $fkByParent[$tableKey] } else { @() }
 		foreach ($fkRow in $fkRowsForTable) {
-			$tableFKs.Add([PSCustomObject]@{
-						PSTypeName       = 'SqlLabDataGenerator.ForeignKeyInfo'
+			$tableFKs.Add([SqlLabDataGenerator.ForeignKeyInfo]@{
 						ForeignKeyName   = [string]$fkRow.ForeignKeyName
 						ParentSchema     = [string]$fkRow.ParentSchema
 						ParentTable      = [string]$fkRow.ParentTable
@@ -230,8 +227,7 @@
 					})
 		}
 
-		$table = [PSCustomObject]@{
-			PSTypeName  = 'SqlLabDataGenerator.TableInfo'
+		$table = [SqlLabDataGenerator.TableInfo]@{
 			SchemaName  = $schemaName
 			TableName   = $tableName
 			FullName    = "$schemaName.$tableName"
@@ -242,8 +238,7 @@
 		$tableList.Add($table)
 	}
 
-	[PSCustomObject]@{
-		PSTypeName   = 'SqlLabDataGenerator.SchemaModel'
+	[SqlLabDataGenerator.SchemaModel]@{
 		Database     = $Database
 		Tables       = $tableList.ToArray()
 		TableCount   = $tableList.Count

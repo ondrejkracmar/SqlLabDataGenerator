@@ -14,7 +14,7 @@
 		[string[]]$SchemaFilter
 	)
 
-	$conn = $ConnectionInfo.Connection
+	$conn = $ConnectionInfo.DbConnection
 
 	# SQLite stores schema in sqlite_master
 	$tables = @()
@@ -104,8 +104,7 @@
 		$colObjects = foreach ($col in $columns) {
 			$fk = $fks | Where-Object { $_.from -eq $col.name } | Select-Object -First 1
 			$fkInfo = if ($fk) {
-				[PSCustomObject]@{
-					PSTypeName       = 'SqlLabDataGenerator.ForeignKeyRef'
+				[SqlLabDataGenerator.ForeignKeyRef]@{
 					ForeignKeyName   = "FK_${tableName}_$($fk.from)_$($fk.table)_$($fk.to)"
 					ReferencedSchema = 'main'
 					ReferencedTable  = $fk.table
@@ -132,8 +131,7 @@
 				$maxLength = [int]$Matches[1]
 			}
 
-			[PSCustomObject]@{
-				PSTypeName          = 'SqlLabDataGenerator.ColumnInfo'
+			[SqlLabDataGenerator.ColumnInfo]@{
 				ColumnName          = $col.name
 				DataType            = $dataType
 				MaxLength           = $maxLength
@@ -157,8 +155,7 @@
 
 		# Build FK list
 		$fkList = foreach ($fk in $fks) {
-			[PSCustomObject]@{
-				PSTypeName       = 'SqlLabDataGenerator.ForeignKeyInfo'
+			[SqlLabDataGenerator.ForeignKeyInfo]@{
 				ForeignKeyName   = "FK_${tableName}_$($fk.from)_$($fk.table)_$($fk.to)"
 				ParentSchema     = 'main'
 				ParentTable      = $tableName
@@ -169,8 +166,7 @@
 			}
 		}
 
-		[PSCustomObject]@{
-			PSTypeName  = 'SqlLabDataGenerator.TableInfo'
+		[SqlLabDataGenerator.TableInfo]@{
 			SchemaName  = 'main'
 			TableName   = $tableName
 			FullName    = "main.$tableName"
@@ -181,8 +177,7 @@
 	}
 
 	$dbName = if ($conn.DataSource) { [System.IO.Path]::GetFileNameWithoutExtension($conn.DataSource) } else { 'SQLite' }
-	[PSCustomObject]@{
-		PSTypeName   = 'SqlLabDataGenerator.SchemaModel'
+	[SqlLabDataGenerator.SchemaModel]@{
 		Database     = $dbName
 		Tables       = @($tableInfos)
 		TableCount   = @($tableInfos).Count

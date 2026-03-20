@@ -161,7 +161,7 @@
 			Write-PSFMessage -Level Host -Message ($script:strings.'Scenario.AutoDetected' -f $bestMatch, $bestScore)
 		}
 		else {
-			Write-PSFMessage -Level Verbose -Message "No scenario template matched the schema (best score: $bestScore). Returning null."
+			Write-PSFMessage -Level Verbose -String 'Scenario.NoMatch' -StringValues $bestScore
 			return $null
 		}
 	}
@@ -173,8 +173,7 @@
 	}
 
 	$template = $templates[$Name]
-	[PSCustomObject]@{
-		PSTypeName  = 'SqlLabDataGenerator.ScenarioTemplate'
+	[SqlLabDataGenerator.ScenarioTemplate]@{
 		Name        = $Name
 		Description = $template.Description
 		TableRoles  = $template.TableRoles
