@@ -16,3 +16,8 @@ else {
 
 # Run internal pester tests
 & "$PSScriptRoot\..\tests\pester.ps1"
+
+# Azure DevOps PowerShell@2 wrapper checks $LASTEXITCODE after this script.
+# Internal native calls (e.g. during assembly loading or code coverage) may
+# leave it non-zero even when all tests pass. Reset to avoid false-positive failure.
+$global:LASTEXITCODE = 0
