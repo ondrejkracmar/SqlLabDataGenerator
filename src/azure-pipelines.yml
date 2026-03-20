@@ -157,6 +157,18 @@ stages:
                   artifact: NuGetPackage
 
                 - task: PowerShell@2
+                  displayName: Calculate Module Version (GitVersion)
+                  inputs:
+                    targetType: inline
+                    script: |
+                      dotnet tool install --global GitVersion.Tool --version 6.3.0
+                           $gitVersionObject = dotnet-gitversion /config $(sourceDirectory)/GitVersion.yml | ConvertFrom-Json
+                           $gitVersionObject.PSObject.Properties.ForEach{
+                               Write-Host -Object "Setting Task Variable '$($_.Name)' with value '$($_.Value)'."
+                               Write-Host -Object "##vso[task.setvariable variable=$($_.Name)]$($_.Value)"
+                           }
+
+                - task: PowerShell@2
                   displayName: Install Prerequisites
                   inputs:
                     targetType: filePath
