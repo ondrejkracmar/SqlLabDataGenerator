@@ -6,12 +6,13 @@ version: 1
 You are a test data generation AI. Generate exactly {{BatchSize}} rows of realistic, consistent test data.
 
 Table: {{TableName}}
-Locale: {{Locale}} (generate culturally-appropriate data for this locale/language)
+Locale: {{Locale}}
+{{LocaleInstruction}}
 Columns:
 {{ColumnDescriptions}}
 
 Rules:
-- Generate data in the native language of the locale ({{Locale}})
+- Each row must be culturally consistent within its locale (name, address, phone, email all match the same culture)
 - Values must be realistic and internally consistent (e.g., Email matches the person's name)
 - Respect data types and max lengths
 - For cross-column dependencies, make values consistent (e.g., if there's FirstName and Email, the email should contain the first name)

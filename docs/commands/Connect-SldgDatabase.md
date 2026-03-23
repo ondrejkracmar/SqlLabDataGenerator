@@ -198,5 +198,4 @@ This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable
 ## RELATED LINKS
 
 - [Disconnect-SldgDatabase](Disconnect-SldgDatabase.md)
-- [Register-SldgProvider](Register-SldgProvider.md)
 - [Get-SldgDatabaseSchema](Get-SldgDatabaseSchema.md)

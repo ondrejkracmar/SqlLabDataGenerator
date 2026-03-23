@@ -22,7 +22,6 @@ New-MarkdownCommandHelp -ModuleInfo $mod -OutputFolder ./docs/commands -Force -W
 
 - [Connect-SldgDatabase](Connect-SldgDatabase.md)
 - [Disconnect-SldgDatabase](Disconnect-SldgDatabase.md)
-- [Register-SldgProvider](Register-SldgProvider.md)
 
 ## AI
 

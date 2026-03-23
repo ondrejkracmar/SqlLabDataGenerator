@@ -31,6 +31,16 @@
 		$Locale = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.Generation.Locale'
 	}
 
+	# Parse multi-locale: detect comma/semicolon-separated locale lists
+	$localeList = @($Locale -split '[,;]' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+	if ($localeList.Count -gt 1) {
+		$localeDisplay = $localeList -join ', '
+		$localeInstruction = "Multiple locales specified: $localeDisplay. Distribute rows roughly evenly across these locales. Each row must be culturally consistent within its locale — a person from one culture must have names, addresses, phone numbers, and other values matching that same culture. Do NOT mix languages within a single row."
+	} else {
+		$localeDisplay = $localeList[0]
+		$localeInstruction = "Generate all data in the native language and cultural conventions of $localeDisplay."
+	}
+
 	# Build a cache key from column signatures
 	$colSignatures = foreach ($col in $Columns) {
 		$semanticType = if ($col.SemanticType) { $col.SemanticType } else { $col.DataType }
@@ -81,7 +91,8 @@
 	$systemPrompt = Resolve-SldgPromptTemplate -Purpose 'batch-generation' -Variables @{
 		BatchSize          = $BatchSize
 		TableName          = $TableName
-		Locale             = $Locale
+		Locale             = $localeDisplay
+		LocaleInstruction  = $localeInstruction
 		ColumnDescriptions = $colText
 		ColumnNames        = ($colNames -join ', ')
 		JsonExample        = $jsonRow
@@ -99,7 +110,7 @@
 		$systemPrompt += "`n`nIndustry context: $sanitizedHint — use industry-specific terminology and realistic values."
 	}
 
-	$userMessage = "Generate $BatchSize rows of test data for table $TableName with locale $Locale. Return ONLY the JSON array."
+	$userMessage = "Generate $BatchSize rows of test data for table $TableName with locale $localeDisplay. Return ONLY the JSON array."
 
 	Write-PSFMessage -Level Verbose -Message ($script:strings.'AI.BatchGenerating' -f $TableName, $BatchSize, $Locale)
 

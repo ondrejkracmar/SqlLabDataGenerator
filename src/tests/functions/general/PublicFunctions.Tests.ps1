@@ -123,31 +123,6 @@ Describe "Public Functions - Provider" {
 		}
 	}
 
-	Context "Register-SldgProvider" {
-		BeforeAll {
-			function global:Connect-PFTest { param($ServerInstance, $Database) }
-			function global:Get-PFTestSchema { param($ConnectionInfo) }
-			function global:Write-PFTestData { param($ConnectionInfo, $SchemaName, $TableName, $Data) }
-			function global:Read-PFTestData { param($ConnectionInfo, $SchemaName, $TableName) }
-			function global:Disconnect-PFTest { param($ConnectionInfo) }
-		}
-
-		AfterAll {
-			@('Connect-PFTest','Get-PFTestSchema','Write-PFTestData','Read-PFTestData','Disconnect-PFTest') | ForEach-Object { Remove-Item "function:global:$_" -ErrorAction Ignore }
-		}
-
-		It "Registers a custom provider" {
-			$params = @{
-				Name              = 'TestProvider'
-				ConnectFunction   = 'Connect-PFTest'
-				GetSchemaFunction = 'Get-PFTestSchema'
-				WriteDataFunction = 'Write-PFTestData'
-				ReadDataFunction  = 'Read-PFTestData'
-				DisconnectFunction = 'Disconnect-PFTest'
-			}
-			{ Register-SldgProvider @params } | Should -Not -Throw
-		}
-	}
 }
 
 Describe "Public Functions - Generation" {

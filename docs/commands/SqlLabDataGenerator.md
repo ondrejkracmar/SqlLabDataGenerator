@@ -66,10 +66,6 @@ Creates a data generation plan from an analyzed schema.
 
 Registers a locale data pack for data generation — manually or via AI.
 
-### [Register-SldgProvider](Register-SldgProvider.md)
-
-Registers a custom database provider for data generation.
-
 ### [Register-SldgTransformer](Register-SldgTransformer.md)
 
 Registers a custom data transformer.

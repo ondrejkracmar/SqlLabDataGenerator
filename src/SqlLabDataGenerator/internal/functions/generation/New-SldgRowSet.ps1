@@ -47,6 +47,7 @@
 	$useAIGen = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.Generation.AIGeneration'
 	$aiProvider = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.AI.Provider'
 	$maxUniqueRetries = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.Generation.MaxUniqueRetries'
+	$locale = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.Generation.Locale'
 
 	$dataTable = New-Object System.Data.DataTable
 	try {
@@ -136,7 +137,7 @@
 			})
 
 		if ($aiCandidates.Count -gt 0) {
-			$aiBatch = New-SldgAIGeneratedBatch -Columns $aiCandidates -TableName $TableInfo.FullName -BatchSize $RowCount
+			$aiBatch = New-SldgAIGeneratedBatch -Columns $aiCandidates -TableName $TableInfo.FullName -BatchSize $RowCount -Locale $locale
 		}
 	}
 

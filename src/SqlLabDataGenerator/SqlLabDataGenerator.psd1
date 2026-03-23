@@ -52,7 +52,6 @@
 		'Invoke-SldgDataGeneration',
 		'New-SldgGenerationPlan',
 		'Register-SldgLocale',
-		'Register-SldgProvider',
 		'Register-SldgTransformer',
 		'Remove-SldgPromptTemplate',
 		'Set-SldgAIProvider',

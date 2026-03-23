@@ -1,4 +1,10 @@
-# Getting Started with SqlLabDataGenerator
+# Getting Started
+
+Step-by-step guide to installing SqlLabDataGenerator and generating your first test data.
+
+> For an overview of all features, see the [README](../README.md). For AI setup, see [AI Configuration](ai-configuration.md).
+
+---
 
 ## Installation
 
@@ -19,28 +25,48 @@ Import-Module ./src/SqlLabDataGenerator/SqlLabDataGenerator.psd1
 
 | Requirement | Version | Notes |
 |---|---|---|
-| PowerShell | 5.1+ or 7+ | PowerShell 7 recommended for Ollama TLS skip |
+| PowerShell | 5.1+ or 7+ | PowerShell 7 recommended for parallel generation |
 | PSFramework | 1.13.426+ | Installed automatically as dependency |
 | Ollama | any | Optional — for local AI models |
 | OpenAI API key | — | Optional — for OpenAI / Azure OpenAI |
 
 ---
 
-## Basic Workflow
+## The Pipeline
 
-SqlLabDataGenerator follows a 5-step pipeline:
+SqlLabDataGenerator follows a 5-step pipeline. Each step produces an object that feeds into the next:
 
 ```
 Connect → Discover → Analyze → Plan → Generate
 ```
 
-### 1. Connect to a Database
+| Step | Command | What it does |
+|---|---|---|
+| **Connect** | `Connect-SldgDatabase` | Opens a connection to your database |
+| **Discover** | `Get-SldgDatabaseSchema` | Reads tables, columns, FKs, PKs, constraints |
+| **Analyze** | `Get-SldgColumnAnalysis` | Classifies each column semantically (name? email? money?) |
+| **Plan** | `New-SldgGenerationPlan` | Decides row counts and generator per column, ordered by FK deps |
+| **Generate** | `Invoke-SldgDataGeneration` | Produces data and inserts it into the database |
+
+You can stop at any step to inspect or customize the output before continuing.
+
+---
+
+## Tutorial: Generate Data Without AI
+
+The module works without any AI setup. Built-in generators use column name patterns to produce realistic values.
+
+### 1. Connect
 
 ```powershell
-# SQL Server — Windows auth
+# SQL Server — Windows authentication
 Connect-SldgDatabase -ServerInstance 'localhost' -Database 'AdventureWorks'
+```
 
-# SQL Server — SQL auth
+Other connection methods:
+
+```powershell
+# SQL Server — SQL authentication
 $cred = Get-Credential
 Connect-SldgDatabase -ServerInstance 'dbserver\SQLEXPRESS' -Database 'TestDB' -Credential $cred
 
@@ -52,223 +78,235 @@ Connect-SldgDatabase -ServerInstance 'C:\data\mydb.sqlite' -Database 'main' -Pro
 
 ```powershell
 $schema = Get-SldgDatabaseSchema
-
-# Filter to specific schemas/tables
-$schema = Get-SldgDatabaseSchema -SchemaFilter 'dbo' -TableFilter 'Customer', 'Order'
 ```
 
-The schema model contains tables, columns, data types, PKs, FKs, unique constraints, and check constraints.
+This reads all tables, columns, data types, primary keys, foreign keys, unique constraints, and check constraints.
+
+To limit the scope:
+
+```powershell
+$schema = Get-SldgDatabaseSchema -SchemaFilter 'dbo' -TableFilter 'Customer', 'Order'
+```
 
 ### 3. Analyze Columns
 
 ```powershell
-# Pattern matching only (no AI needed)
 $analyzed = Get-SldgColumnAnalysis -Schema $schema
-
-# With AI enrichment (much richer results)
-$analyzed = Get-SldgColumnAnalysis -Schema $schema -UseAI -Locale 'cs-CZ'
 ```
 
-AI analysis recognizes column names in any language and provides:
-- Semantic type classification (FirstName, Email, Phone, Money, etc.)
-- PII detection
-- Value examples and patterns
-- Cross-column dependency detection
+Pattern matching classifies columns by name — `Email` → Email generator, `FirstName` → PersonName generator, `Phone` → Phone generator, etc.
 
-### 4. Create a Generation Plan
+The 10 built-in generators: PersonName, Address, Email, Phone, Date, Number, Company, Identifier, Financial, Text.
+
+### 4. Create a Plan
 
 ```powershell
-# Basic plan — 200 rows per table
-$plan = New-SldgGenerationPlan -Schema $analyzed -RowCount 200
-
-# AI-assisted plan — AI suggests row counts and rules
-$plan = New-SldgGenerationPlan -Schema $analyzed -RowCount 200 -UseAI -IndustryHint 'eCommerce'
+$plan = New-SldgGenerationPlan -Schema $analyzed -RowCount 100
 ```
 
-Customize specific columns:
+The plan orders tables by FK dependencies (parent tables first) and assigns a generator to each column. You can customize it before generating — see [Customizing Columns](#customizing-columns) below.
+
+### 5. Generate
 
 ```powershell
-Set-SldgGenerationRule -Plan $plan -TableName 'dbo.Customer' -ColumnName 'Status' -ValueList @('Active', 'Inactive', 'Pending')
-Set-SldgGenerationRule -Plan $plan -TableName 'dbo.Order' -ColumnName 'Currency' -StaticValue 'CZK'
+Invoke-SldgDataGeneration -Plan $plan
 ```
 
-Context-dependent JSON/XML — vary structured data based on another column's value:
+Data is inserted directly into the database. FK columns are automatically filled with valid parent values.
+
+### 6. Validate and Disconnect
 
 ```powershell
-# ReportType drives the structure of ReportData JSON
-Set-SldgGenerationRule -Plan $plan -TableName 'dbo.UsageReport' `
-    -ColumnName 'ReportType' -ValueList @('UserActivity', 'MailboxUsage', 'TeamsDeviceUsage')
-
-Set-SldgGenerationRule -Plan $plan -TableName 'dbo.UsageReport' `
-    -ColumnName 'ReportData' -Generator 'Json' `
-    -AIGenerationHint 'M365 usage report data; structure varies by report type' `
-    -CrossColumnDependency 'ReportType'
-```
-
-The `-CrossColumnDependency` parameter tells the engine to pass the current row's `ReportType`
-value to AI, so each report type gets a different JSON structure. See [AI Configuration](ai-configuration.md) for a full walkthrough.
-
-### 5. Generate Data
-
-```powershell
-# Generate and insert into database
-$result = Invoke-SldgDataGeneration -Plan $plan
-
-# Generate in memory only (no DB write)
-$result = Invoke-SldgDataGeneration -Plan $plan -NoInsert -PassThru
-
-# Validate
 Test-SldgGeneratedData -Schema $schema
-```
-
-### 6. Disconnect
-
-```powershell
 Disconnect-SldgDatabase
 ```
 
+Validation checks FK integrity, unique constraints, NOT NULL, and row counts.
+
 ---
 
-## Using AI
+## Tutorial: Generate Data With AI
 
-See [AI Configuration & Training](ai-configuration.md) for the full guide. Quick setup:
+AI adds three capabilities on top of the basic pipeline:
+
+1. **Smarter analysis** — recognizes column names in any language (Czech `Jmeno`, German `Nachname`)
+2. **Better data** — generates entire rows with cross-column consistency (email matches name, address is coherent)
+3. **Any locale** — generates culture-specific names, addresses, phone formats on the fly
+
+### Setup
 
 ```powershell
 # Ollama (local, free)
 Set-SldgAIProvider -Provider Ollama -Model 'llama3' -EnableAIGeneration -EnableAILocale
 
-# OpenAI
+# Or OpenAI
 Set-SldgAIProvider -Provider OpenAI -Model 'gpt-4o' -ApiKey $env:OPENAI_API_KEY -EnableAIGeneration
 
 # Verify
 Test-SldgAIProvider
 ```
 
+See [AI Configuration](ai-configuration.md) for all providers, per-purpose models, and detailed options.
+
+### Run the Pipeline with AI
+
+```powershell
+Connect-SldgDatabase -ServerInstance 'localhost' -Database 'AdventureWorks'
+
+$schema   = Get-SldgDatabaseSchema
+$analyzed = Get-SldgColumnAnalysis -Schema $schema -UseAI
+$plan     = New-SldgGenerationPlan -Schema $analyzed -RowCount 200 -UseAI
+
+Invoke-SldgDataGeneration -Plan $plan
+
+Test-SldgGeneratedData -Schema $schema
+Disconnect-SldgDatabase
+```
+
+The only difference from the basic pipeline is adding `-UseAI` to `Get-SldgColumnAnalysis` and `New-SldgGenerationPlan`. AI data generation is controlled globally via `Set-SldgAIProvider -EnableAIGeneration`.
+
+> **Tip:** AI features are additive. You can use AI only for analysis (`-UseAI` on `Get-SldgColumnAnalysis`) while keeping static generators for data, or enable AI data generation without AI locale support.
+
+---
+
+## Customizing Columns
+
+After creating a plan, override specific columns before running `Invoke-SldgDataGeneration`:
+
+```powershell
+# Fixed list of values
+Set-SldgGenerationRule -Plan $plan -TableName 'dbo.Order' -ColumnName 'Status' `
+    -ValueList @('Pending', 'Shipped', 'Delivered', 'Cancelled')
+
+# Constant value for every row
+Set-SldgGenerationRule -Plan $plan -TableName 'dbo.Order' -ColumnName 'Currency' -StaticValue 'CZK'
+
+# Custom logic
+Set-SldgGenerationRule -Plan $plan -TableName 'dbo.Product' -ColumnName 'SKU' `
+    -ScriptBlock { "PRD-{0:D6}" -f (Get-Random -Minimum 1 -Maximum 999999) }
+
+# AI hint for JSON columns
+Set-SldgGenerationRule -Plan $plan -TableName 'dbo.Project' -ColumnName 'Settings' `
+    -Generator 'Json' -AIGenerationHint 'Project settings with theme, notifications, sprint config'
+
+# Context-dependent JSON — structure varies by another column
+Set-SldgGenerationRule -Plan $plan -TableName 'dbo.UsageReport' -ColumnName 'ReportData' `
+    -Generator 'Json' `
+    -AIGenerationHint 'M365 usage report data; structure varies by report type' `
+    -CrossColumnDependency 'ReportType'
+```
+
+For advanced JSON/XML generation (context-dependent, value examples, resolution chain), see [AI Configuration — JSON and XML Columns](ai-configuration.md#json-and-xml-column-configuration).
+
+---
+
+## Generation Modes
+
+| Mode | When to use | Command |
+|---|---|---|
+| **Synthetic** (default) | Fill empty tables with new data | `New-SldgGenerationPlan -Schema $analyzed -RowCount 200` |
+| **Masking** | Anonymize PII in existing data | `New-SldgGenerationPlan -Schema $analyzed -Mode Masking` |
+| **Scenario** | Industry templates with realistic table ratios | `New-SldgGenerationPlan -Schema $analyzed -Mode Scenario -ScenarioName Auto` |
+
+**Masking** reads current rows and replaces sensitive columns (names, emails, phones) while keeping non-PII data intact — useful for dev copies of production databases.
+
+**Scenario** uses industry templates (eCommerce, Healthcare, HR, Finance, Education) that know which tables are lookup vs. transaction tables and set row ratios automatically. Use `-ScenarioName Auto` to auto-detect from table names.
+
+```powershell
+# Scenario with AI advice
+$plan = New-SldgGenerationPlan -Schema $analyzed -Mode Scenario `
+    -ScenarioName 'Healthcare' -RowCount 200 -UseAI -IndustryHint 'Healthcare CZ'
+```
+
 ---
 
 ## Locales
 
+By default, data is generated in English (`en-US`). To change the locale:
+
 ```powershell
-# Use built-in locale
-Set-SldgAIProvider -Locale 'cs-CZ'
+Set-SldgAIProvider -Provider Ollama -Model 'llama3' -EnableAIGeneration -EnableAILocale -Locale 'cs-CZ'
+```
 
-# AI-generate any locale
-Register-SldgLocale -Name 'de-DE' -UseAI
+Built-in locales: `en-US`, `cs-CZ`. With AI enabled, any culture code works:
 
-# Mix languages
-Register-SldgLocale -Name 'custom' -MixFrom @{
+```powershell
+# AI-generate a locale for any culture
+Register-SldgLocale -Name 'de-DE' -UseAI -PoolSize 50
+
+# Mix categories from different cultures
+Register-SldgLocale -Name 'mixed' -MixFrom @{
     PersonNames = 'cs-CZ'
     Addresses   = 'de-DE'
     Companies   = 'en-US'
 }
 ```
 
+See [Extending — Custom Locale](extending.md#custom-locale) for registering locales with your own static data.
+
 ---
 
-## Profiles (Repeatable Generation)
+## In-Memory Generation
+
+Generate data without inserting into the database:
 
 ```powershell
-# Save
-Export-SldgGenerationProfile -Plan $plan -Path 'C:\profiles\mydb.json'
+$result = Invoke-SldgDataGeneration -Plan $plan -NoInsert -PassThru
 
-# Load
-$plan = New-SldgGenerationPlan -Schema $analyzed
-Import-SldgGenerationProfile -Path 'C:\profiles\mydb.json' -Plan $plan
+# Access generated DataTables
+$result.Tables[0].DataTable | Format-Table
 ```
+
+---
+
+## Parallel Generation
+
+Generate independent tables concurrently (PowerShell 7+):
+
+```powershell
+$result = Invoke-SldgDataGeneration -Plan $plan -Parallel -ThrottleLimit 4
+```
+
+For very large tables (100k+ rows), the module automatically switches to chunked streaming to keep memory usage low.
+
+---
+
+## Profiles
+
+Save your plan as a JSON file and share it with your team:
+
+```powershell
+# Export
+Export-SldgGenerationProfile -Plan $plan -Path '.\profile.json' -IncludeSemanticAnalysis
+
+# Import on another machine or in CI/CD
+$plan = New-SldgGenerationPlan -Schema $analyzed
+Import-SldgGenerationProfile -Path '.\profile.json' -Plan $plan
+Invoke-SldgDataGeneration -Plan $plan
+```
+
+Profiles store row counts, value lists, static values, and generator overrides. ScriptBlock rules are rejected on import for security.
 
 ---
 
 ## Data Transforms
 
+Convert generated data into formats for other systems:
+
 ```powershell
-# Generate in memory
 $result = Invoke-SldgDataGeneration -Plan $plan -NoInsert -PassThru
 
-# Transform to Entra ID users
-$users = Export-SldgTransformedData -Data $result.Tables[0].DataTable `
-    -Transformer 'EntraIdUser' `
-    -TransformerParams @{ Domain = 'contoso.onmicrosoft.com' }
-
-# Export as JSON
 Export-SldgTransformedData -Data $result.Tables[0].DataTable `
-    -Transformer 'EntraIdUser' `
-    -OutputPath 'C:\export\users.json' `
+    -Transformer 'EntraIdUser' -OutputPath '.\users.json' `
     -TransformerParams @{ Domain = 'contoso.onmicrosoft.com' }
 ```
 
----
-
-## Prompt Management
-
-All AI prompts are externalized as `.prompt` template files. You can inspect, customize, or override any prompt.
-
-```powershell
-# List all available prompts
-Get-SldgPromptTemplate
-
-# View a specific prompt with content
-Get-SldgPromptTemplate -Purpose column-analysis -IncludeContent
-
-# Create a custom override
-Set-SldgPromptTemplate -Purpose 'structured-value' -Content $myPrompt -Description 'Custom JSON generator'
-
-# Copy built-in and modify
-Get-SldgPromptTemplate -Purpose structured-value -IncludeContent | Set-SldgPromptTemplate -Force
-
-# Remove custom override (falls back to built-in)
-Remove-SldgPromptTemplate -Purpose 'structured-value'
-```
-
----
-
-## Per-Purpose AI Model Overrides
-
-Use different AI models for different tasks:
-
-```powershell
-# Global: GPT-4o for classification and planning
-Set-SldgAIProvider -Provider OpenAI -Model 'gpt-4o' -ApiKey $key
-
-# Override: Ollama for batch data generation (faster, free)
-Set-SldgAIProvider -Provider Ollama -Model 'llama3' -Purpose 'batch-generation'
-
-# Override: codellama for structured JSON/XML
-Set-SldgAIProvider -Provider Ollama -Model 'codellama' -Purpose 'structured-value'
-
-# Check active overrides
-(Get-SldgAIProvider).ModelOverrides
-```
-
----
-
-## Configuration Reference
-
-All settings use PSFramework configuration system (`Set-PSFConfig` / `Get-PSFConfigValue`).
-The `Set-SldgAIProvider` cmdlet wraps the most common settings.
-
-| Key | Default | Description |
-|---|---|---|
-| `AI.Provider` | `None` | AI provider: None, OpenAI, AzureOpenAI, Ollama |
-| `AI.ApiKey` | _(empty)_ | API key (not needed for Ollama) |
-| `AI.Endpoint` | _(empty)_ | Endpoint URL (auto for OpenAI, required for AzureOpenAI) |
-| `AI.Model` | `gpt-4` | Model name (gpt-4, gpt-4o, llama3, mistral, etc.) |
-| `AI.MaxTokens` | `4096` | Max tokens per AI response |
-| `AI.Ollama.Temperature` | `0.3` | Ollama temperature (0.0–1.0) |
-| `AI.Ollama.SkipCertificateCheck` | `$false` | Skip TLS cert check for dev Ollama servers |
-| `Generation.DefaultRowCount` | `100` | Default rows per table |
-| `Generation.BatchSize` | `1000` | DB insert batch size |
-| `Generation.Seed` | `0` | Random seed (0 = random) |
-| `Generation.Locale` | `en-US` | Default locale |
-| `Generation.AILocale` | `$false` | Auto-generate locale data via AI |
-| `Generation.AIGeneration` | `$false` | AI-first data generation |
-| `Generation.Mode` | `Synthetic` | Generation mode: Synthetic, Masking, Scenario |
-| `AI.PromptPath` | _(empty)_ | Path to custom prompt templates directory |
-| `AI.ModelOverrides` | `@{}` | Per-purpose AI model overrides (managed via `Set-SldgAIProvider -Purpose`) |
+Built-in transformers: `EntraIdUser`, `EntraIdGroup`. See [Extending — Custom Transformer](extending.md#custom-transformer) to create your own.
 
 ---
 
 ## Next Steps
 
-- [AI Configuration & Training](ai-configuration.md) — deep dive into AI setup, prompt customization, and custom model training
-- [Extending](extending.md) — custom database providers, transformers, locales
-- [Command Reference](commands/) — detailed help for every command
+- [AI Configuration](ai-configuration.md) — providers, per-purpose models, JSON/XML columns, prompt customization, walkthroughs, custom model training
+- [Extending](extending.md) — custom database providers, transformers, locales, generation rules
+- [Command Reference](commands/) — detailed help for every exported command

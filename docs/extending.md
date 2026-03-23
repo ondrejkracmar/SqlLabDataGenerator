@@ -1,6 +1,10 @@
 # Extending SqlLabDataGenerator
 
-This guide covers how to extend SqlLabDataGenerator with custom database providers, data transformers, and locales.
+How to extend the module with custom database providers, data transformers, locales, and generation rules.
+
+> For basic usage, see [Getting Started](getting-started.md). For AI features, see [AI Configuration](ai-configuration.md).
+
+---
 
 ## Table of Contents
 
@@ -13,13 +17,13 @@ This guide covers how to extend SqlLabDataGenerator with custom database provide
 
 ## Custom Database Provider
 
-A database provider teaches SqlLabDataGenerator how to connect, read schemas, write data, and disconnect from a specific database engine.
+A database provider teaches SqlLabDataGenerator how to connect, read schemas, write data, and disconnect from a specific database engine. Built-in providers: SQL Server, SQLite.
 
 ### Required Functions
 
-You must implement **5 functions** that conform to these contracts:
+Implement 5 functions:
 
-#### 1. Connect Function
+#### 1. Connect
 
 ```powershell
 function Connect-MyDatabase {
@@ -32,15 +36,15 @@ function Connect-MyDatabase {
 
     # Open connection and return a connection info object
     [SqlLabDataGenerator.Connection]@{
-        Provider     = 'MyDatabase'
-        DbConnection = $conn          # The open connection object
+        Provider       = 'MyDatabase'
+        DbConnection   = $conn
         ServerInstance = $Server
-        Database     = $Database
+        Database       = $Database
     }
 }
 ```
 
-#### 2. GetSchema Function
+#### 2. GetSchema
 
 ```powershell
 function Get-MyDatabaseSchema {
@@ -50,7 +54,6 @@ function Get-MyDatabaseSchema {
         [string[]]$ExcludeTable
     )
 
-    # Return an array of table objects
     @(
         [PSCustomObject]@{
             SchemaName  = 'dbo'
@@ -58,22 +61,22 @@ function Get-MyDatabaseSchema {
             FullName    = '[dbo].[Users]'
             Columns     = @(
                 [PSCustomObject]@{
-                    ColumnName  = 'Id'
-                    DataType    = 'int'
-                    IsIdentity  = $true
-                    IsNullable  = $false
-                    MaxLength   = $null
+                    ColumnName   = 'Id'
+                    DataType     = 'int'
+                    IsIdentity   = $true
+                    IsNullable   = $false
+                    MaxLength    = $null
                     IsPrimaryKey = $true
                 }
                 # ... more columns
             )
-            ForeignKeys = @()  # FK relationship objects
+            ForeignKeys = @()
         }
     )
 }
 ```
 
-#### 3. WriteData Function
+#### 3. WriteData
 
 ```powershell
 function Write-MyDatabaseData {
@@ -83,15 +86,15 @@ function Write-MyDatabaseData {
         [Parameter(Mandatory)][string]$TableName,
         [Parameter(Mandatory)][System.Data.DataTable]$Data,
         [int]$BatchSize = 1000,
-        $Transaction  # Optional external transaction for rollback support
+        $Transaction
     )
 
-    # Insert rows and return the count of inserted rows
+    # Insert rows — use parameterized queries, never concatenate user data into SQL
     return $Data.Rows.Count
 }
 ```
 
-#### 4. ReadData Function
+#### 4. ReadData
 
 ```powershell
 function Read-MyDatabaseData {
@@ -107,7 +110,7 @@ function Read-MyDatabaseData {
 }
 ```
 
-#### 5. Disconnect Function
+#### 5. Disconnect
 
 ```powershell
 function Disconnect-MyDatabase {
@@ -122,31 +125,33 @@ function Disconnect-MyDatabase {
 
 ### Registration
 
+Register your provider using the internal registration function:
+
 ```powershell
-# Load your functions into the session, then register:
-Register-SldgProvider -Name 'MyDatabase' `
-    -ConnectFunction    'Connect-MyDatabase' `
-    -GetSchemaFunction  'Get-MyDatabaseSchema' `
-    -WriteDataFunction  'Write-MyDatabaseData' `
-    -ReadDataFunction   'Read-MyDatabaseData' `
-    -DisconnectFunction 'Disconnect-MyDatabase'
+Register-SldgProviderInternal -Name 'MyDatabase' -FunctionMap @{
+    Connect    = 'Connect-MyDatabase'
+    GetSchema  = 'Get-MyDatabaseSchema'
+    WriteData  = 'Write-MyDatabaseData'
+    ReadData   = 'Read-MyDatabaseData'
+    Disconnect = 'Disconnect-MyDatabase'
+}
 
 # Now use it:
-Connect-SldgDatabase -Provider 'MyDatabase' -Server 'localhost' -Database 'TestDB'
+Connect-SldgDatabase -Provider 'MyDatabase' -ServerInstance 'localhost' -Database 'TestDB'
 ```
 
 ### Tips
 
 - Always use **parameterized queries** in WriteData — never concatenate user data into SQL.
-- Support the optional `-Transaction` parameter so `Invoke-SldgDataGeneration -UseTransaction` works with your provider.
-- Return a `[System.Data.DataTable]` from ReadData for compatibility with the validation pipeline.
-- The module uses compiled C# types (namespace `SqlLabDataGenerator`) for all core objects. Your Connect function should return a `[SqlLabDataGenerator.Connection]` object with `DbConnection`, `ServerInstance`, `Database`, and `Provider` properties.
+- Support the `-Transaction` parameter so `Invoke-SldgDataGeneration -UseTransaction` works with your provider.
+- Return `[System.Data.DataTable]` from ReadData for compatibility with validation and transforms.
+- The module uses compiled C# types (namespace `SqlLabDataGenerator`). Your Connect function should return a `[SqlLabDataGenerator.Connection]` object.
 
 ---
 
 ## Custom Transformer
 
-A transformer converts generated `DataTable` data into a specific output format (e.g., Entra ID users, CSV records, API payloads).
+A transformer converts generated `DataTable` data into a specific output format. Built-in transformers: `EntraIdUser`, `EntraIdGroup`.
 
 ### Writing a Transform Function
 
@@ -182,24 +187,20 @@ Register-SldgTransformer -Name 'MyFormat' `
 ### Usage
 
 ```powershell
-# Generate and transform
-$plan = New-SldgGenerationPlan -IncludeTable 'Users' -RowCount 100
 $result = Invoke-SldgDataGeneration -Plan $plan -NoInsert -PassThru
 
-# Apply transformer
 Export-SldgTransformedData -Data $result.Tables[0].DataTable `
     -Transformer 'MyFormat' -OutputPath './users.json'
 ```
 
 ### Column Auto-Detection
 
-The built-in transformers (EntraIdUser, EntraIdGroup) use column name pattern matching to map DataTable columns to output properties. You can follow the same approach:
+The built-in transformers use column name pattern matching to map DataTable columns to output properties. You can follow the same approach:
 
 ```powershell
 function ConvertTo-MyFormat {
     param ([System.Data.DataTable]$Data)
 
-    # Auto-detect columns by name pattern
     $emailCol = $Data.Columns | Where-Object { $_.ColumnName -match 'email|mail' } | Select-Object -First 1
     $nameCol  = $Data.Columns | Where-Object { $_.ColumnName -match 'name|display' } | Select-Object -First 1
 
@@ -216,53 +217,51 @@ function ConvertTo-MyFormat {
 
 ## Custom Locale
 
-Locales provide culture-specific data pools (names, addresses, phone formats) for realistic localized data generation.
+Locales provide culture-specific data pools (names, addresses, phone formats) for realistic localized data. Built-in locales: `en-US`, `cs-CZ`.
 
-### Option 1: Manual Registration
+### Option 1: Manual Data
 
 ```powershell
 Register-SldgLocale -Name 'sk-SK' -Data @{
     MaleNames       = @('Jan', 'Peter', 'Martin', 'Jozef', 'Pavol')
     FemaleNames     = @('Maria', 'Jana', 'Eva', 'Anna', 'Zuzana')
-    LastNames       = @('Novak', 'Horvath', 'Kováč', 'Baláž', 'Tóth')
-    StreetNames     = @('Hlavná', 'Štefánikova', 'Hviezdoslavova')
-    StreetTypes     = @('ulica', 'námestie', 'cesta')
-    Locations       = @('Bratislava', 'Košice', 'Prešov', 'Žilina')
+    LastNames       = @('Novak', 'Horvath', 'Kovac', 'Balaz', 'Toth')
+    StreetNames     = @('Hlavna', 'Stefanikova', 'Hviezdoslavova')
+    StreetTypes     = @('ulica', 'namestie', 'cesta')
+    Locations       = @('Bratislava', 'Kosice', 'Presov', 'Zilina')
     Countries       = @('Slovakia', 'Slovensko')
     EmailDomains    = @('email.sk', 'centrum.sk', 'azet.sk')
     PhoneFormat     = '+421 9## ### ###'
-    CompanyPrefixes = @('Slovenská', 'Východná', 'Západná')
+    CompanyPrefixes = @('Slovenska', 'Vychodna', 'Zapadna')
     CompanyCores    = @('Technika', 'Energetika', 'Stavba')
     CompanySuffixes = @('s.r.o.', 'a.s.', 'k.s.')
-    Departments     = @('IT', 'Financie', 'Marketing', 'Výroba')
-    JobTitles       = @('Riaditeľ', 'Manažér', 'Analytik', 'Vývojár')
-    Industries      = @('Automobilový priemysel', 'IT', 'Energetika')
+    Departments     = @('IT', 'Financie', 'Marketing', 'Vyroba')
+    JobTitles       = @('Riaditel', 'Manazer', 'Analytik', 'Vyvojar')
+    Industries      = @('Automobilovy priemysel', 'IT', 'Energetika')
 }
 ```
 
 ### Option 2: AI-Generated
 
 ```powershell
-# Generate any locale automatically (requires a configured AI provider)
 Register-SldgLocale -Name 'ja-JP' -UseAI -PoolSize 50
 ```
 
-### Option 3: Mixed Locale
+### Option 3: Mixed
 
 ```powershell
-# Combine categories from different languages
 Register-SldgLocale -Name 'business-mix' -MixFrom @{
-    PersonNames = 'cs-CZ'      # Czech names
-    Addresses   = 'de-DE'      # German addresses
-    Companies   = 'en-US'      # English company names
-    PhoneFormat = 'cs-CZ'      # Czech phone format
+    PersonNames = 'cs-CZ'
+    Addresses   = 'de-DE'
+    Companies   = 'en-US'
+    PhoneFormat = 'cs-CZ'
 }
 ```
 
 ### Required Data Keys
 
 | Key | Type | Description |
-|-----|------|-------------|
+|---|---|---|
 | `MaleNames` | `string[]` | Male first names |
 | `FemaleNames` | `string[]` | Female first names |
 | `LastNames` | `string[]` | Family names |
@@ -283,28 +282,30 @@ Register-SldgLocale -Name 'business-mix' -MixFrom @{
 
 ## Custom Generation Rules
 
-Override default generation for specific columns using `Set-SldgGenerationRule`:
+Override default generation for specific columns using `Set-SldgGenerationRule`. Rules are stored in the plan and applied during `Invoke-SldgDataGeneration`.
+
+### Basic Rules
 
 ```powershell
-# Static value list
-Set-SldgGenerationRule -Table 'Orders' -Column 'Status' `
+# Value list — pick random value from the list
+Set-SldgGenerationRule -Plan $plan -TableName 'dbo.Order' -ColumnName 'Status' `
     -ValueList @('Pending', 'Shipped', 'Delivered', 'Cancelled')
 
-# Custom script block
-Set-SldgGenerationRule -Table 'Products' -Column 'SKU' `
-    -ScriptBlock { "PRD-{0:D6}" -f (Get-Random -Minimum 1 -Maximum 999999) }
+# Static value — same for every row
+Set-SldgGenerationRule -Plan $plan -TableName 'dbo.Order' -ColumnName 'Currency' `
+    -StaticValue 'CZK'
 
-# Sequential values
-Set-SldgGenerationRule -Table 'Invoices' -Column 'InvoiceNumber' `
-    -Pattern 'INV-{0:D8}' -Sequential
+# ScriptBlock — custom logic
+Set-SldgGenerationRule -Plan $plan -TableName 'dbo.Product' -ColumnName 'SKU' `
+    -ScriptBlock { "PRD-{0:D6}" -f (Get-Random -Minimum 1 -Maximum 999999) }
 ```
 
-### AI-Powered Generation Hints
+### AI-Powered Rules
 
 Guide AI generation with hints and cross-column dependencies:
 
 ```powershell
-# Simple AI hint — tell AI what to generate
+# AI hint — tell AI what to generate
 Set-SldgGenerationRule -Plan $plan -TableName 'dbo.Project' `
     -ColumnName 'Settings' -Generator 'Json' `
     -AIGenerationHint 'Project settings with theme, notification preferences, and sprint configuration'
@@ -315,7 +316,7 @@ Set-SldgGenerationRule -Plan $plan -TableName 'dbo.UsageReport' `
     -AIGenerationHint 'M365 usage report data. Structure varies by report type.' `
     -CrossColumnDependency 'ReportType'
 
-# Provide examples to guide AI output format
+# Value examples — guide AI output format
 Set-SldgGenerationRule -Plan $plan -TableName 'dbo.Config' `
     -ColumnName 'SettingsJson' -Generator 'Json' `
     -AIGenerationHint 'Application configuration' `
@@ -328,7 +329,7 @@ Set-SldgGenerationRule -Plan $plan -TableName 'dbo.Config' `
 | Parameter | Purpose |
 |---|---|
 | `-AIGenerationHint` | Free-text instructions for AI about what to generate |
-| `-CrossColumnDependency` | Column name whose value drives structure variation (auto-reorders columns) |
+| `-CrossColumnDependency` | Column whose value drives structure variation (auto-reorders columns) |
 | `-ValueExamples` | Example documents showing expected format (AI uses as reference) |
 
-Rules are stored in the generation plan and applied during `Invoke-SldgDataGeneration`. They take priority over semantic type-based generation.
+Rules take priority over semantic type-based generation. For a full walkthrough with JSON/XML columns, see [AI Configuration — JSON and XML Columns](ai-configuration.md#json-and-xml-column-configuration).
