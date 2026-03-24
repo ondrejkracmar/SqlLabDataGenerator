@@ -81,6 +81,10 @@
 			$jsonContent = $Matches[1]
 		}
 
+		# Fix invalid JSON escape sequences from AI-generated regex patterns (e.g., \d, \+, \w)
+		# Valid JSON escapes: \", \\, \/, \b, \f, \n, \r, \t, \uXXXX — everything else is illegal
+		$jsonContent = [regex]::Replace($jsonContent, '\\(?!["\\/bfnrtu])', '\\\\')
+
 		$parsed = $jsonContent | ConvertFrom-Json
 
 		foreach ($item in $parsed) {
