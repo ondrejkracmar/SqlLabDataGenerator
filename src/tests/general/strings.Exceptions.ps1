@@ -14,9 +14,17 @@ $exceptions['LegalSurplus'] = @(
 #>
 $exceptions['LegalSurplus'] = @(
 	# Module uses $script:strings.'Key' pattern which Export-PSMDString cannot detect
+	'AI.AnalysisBatch'
+	'AI.AnalysisUserMessage'
 	'AI.BatchGenerated'
 	'AI.BatchGenerating'
+	'AI.BatchNotArray'
 	'AI.BatchParseFailed'
+	'AI.BatchUserMessage'
+	'AI.IndustryAnalysisContext'
+	'AI.IndustryContext'
+	'AI.LocaleMultiple'
+	'AI.LocaleSingle'
 	'AI.ParseFailed'
 	'AI.PlanAdviceApplying'
 	'AI.PlanAdviceFailed'
