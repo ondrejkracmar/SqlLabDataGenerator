@@ -1,0 +1,15 @@
+{
+    "servers": {
+        "SqlLabDataGenerator": {
+            "command": "pwsh",
+            "args": [
+                "-NoProfile",
+                "-NonInteractive",
+                "-File",
+                "${workspaceFolder}/src/mcp/Start-SldgMcpServer.ps1",
+                "-Transport",
+                "stdio"
+            ]
+        }
+    }
+}

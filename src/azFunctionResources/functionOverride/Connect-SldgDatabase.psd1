@@ -1,0 +1,3 @@
+@{
+	RestMethods = 'post'
+}

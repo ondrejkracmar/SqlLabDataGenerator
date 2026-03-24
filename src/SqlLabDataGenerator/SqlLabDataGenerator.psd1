@@ -46,6 +46,7 @@
 		'Get-SldgAIProvider',
 		'Get-SldgColumnAnalysis',
 		'Get-SldgDatabaseSchema',
+		'Get-SldgHealth',
 		'Get-SldgPromptTemplate',
 		'Get-SldgTransformer',
 		'Import-SldgGenerationProfile',

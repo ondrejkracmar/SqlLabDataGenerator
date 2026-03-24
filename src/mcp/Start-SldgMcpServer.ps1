@@ -1,0 +1,102 @@
+<#
+.SYNOPSIS
+	Starts the SqlLabDataGenerator MCP (Model Context Protocol) server.
+
+.DESCRIPTION
+	Exposes all SqlLabDataGenerator cmdlets as MCP tools for AI agents (Claude, Copilot, etc.).
+	Supports two transport modes:
+	- stdio: reads JSON-RPC from stdin, writes to stdout (for local agent integration)
+	- sse: HTTP server with Server-Sent Events (for remote/web agent integration)
+
+.PARAMETER Transport
+	Transport mode: 'stdio' or 'sse'. Default: stdio.
+
+.PARAMETER Port
+	HTTP port for SSE transport. Default: 8080. Ignored in stdio mode.
+
+.PARAMETER LogPath
+	Optional path to a log file for diagnostic messages.
+
+.EXAMPLE
+	pwsh -NoProfile -File Start-SldgMcpServer.ps1
+
+	Starts the MCP server in stdio mode (default).
+
+.EXAMPLE
+	pwsh -NoProfile -File Start-SldgMcpServer.ps1 -Transport sse -Port 3001
+
+	Starts the MCP server as an HTTP SSE server on port 3001.
+#>
+[CmdletBinding()]
+param (
+	[ValidateSet('stdio', 'sse')]
+	[string]$Transport = 'stdio',
+
+	[int]$Port = 8080,
+
+	[string]$LogPath
+)
+
+$ErrorActionPreference = 'Stop'
+
+# Resolve paths
+$script:McpRoot = $PSScriptRoot
+$script:McpModuleRoot = Resolve-Path -Path "$PSScriptRoot\..\SqlLabDataGenerator"
+
+# Load the SqlLabDataGenerator module
+try {
+	Import-Module "$script:McpModuleRoot\SqlLabDataGenerator.psd1" -Force -ErrorAction Stop
+}
+catch {
+	$msg = "Failed to load SqlLabDataGenerator module: $($_.Exception.Message)"
+	if ($Transport -eq 'stdio') {
+		[Console]::Error.WriteLine($msg)
+	}
+	else {
+		Write-Error $msg
+	}
+	exit 1
+}
+
+# Dot-source all MCP internal functions
+foreach ($file in (Get-ChildItem -Path "$script:McpRoot\internal" -Recurse -Filter '*.ps1' -ErrorAction SilentlyContinue)) {
+	try { . $file.FullName }
+	catch {
+		$msg = "Failed to load MCP function '$($file.Name)': $($_.Exception.Message)"
+		if ($Transport -eq 'stdio') {
+			[Console]::Error.WriteLine($msg)
+		}
+		else {
+			Write-Warning $msg
+		}
+	}
+}
+
+# Register all module cmdlets as MCP tools
+$script:McpTools = Register-McpTools
+
+$toolCount = $script:McpTools.Count
+if ($Transport -eq 'stdio') {
+	[Console]::Error.WriteLine("MCP: Registered $toolCount tools from SqlLabDataGenerator")
+}
+else {
+	Write-Host "Registered $toolCount tools from SqlLabDataGenerator" -ForegroundColor Cyan
+}
+
+# Configure logging
+if ($LogPath) {
+	$logDir = Split-Path -Path $LogPath -Parent
+	if ($logDir -and -not (Test-Path $logDir)) {
+		New-Item -Path $logDir -ItemType Directory -Force | Out-Null
+	}
+}
+
+# Start the appropriate transport
+switch ($Transport) {
+	'stdio' {
+		Start-McpStdioTransport
+	}
+	'sse' {
+		Start-McpSseTransport -Port $Port -LogPath $LogPath
+	}
+}
