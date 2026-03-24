@@ -139,7 +139,7 @@
 
 		# Build column plans
 		$columnPlans = foreach ($col in $table.Columns) {
-			$skip = $col.IsIdentity -or $col.IsComputed -or $col.DataType -in @('timestamp', 'rowversion')
+			$skip = $col.IsIdentity -or $col.IsComputed -or $col.DataType -in @('timestamp', 'rowversion', 'geography', 'geometry', 'hierarchyid')
 			$semanticType = if ($col.SemanticType) { $col.SemanticType } else { (Resolve-SldgSemanticType -DataType $col.DataType -MaxLength $col.MaxLength -IsNullable $col.IsNullable).Type }
 			$gen = $generatorMap[$semanticType]
 

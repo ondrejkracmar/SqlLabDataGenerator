@@ -68,6 +68,41 @@
 		if ($bulkCopy) {
 			try { $bulkCopy.Close() } catch { $null = $_ }
 		}
+
+		# Row-by-row fallback: if BulkCopy failed (e.g. unique constraint), insert rows individually and skip failures
+		Write-PSFMessage -Level Warning -Message ($script:strings.'Generation.BulkCopyFallback' -f $qualifiedName, $_)
+		$insertedCount = 0
+		$skippedCount = 0
+		$safeColNames = ($Data.Columns | ForEach-Object { Get-SldgSafeSqlName -ColumnName $_.ColumnName })
+		$colList = $safeColNames -join ', '
+		$paramList = ($Data.Columns | ForEach-Object { "@p_$($_.ColumnName)" }) -join ', '
+
+		foreach ($row in $Data.Rows) {
+			try {
+				$cmd = $conn.CreateCommand()
+				if ($Transaction) { $cmd.Transaction = $Transaction }
+				$cmd.CommandText = "INSERT INTO $qualifiedName ($colList) VALUES ($paramList)"
+				foreach ($col in $Data.Columns) {
+					$val = $row[$col.ColumnName]
+					$p = $cmd.CreateParameter()
+					$p.ParameterName = "@p_$($col.ColumnName)"
+					$p.Value = if ($val -is [DBNull] -or $null -eq $val) { [DBNull]::Value } else { $val }
+					[void]$cmd.Parameters.Add($p)
+				}
+				[void]$cmd.ExecuteNonQuery()
+				$cmd.Dispose()
+				$insertedCount++
+			}
+			catch {
+				$skippedCount++
+				try { $cmd.Dispose() } catch { $null = $_ }
+			}
+		}
+
+		if ($skippedCount -gt 0) {
+			Write-PSFMessage -Level Warning -Message ($script:strings.'Generation.RowsSkipped' -f $skippedCount, $qualifiedName)
+		}
+
 		if ($IdentityInsert) {
 			try {
 				$cmd = $conn.CreateCommand()
@@ -78,6 +113,8 @@
 			}
 			catch { $null = $_ }
 		}
-		Stop-PSFFunction -Message ($script:strings.'Generation.Failed' -f $SchemaName, $TableName, $_) -EnableException $true -ErrorRecord $_
+
+		Write-PSFMessage -Level Verbose -String 'Schema.SqlServer.Inserted' -StringValues $insertedCount, $qualifiedName
+		$insertedCount
 	}
 }

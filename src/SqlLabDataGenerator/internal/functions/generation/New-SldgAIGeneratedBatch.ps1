@@ -78,8 +78,14 @@
 		$dependency = if ($col.AICrossColumnDependency) { " — depends on: $($col.AICrossColumnDependency)" } else { "" }
 		$nullable = if ($col.IsNullable) { " [NULLABLE]" } else { "" }
 		$maxLen = if ($col.MaxLength -and $col.MaxLength -gt 0) { "($($col.MaxLength))" } else { "" }
+		# Add explicit numeric range constraint for bounded integer types
+		$rangeHint = switch ($col.DataType.ToLower()) {
+			'tinyint' { " [range: 0–255]" }
+			'smallint' { " [range: -32768–32767]" }
+			default { "" }
+		}
 
-		"  - $($col.ColumnName): $($col.DataType)$maxLen, semantic: $semanticType$nullable$hint$examples$pattern$dependency"
+		"  - $($col.ColumnName): $($col.DataType)$maxLen, semantic: $semanticType$nullable$rangeHint$hint$examples$pattern$dependency"
 	}
 	$colText = $colDescriptions -join "`n"
 

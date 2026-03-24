@@ -37,6 +37,12 @@
 	'Generation.Complete'                    = 'Data generation complete: {0} tables, {1} total rows'
 	'Generation.Failed'                      = 'Data generation failed for [{0}].[{1}]: {2}'
 	'Generation.SkippingComputed'            = 'Skipping computed/identity column: {0}.{1}'
+	'Generation.SkippingSpatial'             = 'Skipping spatial/UDT column: {0}.{1}'
+	'Generation.SkippedDueToParent'          = 'Skipping table {0} — parent table(s) failed: {1}'
+	'Generation.FKFallbackLoaded'            = 'FK fallback: loaded {1} existing values for {0}'
+	'Generation.FKFallbackFailed'            = 'FK fallback: could not read existing values for {0}: {1}'
+	'Generation.BulkCopyFallback'            = 'BulkCopy failed for {0} ({1}), falling back to row-by-row insert'
+	'Generation.RowsSkipped'                 = '{0} rows skipped due to constraint violations in {1}'
 
 	# Validation
 	'Validation.Starting'                    = 'Validating generated data for {0} tables'

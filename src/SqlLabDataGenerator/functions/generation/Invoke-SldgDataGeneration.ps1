@@ -132,6 +132,7 @@
 
 	$generationFailed = $false
 	$isMaskingMode = $Plan.Mode -eq 'Masking'
+	$failedTables = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
 
 	# S4: Auto-enable transaction for masking mode to prevent data loss from DELETE+INSERT
 	if ($isMaskingMode -and -not $NoInsert -and $ConnectionInfo -and -not $transaction) {
@@ -330,6 +331,40 @@
 
 		Write-PSFMessage -Level Host -Message ($script:strings.'Generation.Table' -f $tablePlan.RowCount, $tablePlan.SchemaName, $tablePlan.TableName)
 
+		# FK DB fallback: for each FK reference, ensure $fkValues has parent values.
+		# If a parent table failed or wasn't in the plan, read existing PK values from the database.
+		if ($tablePlan.ForeignKeys -and $tablePlan.ForeignKeys.Count -gt 0 -and $ConnectionInfo -and $provider) {
+			foreach ($fk in $tablePlan.ForeignKeys) {
+				$refKey = "$($fk.ReferencedSchema).$($fk.ReferencedTable).$($fk.ReferencedColumn)"
+				if (-not $fkValues.ContainsKey($refKey) -or $fkValues[$refKey].Count -eq 0) {
+					try {
+						$safeRef = Get-SldgSafeSqlName -SchemaName $fk.ReferencedSchema -TableName $fk.ReferencedTable
+						$safeCol = Get-SldgSafeSqlName -ColumnName $fk.ReferencedColumn
+						$cmd = $ConnectionInfo.DbConnection.CreateCommand()
+						if ($transaction) { $cmd.Transaction = $transaction }
+						$cmd.CommandText = "SELECT DISTINCT TOP (1000) $safeCol FROM $safeRef"
+						$cmd.CommandTimeout = 30
+						$reader = $cmd.ExecuteReader()
+						$vals = [System.Collections.Generic.List[object]]::new()
+						while ($reader.Read()) {
+							$v = $reader.GetValue(0)
+							if ($v -isnot [DBNull]) { $vals.Add($v) }
+						}
+						$reader.Close()
+						$reader.Dispose()
+						$cmd.Dispose()
+						if ($vals.Count -gt 0) {
+							$fkValues[$refKey] = $vals.ToArray()
+							Write-PSFMessage -Level Verbose -Message ($script:strings.'Generation.FKFallbackLoaded' -f $refKey, $vals.Count)
+						}
+					}
+					catch {
+						Write-PSFMessage -Level Warning -Message ($script:strings.'Generation.FKFallbackFailed' -f $refKey, $_)
+					}
+				}
+			}
+		}
+
 		# Get table info from schema (need full column info)
 		$tableRules = if ($Plan.GenerationRules.ContainsKey($tablePlan.FullName)) {
 			$Plan.GenerationRules[$tablePlan.FullName]
@@ -346,7 +381,7 @@
 					ColumnName  = $cp.ColumnName
 					DataType    = $cp.DataType
 					SemanticType = $cp.SemanticType
-					IsIdentity  = $cp.Skip -and $cp.DataType -ne 'timestamp'
+					IsIdentity  = $cp.Skip -and $cp.DataType -notin @('timestamp', 'rowversion', 'geography', 'geometry', 'hierarchyid')
 					IsComputed  = $false
 					IsPrimaryKey = [bool]$cp.IsPrimaryKey
 					IsUnique    = [bool]$cp.IsUnique
@@ -362,6 +397,7 @@
 		}
 
 		Invoke-PSFProtectedCommand -ActionString 'Generation.InsertingTable' -ActionStringValues $tablePlan.RowCount, $tablePlan.SchemaName, $tablePlan.TableName -Target $tablePlan.FullName -ScriptBlock {
+
 			# Streaming mode: large tables generate and write in chunks to keep memory bounded
 			if ($streamingThreshold -gt 0 -and $tablePlan.RowCount -gt $streamingThreshold) {
 				Write-PSFMessage -Level Host -Message ($script:strings.'Generation.StreamingStarting' -f $tablePlan.FullName, $tablePlan.RowCount, $streamingChunkSize)
@@ -433,6 +469,7 @@
 		} -PSCmdlet $PSCmdlet -EnableException $false
 
 		if (Test-PSFFunctionInterrupt) {
+			[void]$failedTables.Add($tablePlan.FullName)
 			$tableResults.Add([SqlLabDataGenerator.TableResult]@{
 					TableName  = $tablePlan.FullName
 					RowCount   = 0

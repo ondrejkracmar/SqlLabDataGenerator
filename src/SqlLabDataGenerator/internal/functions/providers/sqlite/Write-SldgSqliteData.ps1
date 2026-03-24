@@ -72,7 +72,7 @@
 
 			$cmd = $conn.CreateCommand()
 			$cmd.Transaction = $activeTransaction
-			$cmd.CommandText = "INSERT INTO $safeTableName ($safeColList) VALUES $($valueClauses -join ', ')"
+			$cmd.CommandText = "INSERT OR IGNORE INTO $safeTableName ($safeColList) VALUES $($valueClauses -join ', ')"
 
 			# Bind parameters for all rows in this batch
 			for ($b = 0; $b -lt $currentBatchSize; $b++) {

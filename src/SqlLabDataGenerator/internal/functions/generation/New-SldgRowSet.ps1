@@ -63,6 +63,12 @@
 		# Skip rowversion/timestamp
 		if ($col.DataType -in @('timestamp', 'rowversion')) { continue }
 
+		# Skip spatial/UDT types — cannot be generated via SqlBulkCopy
+		if ($col.DataType -in @('geography', 'geometry', 'hierarchyid')) {
+			Write-PSFMessage -Level Verbose -Message ($script:strings.'Generation.SkippingSpatial' -f $TableInfo.FullName, $col.ColumnName)
+			continue
+		}
+
 		# Map SQL type to .NET type for DataTable
 		$netType = switch -Regex ($col.DataType.ToLower()) {
 			'^(int)$' { [int] }
@@ -194,6 +200,16 @@
 					$row[$col.ColumnName] = [guid]$value
 				}
 				else {
+					# Clamp numeric values to valid SQL type ranges (AI can generate out-of-range values)
+					switch ($col.DataType.ToLower()) {
+						'tinyint' { $value = [Math]::Max(0, [Math]::Min(255, [int]$value)) }
+						'smallint' { $value = [Math]::Max(-32768, [Math]::Min(32767, [int]$value)) }
+						'int' { $value = [Math]::Max(-2147483648, [Math]::Min(2147483647, [long]$value)) }
+					}
+					# Truncate strings exceeding MaxLength
+					if ($col.MaxLength -and $col.MaxLength -gt 0 -and $value -is [string] -and $value.Length -gt $col.MaxLength) {
+						$value = $value.Substring(0, $col.MaxLength)
+					}
 					# Unwrap PSObject to raw .NET type for DataTable compatibility
 					$row[$col.ColumnName] = $value.psobject.BaseObject
 				}

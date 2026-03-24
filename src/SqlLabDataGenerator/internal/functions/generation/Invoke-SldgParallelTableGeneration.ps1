@@ -76,7 +76,7 @@
 							ColumnName     = $cp.ColumnName
 							DataType       = $cp.DataType
 							SemanticType   = $cp.SemanticType
-							IsIdentity     = $cp.Skip -and $cp.DataType -ne 'timestamp'
+						IsIdentity     = $cp.Skip -and $cp.DataType -notin @('timestamp', 'rowversion', 'geography', 'geometry', 'hierarchyid')
 							IsComputed     = $false
 							IsPrimaryKey   = [bool]$cp.IsPrimaryKey
 							IsUnique       = [bool]$cp.IsUnique
@@ -197,7 +197,7 @@
 							ColumnName     = $cp.ColumnName
 							DataType       = $cp.DataType
 							SemanticType   = $cp.SemanticType
-							IsIdentity     = $cp.Skip -and $cp.DataType -ne 'timestamp'
+							IsIdentity     = $cp.Skip -and $cp.DataType -notin @('timestamp', 'rowversion', 'geography', 'geometry', 'hierarchyid')
 							IsComputed     = $false
 							IsPrimaryKey   = [bool]$cp.IsPrimaryKey
 							IsUnique       = [bool]$cp.IsUnique
