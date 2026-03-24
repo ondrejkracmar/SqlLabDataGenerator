@@ -393,8 +393,8 @@
 					ColumnName  = $cp.ColumnName
 					DataType    = $cp.DataType
 					SemanticType = $cp.SemanticType
-					IsIdentity  = $cp.Skip -and $cp.DataType -notin @('timestamp', 'rowversion', 'geography', 'geometry', 'hierarchyid')
-					IsComputed  = $false
+					IsIdentity  = [bool]$cp.IsIdentity
+					IsComputed  = [bool]$cp.IsComputed
 					IsPrimaryKey = [bool]$cp.IsPrimaryKey
 					IsUnique    = [bool]$cp.IsUnique
 					IsNullable  = if ($null -ne $cp.IsNullable) { [bool]$cp.IsNullable } else { $true }
@@ -406,6 +406,28 @@
 				}
 			}
 			ForeignKeys = $tablePlan.ForeignKeys
+		}
+
+		# For non-identity integer PK columns, query MAX(PK) so we can auto-generate sequential values
+		if ($ConnectionInfo) {
+			foreach ($col in $tableInfo.Columns) {
+				if ($col.IsPrimaryKey -and -not $col.IsIdentity -and -not $col.IsComputed -and -not $col.ForeignKey -and $col.DataType -match '^(int|bigint|smallint|tinyint)$') {
+					try {
+						$safeTbl = Get-SldgSafeSqlName -SchemaName $tablePlan.SchemaName -TableName $tablePlan.TableName
+						$safeCol = Get-SldgSafeSqlName -ColumnName $col.ColumnName
+						$cmd = $ConnectionInfo.DbConnection.CreateCommand()
+						if ($transaction) { $cmd.Transaction = $transaction }
+						$cmd.CommandText = "SELECT ISNULL(MAX($safeCol), 0) FROM $safeTbl"
+						$cmd.CommandTimeout = 30
+						$maxVal = $cmd.ExecuteScalar()
+						$cmd.Dispose()
+						$col | Add-Member -NotePropertyName 'PKStartValue' -NotePropertyValue ([long]$maxVal) -Force
+					}
+					catch {
+						Write-PSFMessage -Level Verbose -Message "Could not query MAX PK for $($col.ColumnName): $_"
+					}
+				}
+			}
 		}
 
 		Invoke-PSFProtectedCommand -ActionString 'Generation.InsertingTable' -ActionStringValues $tablePlan.RowCount, $tablePlan.SchemaName, $tablePlan.TableName -Target $tablePlan.FullName -ScriptBlock {

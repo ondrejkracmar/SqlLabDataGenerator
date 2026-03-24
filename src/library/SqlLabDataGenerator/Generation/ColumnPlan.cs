@@ -44,6 +44,12 @@ namespace SqlLabDataGenerator
         /// <summary>Whether to skip generation (identity/computed/timestamp).</summary>
         public bool Skip { get; set; }
 
+        /// <summary>Whether this is an identity (auto-increment) column.</summary>
+        public bool IsIdentity { get; set; }
+
+        /// <summary>Whether this is a computed column.</summary>
+        public bool IsComputed { get; set; }
+
         /// <summary>Custom generation rule, if set.</summary>
         public object CustomRule { get; set; }
 

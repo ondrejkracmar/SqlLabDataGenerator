@@ -81,6 +81,11 @@
 		$jsonText = $Matches[1]
 	}
 
+	# Sanitize common AI JSON issues: trailing "..." placeholders, trailing commas
+	$jsonText = $jsonText -replace ',\s*"\.{2,}"', ''          # remove "..." entries after comma
+	$jsonText = $jsonText -replace '"\.{2,}"\s*,?', ''         # remove standalone "..." entries
+	$jsonText = $jsonText -replace '(?<=[\]\}]),\s*(?=[\]\}])', '' # remove trailing commas
+
 	try {
 		$parsed = $jsonText | ConvertFrom-Json -ErrorAction Stop
 

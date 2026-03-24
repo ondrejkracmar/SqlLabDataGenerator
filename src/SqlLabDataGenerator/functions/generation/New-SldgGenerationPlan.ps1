@@ -156,6 +156,8 @@
 				ForeignKey    = $col.ForeignKey
 				SchemaHint    = $col.SchemaHint
 				Skip          = $skip
+				IsIdentity    = [bool]$col.IsIdentity
+				IsComputed    = [bool]$col.IsComputed
 				CustomRule    = $col.GenerationRule
 			}
 		}

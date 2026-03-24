@@ -96,6 +96,14 @@
 	$pkColumns = @($activeColumns | Where-Object { $_.IsPrimaryKey })
 	$hasCompositePK = $pkColumns.Count -gt 1
 
+	# Build auto-increment counters for non-identity integer PK columns with PKStartValue
+	$pkAutoIncrements = @{}
+	foreach ($col in $activeColumns) {
+		if ($col.IsPrimaryKey -and -not $col.IsIdentity -and $null -ne $col.PKStartValue -and $col.DataType -match '^(int|bigint|smallint|tinyint)$') {
+			$pkAutoIncrements[$col.ColumnName] = [long]$col.PKStartValue
+		}
+	}
+
 	# Track unique values for unique constraint columns
 	# When SharedUniqueTracker is provided (streaming mode), reuse it across chunks
 	if ($SharedUniqueTracker) {
@@ -131,7 +139,7 @@
 	}
 
 	# Determine which columns are FK-bound (AI shouldn't generate these)
-	$nonFkColumns = @($activeColumns | Where-Object { -not $_.ForeignKey -or -not $ForeignKeyValues })
+	$nonFkColumns = @($activeColumns | Where-Object { (-not $_.ForeignKey -or -not $ForeignKeyValues) -and -not $pkAutoIncrements.ContainsKey($_.ColumnName) })
 
 	# Try AI batch generation for non-FK columns
 	$aiBatch = $null
@@ -167,8 +175,14 @@
 
 				$value = $null
 
+				# Auto-generate sequential PK values for non-identity integer PK columns
+				if ($pkAutoIncrements.ContainsKey($col.ColumnName)) {
+					$pkAutoIncrements[$col.ColumnName]++
+					$value = $pkAutoIncrements[$col.ColumnName]
+				}
+
 				# Try AI-generated value first (for non-FK, non-custom-rule columns)
-				if ($aiBatch -and -not $customRule -and (-not $col.ForeignKey -or -not $ForeignKeyValues) -and $aiBatchIndex -lt $aiBatch.Count) {
+				elseif ($aiBatch -and -not $customRule -and (-not $col.ForeignKey -or -not $ForeignKeyValues) -and $aiBatchIndex -lt $aiBatch.Count) {
 					$aiRow = $aiBatch[$aiBatchIndex]
 					if ($aiRow.ContainsKey($col.ColumnName) -and $aiRow[$col.ColumnName] -isnot [DBNull]) {
 						$value = $aiRow[$col.ColumnName]

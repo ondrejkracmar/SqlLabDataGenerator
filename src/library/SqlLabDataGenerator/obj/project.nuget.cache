@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "Uobp2STrI34=",
+  "dgSpecHash": "8o+3TGqXrM0=",
   "success": true,
-  "projectFilePath": "c:\\Projects\\PSModules\\SqlLabDataGenerator\\src\\library\\SqlLabDataGenerator\\SqlLabDataGenerator.csproj",
+  "projectFilePath": "C:\\Projects\\PSModules\\SqlLabDataGenerator\\src\\library\\SqlLabDataGenerator\\SqlLabDataGenerator.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\KracmarOndrej\\.nuget\\packages\\microsoft.data.sqlite\\9.0.3\\microsoft.data.sqlite.9.0.3.nupkg.sha512",
     "C:\\Users\\KracmarOndrej\\.nuget\\packages\\microsoft.data.sqlite.core\\9.0.3\\microsoft.data.sqlite.core.9.0.3.nupkg.sha512",
