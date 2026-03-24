@@ -25,9 +25,10 @@ function ConvertTo-McpContent {
 
 	end {
 		if ($collected.Count -eq 0) {
-			return @(
+			Write-Output -NoEnumerate @(
 				[ordered]@{ type = 'text'; text = 'Command completed successfully (no output).' }
 			)
+			return
 		}
 
 		$content = [System.Collections.Generic.List[object]]::new()
@@ -53,6 +54,6 @@ function ConvertTo-McpContent {
 			$content | ForEach-Object { $_['text'] = "ERROR: $($_['text'])" }
 		}
 
-		@($content)
+		Write-Output -NoEnumerate @($content)
 	}
 }

@@ -13,6 +13,7 @@ function Read-McpMessage {
 		[switch]$Stdio,
 
 		[Parameter(Mandatory, ParameterSetName = 'Body')]
+		[AllowEmptyString()]
 		[string]$Body
 	)
 

@@ -1,4 +1,4 @@
-function Get-SldgHealth {
+﻿function Get-SldgHealth {
 	<#
 	.SYNOPSIS
 		Returns the health status of the SqlLabDataGenerator module.

@@ -1,6 +1,6 @@
 Describe 'MCP Protocol Layer' {
 	BeforeAll {
-		$mcpRoot = "$PSScriptRoot\..\..\mcp"
+		$mcpRoot = "$PSScriptRoot\..\..\..\mcp"
 		foreach ($file in (Get-ChildItem -Path "$mcpRoot\internal" -Recurse -Filter '*.ps1' -ErrorAction SilentlyContinue)) {
 			. $file.FullName
 		}
@@ -107,8 +107,8 @@ Describe 'MCP Protocol Layer' {
 
 Describe 'MCP Request Handler' {
 	BeforeAll {
-		$mcpRoot = "$PSScriptRoot\..\..\mcp"
-		$script:McpModuleRoot = "$PSScriptRoot\..\..\SqlLabDataGenerator"
+		$mcpRoot = "$PSScriptRoot\..\..\..\mcp"
+		$script:McpModuleRoot = "$PSScriptRoot\..\..\..\SqlLabDataGenerator"
 		foreach ($file in (Get-ChildItem -Path "$mcpRoot\internal" -Recurse -Filter '*.ps1' -ErrorAction SilentlyContinue)) {
 			. $file.FullName
 		}
@@ -139,7 +139,7 @@ Describe 'MCP Request Handler' {
 		It 'Returns tools/list with empty tools when none registered' {
 			$msg = [PSCustomObject]@{ IsValid = $true; Method = 'tools/list'; Params = $null; Id = 4 }
 			$response = Invoke-McpRequestHandler -Message $msg
-			$response.result.tools | Should -Not -BeNullOrEmpty -Because 'tools is an array (may be empty)'
+			$response.result.Contains('tools') | Should -BeTrue -Because 'response should contain tools key'
 		}
 
 		It 'Returns resources/list' {
@@ -158,13 +158,13 @@ Describe 'MCP Request Handler' {
 
 Describe 'MCP Tool Registration' {
 	BeforeAll {
-		$mcpRoot = "$PSScriptRoot\..\..\mcp"
+		$mcpRoot = "$PSScriptRoot\..\..\..\mcp"
 		foreach ($file in (Get-ChildItem -Path "$mcpRoot\internal" -Recurse -Filter '*.ps1' -ErrorAction SilentlyContinue)) {
 			. $file.FullName
 		}
 
 		Remove-Module SqlLabDataGenerator -ErrorAction Ignore
-		Import-Module "$PSScriptRoot\..\..\SqlLabDataGenerator\SqlLabDataGenerator.psd1" -Force
+		Import-Module "$PSScriptRoot\..\..\..\SqlLabDataGenerator\SqlLabDataGenerator.psd1" -Force
 	}
 
 	Context 'Register-McpTools' {
@@ -251,13 +251,13 @@ Describe 'MCP Tool Registration' {
 
 Describe 'MCP Tool Invocation' {
 	BeforeAll {
-		$mcpRoot = "$PSScriptRoot\..\..\mcp"
+		$mcpRoot = "$PSScriptRoot\..\..\..\mcp"
 		foreach ($file in (Get-ChildItem -Path "$mcpRoot\internal" -Recurse -Filter '*.ps1' -ErrorAction SilentlyContinue)) {
 			. $file.FullName
 		}
 
 		Remove-Module SqlLabDataGenerator -ErrorAction Ignore
-		Import-Module "$PSScriptRoot\..\..\SqlLabDataGenerator\SqlLabDataGenerator.psd1" -Force
+		Import-Module "$PSScriptRoot\..\..\..\SqlLabDataGenerator\SqlLabDataGenerator.psd1" -Force
 		$script:McpTools = Register-McpTools
 	}
 
