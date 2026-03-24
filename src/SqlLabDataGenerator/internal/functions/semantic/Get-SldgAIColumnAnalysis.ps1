@@ -31,8 +31,8 @@
 		$Locale = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.Generation.Locale'
 	}
 
-	# Build rich schema description with full context
-	$schemaSummary = foreach ($table in $SchemaModel.Tables) {
+	# Build per-table schema descriptions for batching
+	$tableDescriptions = foreach ($table in $SchemaModel.Tables) {
 		$colLines = foreach ($col in $table.Columns) {
 			$fk = if ($col.ForeignKey) { " -> $($col.ForeignKey.ReferencedTable).$($col.ForeignKey.ReferencedColumn)" } else { "" }
 			$flags = @()
@@ -49,9 +49,11 @@
 			"  FK: $($fk.ColumnName) -> $($fk.ReferencedTable).$($fk.ReferencedColumn)"
 		}
 		$fkText = if ($fkSummary) { "`n$($fkSummary -join "`n")" } else { "" }
-		"TABLE: $($table.FullName) ($($table.ColumnCount) columns)`n$($colLines -join "`n")$fkText"
+		@{
+			Table       = $table
+			Description = "TABLE: $($table.FullName) ($($table.ColumnCount) columns)`n$($colLines -join "`n")$fkText"
+		}
 	}
-	$schemaText = $schemaSummary -join "`n`n"
 
 	$systemPrompt = Resolve-SldgPromptTemplate -Purpose 'column-analysis' -Variables @{
 		Locale = $Locale
@@ -63,47 +65,79 @@
 	}
 
 	if ($IndustryHint) {
-		$systemPrompt += "`n`nThe database is from the $IndustryHint industry. Use industry-specific terminology, common patterns, realistic value ranges, and domain knowledge for generation hints."
+		$systemPrompt += "`n`n" + ($script:strings.'AI.IndustryAnalysisContext' -f $IndustryHint)
 	}
 
-	$userMessage = "Analyze this database schema and provide detailed semantic classification for every column:`n`n$schemaText"
+	# Split tables into batches to avoid AI output truncation
+	# Target ~100 columns per batch (AI reliably handles this size)
+	$maxColumnsPerBatch = 100
+	$batches = [System.Collections.Generic.List[object]]::new()
+	$currentBatch = [System.Collections.Generic.List[object]]::new()
+	$currentColCount = 0
 
-	$response = Invoke-SldgAIRequest -SystemPrompt $systemPrompt -UserMessage $userMessage -Purpose 'column-analysis'
-
-	if (-not $response) { return $null }
-
-	try {
-		$jsonContent = $response
-		if ($jsonContent -match '```(?:json)?\s*([\s\S]*?)\s*```') {
-			$jsonContent = $Matches[1]
+	foreach ($td in $tableDescriptions) {
+		$tableColCount = $td.Table.ColumnCount
+		if ($currentBatch.Count -gt 0 -and ($currentColCount + $tableColCount) -gt $maxColumnsPerBatch) {
+			$batches.Add($currentBatch.ToArray())
+			$currentBatch = [System.Collections.Generic.List[object]]::new()
+			$currentColCount = 0
 		}
-		elseif ($jsonContent -match '(\[[\s\S]*\])') {
-			$jsonContent = $Matches[1]
+		$currentBatch.Add($td)
+		$currentColCount += $tableColCount
+	}
+	if ($currentBatch.Count -gt 0) { $batches.Add($currentBatch.ToArray()) }
+
+	$batchIndex = 0
+	foreach ($batch in $batches) {
+		$batchIndex++
+		$schemaText = ($batch | ForEach-Object { $_.Description }) -join "`n`n"
+		$batchTables = ($batch | ForEach-Object { $_.Table.FullName }) -join ', '
+
+		if ($batches.Count -gt 1) {
+			Write-PSFMessage -Level Verbose -Message ($script:strings.'AI.AnalysisBatch' -f $batchIndex, $batches.Count, $batchTables)
 		}
 
-		# Fix invalid JSON escape sequences from AI-generated regex patterns (e.g., \d, \+, \w)
-		# Valid JSON escapes: \", \\, \/, \b, \f, \n, \r, \t, \uXXXX — everything else is illegal
-		$jsonContent = [regex]::Replace($jsonContent, '\\(?!["\\/bfnrtu])', '\\\\')
+		$userMessage = ($script:strings.'AI.AnalysisUserMessage') + "`n`n$schemaText"
 
-		$parsed = $jsonContent | ConvertFrom-Json
+		$response = Invoke-SldgAIRequest -SystemPrompt $systemPrompt -UserMessage $userMessage -Purpose 'column-analysis'
 
-		foreach ($item in $parsed) {
-			[SqlLabDataGenerator.ColumnClassification]@{
-				ColumnName            = $item.ColumnName
-				TableName             = $item.TableName
-				SemanticType          = $item.SemanticType
-				IsPII                 = [bool]$item.IsPII
-				Confidence            = 0.95
-				Source                = 'AI'
-				MatchedRule           = $item.GenerationHint
-				ValueExamples         = @(if ($item.ValueExamples) { $item.ValueExamples } else { @() })
-				ValuePattern          = if ($item.ValuePattern) { [string]$item.ValuePattern } else { $null }
-				CrossColumnDependency = if ($item.CrossColumnDependency) { [string]$item.CrossColumnDependency } else { $null }
+		if (-not $response) { continue }
+
+		try {
+			$jsonContent = $response
+			if ($jsonContent -match '```(?:json)?\s*([\s\S]*?)\s*```') {
+				$jsonContent = $Matches[1]
+			}
+			elseif ($jsonContent -match '(\[[\s\S]*\])') {
+				$jsonContent = $Matches[1]
+			}
+
+			# Fix invalid JSON escape sequences from AI-generated regex patterns (e.g., \d, \+, \w)
+			# Valid JSON escapes: \", \\, \/, \b, \f, \n, \r, \t, \uXXXX — everything else is illegal
+			$jsonContent = [regex]::Replace($jsonContent, '\\(?!["\\/bfnrtu])', '\\\\')
+
+			# Remove AI truncation artifacts: trailing "..." or ", ..." before closing bracket
+			$jsonContent = $jsonContent -replace ',?\s*\.{3,}\s*\]', ']'
+
+			$parsed = $jsonContent | ConvertFrom-Json
+
+			foreach ($item in $parsed) {
+				[SqlLabDataGenerator.ColumnClassification]@{
+					ColumnName            = $item.ColumnName
+					TableName             = $item.TableName
+					SemanticType          = $item.SemanticType
+					IsPII                 = [bool]$item.IsPII
+					Confidence            = 0.95
+					Source                = 'AI'
+					MatchedRule           = $item.GenerationHint
+					ValueExamples         = @(if ($item.ValueExamples) { $item.ValueExamples } else { @() })
+					ValuePattern          = if ($item.ValuePattern) { [string]$item.ValuePattern } else { $null }
+					CrossColumnDependency = if ($item.CrossColumnDependency) { [string]$item.CrossColumnDependency } else { $null }
+				}
 			}
 		}
-	}
-	catch {
-		Write-PSFMessage -Level Warning -Message ($script:strings.'AI.ParseFailed' -f $_)
-		$null
+		catch {
+			Write-PSFMessage -Level Warning -Message ($script:strings.'AI.ParseFailed' -f $_)
+		}
 	}
 }

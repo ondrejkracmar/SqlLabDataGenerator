@@ -168,6 +168,14 @@
 	'AI.PlanAdviceNoResponse'                = 'AI plan advice returned no response.'
 	'AI.BatchSkipped'                        = "AI batch generation skipped for table '{0}': AI provider is 'None'."
 	'AI.BatchNoResponse'                     = "AI batch generation for table '{0}' returned no response."
+	'AI.BatchNotArray'                       = 'AI response is not an array'
+	'AI.AnalysisBatch'                       = 'AI analysis batch {0}/{1}: {2}'
+	'AI.LocaleMultiple'                      = 'Multiple locales specified: {0}. Distribute rows roughly evenly across these locales. Each row must be culturally consistent within its locale — a person from one culture must have names, addresses, phone numbers, and other values matching that same culture. Do NOT mix languages within a single row.'
+	'AI.LocaleSingle'                        = 'Generate all data in the native language and cultural conventions of {0}.'
+	'AI.IndustryContext'                     = 'Industry context: {0} — use industry-specific terminology and realistic values.'
+	'AI.IndustryAnalysisContext'             = 'The database is from the {0} industry. Use industry-specific terminology, common patterns, realistic value ranges, and domain knowledge for generation hints.'
+	'AI.BatchUserMessage'                    = 'Generate {0} rows of test data for table {1} with locale {2}. Return ONLY the JSON array.'
+	'AI.AnalysisUserMessage'                 = 'Analyze this database schema and provide detailed semantic classification for every column:'
 
 	# Connection (provider-specific)
 	'Connect.SqlServer.Connected'            = "Connected to SQL Server '{0}' database '{1}'"

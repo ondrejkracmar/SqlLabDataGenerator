@@ -35,10 +35,10 @@
 	$localeList = @($Locale -split '[,;]' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
 	if ($localeList.Count -gt 1) {
 		$localeDisplay = $localeList -join ', '
-		$localeInstruction = "Multiple locales specified: $localeDisplay. Distribute rows roughly evenly across these locales. Each row must be culturally consistent within its locale — a person from one culture must have names, addresses, phone numbers, and other values matching that same culture. Do NOT mix languages within a single row."
+		$localeInstruction = $script:strings.'AI.LocaleMultiple' -f $localeDisplay
 	} else {
 		$localeDisplay = $localeList[0]
-		$localeInstruction = "Generate all data in the native language and cultural conventions of $localeDisplay."
+		$localeInstruction = $script:strings.'AI.LocaleSingle' -f $localeDisplay
 	}
 
 	# Build a cache key from column signatures
@@ -88,77 +88,104 @@
 	$jsonExample = $colNames | ForEach-Object { "`"$_`": `"value`"" }
 	$jsonRow = "{ $($jsonExample -join ', ') }"
 
-	$systemPrompt = Resolve-SldgPromptTemplate -Purpose 'batch-generation' -Variables @{
-		BatchSize          = $BatchSize
-		TableName          = $TableName
-		Locale             = $localeDisplay
-		LocaleInstruction  = $localeInstruction
-		ColumnDescriptions = $colText
-		ColumnNames        = ($colNames -join ', ')
-		JsonExample        = $jsonRow
-	}
+	# Read configurable chunk size — increase for fast local models (Ollama)
+	$maxAIBatch = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.Generation.MaxAIBatchSize'
+	if (-not $maxAIBatch -or $maxAIBatch -lt 1) { $maxAIBatch = 50 }
 
-	if (-not $systemPrompt) {
-		Write-PSFMessage -Level Warning -String 'Prompt.ResolveFailed' -StringValues 'batch-generation'
-		return $null
-	}
+	$allResults = [System.Collections.Generic.List[hashtable]]::new()
+	$remaining = $BatchSize
 
-	if ($IndustryHint) {
-		# Sanitize: limit length and strip control characters to mitigate prompt injection
-		$sanitizedHint = ($IndustryHint -replace '[\x00-\x1F\x7F]', ' ')
-		if ($sanitizedHint.Length -gt 200) { $sanitizedHint = $sanitizedHint.Substring(0, 200) }
-		$systemPrompt += "`n`nIndustry context: $sanitizedHint — use industry-specific terminology and realistic values."
-	}
+	while ($remaining -gt 0) {
+		$chunkSize = [Math]::Min($remaining, $maxAIBatch)
 
-	$userMessage = "Generate $BatchSize rows of test data for table $TableName with locale $localeDisplay. Return ONLY the JSON array."
-
-	Write-PSFMessage -Level Verbose -Message ($script:strings.'AI.BatchGenerating' -f $TableName, $BatchSize, $Locale)
-
-	$response = Invoke-SldgAIRequest -SystemPrompt $systemPrompt -UserMessage $userMessage -Purpose 'batch-generation'
-
-	if (-not $response) {
-		Write-PSFMessage -Level Warning -String 'AI.BatchNoResponse' -StringValues $TableName
-		return $null
-	}
-
-	# Parse JSON response
-	$jsonText = $response
-	if ($jsonText -match '```(?:json)?\s*\n?([\s\S]*?)\n?```') {
-		$jsonText = $Matches[1]
-	}
-	elseif ($jsonText -match '(\[[\s\S]*?\])') {
-		$jsonText = $Matches[1]
-	}
-
-	try {
-		$parsed = $jsonText | ConvertFrom-Json -ErrorAction Stop
-
-		# Validate response is an array
-		if ($parsed -isnot [System.Array] -and $parsed -isnot [System.Collections.IEnumerable]) {
-			Write-PSFMessage -Level Warning -Message ($script:strings.'AI.BatchParseFailed' -f $TableName, 'AI response is not an array')
-			return $null
+		$chunkSystemPrompt = Resolve-SldgPromptTemplate -Purpose 'batch-generation' -Variables @{
+			BatchSize          = $chunkSize
+			TableName          = $TableName
+			Locale             = $localeDisplay
+			LocaleInstruction  = $localeInstruction
+			ColumnDescriptions = $colText
+			ColumnNames        = ($colNames -join ', ')
+			JsonExample        = $jsonRow
+		}
+		if (-not $chunkSystemPrompt) {
+			Write-PSFMessage -Level Warning -String 'Prompt.ResolveFailed' -StringValues 'batch-generation'
+			break
+		}
+		if ($IndustryHint) {
+			$sanitizedHint = ($IndustryHint -replace '[\x00-\x1F\x7F]', ' ')
+			if ($sanitizedHint.Length -gt 200) { $sanitizedHint = $sanitizedHint.Substring(0, 200) }
+			$chunkSystemPrompt += "`n`n" + ($script:strings.'AI.IndustryContext' -f $sanitizedHint)
 		}
 
-		# Convert to array of hashtables for easy consumption
-		$result = @(foreach ($row in $parsed) {
+		$userMessage = $script:strings.'AI.BatchUserMessage' -f $chunkSize, $TableName, $localeDisplay
+
+		Write-PSFMessage -Level Verbose -Message ($script:strings.'AI.BatchGenerating' -f $TableName, $chunkSize, $Locale)
+
+		$response = Invoke-SldgAIRequest -SystemPrompt $chunkSystemPrompt -UserMessage $userMessage -Purpose 'batch-generation'
+
+		if (-not $response) {
+			Write-PSFMessage -Level Warning -String 'AI.BatchNoResponse' -StringValues $TableName
+			break
+		}
+
+		# Parse JSON response
+		$jsonText = $response
+		if ($jsonText -match '```(?:json)?\s*\n?([\s\S]*?)\n?```') {
+			$jsonText = $Matches[1]
+		}
+		elseif ($jsonText -match '(\[[\s\S]*?\])') {
+			$jsonText = $Matches[1]
+		}
+
+		# Fix invalid JSON escape sequences (e.g. \+ from regex patterns)
+		$jsonText = [regex]::Replace($jsonText, '\\(?!["\\/bfnrtu])', '\\\\')
+		# Remove truncation artifacts (e.g. trailing "..." in arrays)
+		$jsonText = $jsonText -replace ',?\s*"\.{3,}"\s*\]', ']'
+		$jsonText = $jsonText -replace ',?\s*\.{3,}\s*\]', ']'
+		# Fix truncated JSON: unclosed array
+		if ($jsonText -match '^\s*\[' -and $jsonText -notmatch '\]\s*$') {
+			$jsonText = $jsonText -replace ',?\s*\{[^}]*$', ''
+			$jsonText = $jsonText.TrimEnd() + ']'
+		}
+
+		try {
+			$parsed = $jsonText | ConvertFrom-Json -ErrorAction Stop
+
+			if ($parsed -isnot [System.Array] -and $parsed -isnot [System.Collections.IEnumerable]) {
+				Write-PSFMessage -Level Warning -Message ($script:strings.'AI.BatchParseFailed' -f $TableName, $script:strings.'AI.BatchNotArray')
+				break
+			}
+
+			foreach ($row in $parsed) {
 				$rowHash = @{}
 				foreach ($colName in $colNames) {
 					$val = $row.$colName
 					$rowHash[$colName] = if ($null -eq $val) { [DBNull]::Value } else { $val }
 				}
-				$rowHash
-			})
+				$allResults.Add($rowHash)
+			}
 
-		# Cache the result
-		Invoke-SldgCacheEviction -Cache $script:SldgState.AIValueCache -CacheName 'AIValueCache'
-		$script:SldgState.AIValueCache[$cacheKey] = $result
-		$script:SldgState.CacheTimestamps["AIValueCache|$cacheKey"] = [datetime]::UtcNow
-		Write-PSFMessage -Level Verbose -Message ($script:strings.'AI.BatchGenerated' -f $TableName, $result.Count)
-
-		return $result
+			$remaining -= $parsed.Count
+			# If AI returned fewer rows than requested, it hit its output limit — stop looping
+			if ($parsed.Count -lt $chunkSize) { break }
+		}
+		catch {
+			Write-PSFMessage -Level Warning -Message ($script:strings.'AI.BatchParseFailed' -f $TableName, $_)
+			break
+		}
 	}
-	catch {
-		Write-PSFMessage -Level Warning -Message ($script:strings.'AI.BatchParseFailed' -f $TableName, $_)
+
+	if ($allResults.Count -eq 0) {
 		return $null
 	}
+
+	$result = @($allResults)
+
+	# Cache the result
+	Invoke-SldgCacheEviction -Cache $script:SldgState.AIValueCache -CacheName 'AIValueCache'
+	$script:SldgState.AIValueCache[$cacheKey] = $result
+	$script:SldgState.CacheTimestamps["AIValueCache|$cacheKey"] = [datetime]::UtcNow
+	Write-PSFMessage -Level Verbose -Message ($script:strings.'AI.BatchGenerated' -f $TableName, $result.Count)
+
+	return $result
 }
