@@ -114,7 +114,8 @@
 
 			# Fix invalid JSON escape sequences from AI-generated regex patterns (e.g., \d, \+, \w)
 			# Valid JSON escapes: \", \\, \/, \b, \f, \n, \r, \t, \uXXXX — everything else is illegal
-			$jsonContent = [regex]::Replace($jsonContent, '\\(?!["\\/bfnrtu])', '\\\\')
+			# (?<!\\) lookbehind: skip the second \ in valid \\ pairs so we only fix bare invalid escapes
+			$jsonContent = [regex]::Replace($jsonContent, '(?<!\\)\\(?!["\\\//bfnrtu])', '\\')
 
 			# Remove AI truncation artifacts: trailing "..." or ", ..." before closing bracket
 			$jsonContent = $jsonContent -replace ',?\s*\.{3,}\s*\]', ']'

@@ -138,7 +138,8 @@
 		}
 
 		# Fix invalid JSON escape sequences (e.g. \+ from regex patterns)
-		$jsonText = [regex]::Replace($jsonText, '\\(?!["\\/bfnrtu])', '\\\\')
+		# (?<!\\) lookbehind: skip the second \ in valid \\ pairs so we only fix bare invalid escapes
+		$jsonText = [regex]::Replace($jsonText, '(?<!\\)\\(?!["\\\//bfnrtu])', '\\')
 		# Remove truncation artifacts (e.g. trailing "..." in arrays)
 		$jsonText = $jsonText -replace ',?\s*"\.{3,}"\s*\]', ']'
 		$jsonText = $jsonText -replace ',?\s*\.{3,}\s*\]', ']'
