@@ -377,6 +377,18 @@
 			TableName   = $tablePlan.TableName
 			FullName    = $tablePlan.FullName
 			Columns     = foreach ($cp in $tablePlan.Columns) {
+				# Cross-reference table-level ForeignKeys to ensure column-level ForeignKey is set
+				$colFK = $cp.ForeignKey
+				if (-not $colFK -and $tablePlan.ForeignKeys) {
+					$matchedFK = $tablePlan.ForeignKeys | Where-Object { $_.ParentColumn -eq $cp.ColumnName } | Select-Object -First 1
+					if ($matchedFK) {
+						$colFK = [PSCustomObject]@{
+							ReferencedSchema = $matchedFK.ReferencedSchema
+							ReferencedTable  = $matchedFK.ReferencedTable
+							ReferencedColumn = $matchedFK.ReferencedColumn
+						}
+					}
+				}
 				[PSCustomObject]@{
 					ColumnName  = $cp.ColumnName
 					DataType    = $cp.DataType
@@ -387,7 +399,7 @@
 					IsUnique    = [bool]$cp.IsUnique
 					IsNullable  = if ($null -ne $cp.IsNullable) { [bool]$cp.IsNullable } else { $true }
 					MaxLength   = $cp.MaxLength
-					ForeignKey  = $cp.ForeignKey
+					ForeignKey  = $colFK
 					SchemaHint  = $cp.SchemaHint
 					Classification = [PSCustomObject]@{ SemanticType = $cp.SemanticType; IsPII = $cp.IsPII }
 					GenerationRule = $cp.CustomRule

@@ -72,17 +72,29 @@
 					TableName   = $tp.TableName
 					FullName    = $tp.FullName
 					Columns     = foreach ($cp in $tp.Columns) {
+						# Cross-reference table-level ForeignKeys to ensure column-level ForeignKey is set
+						$colFK = $cp.ForeignKey
+						if (-not $colFK -and $tp.ForeignKeys) {
+							$matchedFK = $tp.ForeignKeys | Where-Object { $_.ParentColumn -eq $cp.ColumnName } | Select-Object -First 1
+							if ($matchedFK) {
+								$colFK = [PSCustomObject]@{
+									ReferencedSchema = $matchedFK.ReferencedSchema
+									ReferencedTable  = $matchedFK.ReferencedTable
+									ReferencedColumn = $matchedFK.ReferencedColumn
+								}
+							}
+						}
 						[PSCustomObject]@{
 							ColumnName     = $cp.ColumnName
 							DataType       = $cp.DataType
 							SemanticType   = $cp.SemanticType
-						IsIdentity     = $cp.Skip -and $cp.DataType -notin @('timestamp', 'rowversion', 'geography', 'geometry', 'hierarchyid')
+							IsIdentity     = $cp.Skip -and $cp.DataType -notin @('timestamp', 'rowversion', 'geography', 'geometry', 'hierarchyid')
 							IsComputed     = $false
 							IsPrimaryKey   = [bool]$cp.IsPrimaryKey
 							IsUnique       = [bool]$cp.IsUnique
 							IsNullable     = if ($null -ne $cp.IsNullable) { [bool]$cp.IsNullable } else { $true }
 							MaxLength      = $cp.MaxLength
-							ForeignKey     = $cp.ForeignKey
+							ForeignKey     = $colFK
 							SchemaHint     = $cp.SchemaHint
 							Classification = [PSCustomObject]@{ SemanticType = $cp.SemanticType; IsPII = $cp.IsPII }
 							GenerationRule = $cp.CustomRule
@@ -187,12 +199,57 @@
 
 				Write-PSFMessage -Level Host -Message ($script:strings.'Generation.Table' -f $tablePlan.RowCount, $tablePlan.SchemaName, $tablePlan.TableName)
 
+				# FK DB fallback: ensure $FkValues has parent PK values for every FK reference
+				if ($tablePlan.ForeignKeys -and $tablePlan.ForeignKeys.Count -gt 0 -and $ConnectionInfo -and $Provider) {
+					foreach ($fk in $tablePlan.ForeignKeys) {
+						$refKey = "$($fk.ReferencedSchema).$($fk.ReferencedTable).$($fk.ReferencedColumn)"
+						if (-not $FkValues.ContainsKey($refKey) -or $FkValues[$refKey].Count -eq 0) {
+							try {
+								$safeRef = Get-SldgSafeSqlName -SchemaName $fk.ReferencedSchema -TableName $fk.ReferencedTable
+								$safeCol = Get-SldgSafeSqlName -ColumnName $fk.ReferencedColumn
+								$cmd = $ConnectionInfo.DbConnection.CreateCommand()
+								if ($Transaction) { $cmd.Transaction = $Transaction }
+								$cmd.CommandText = "SELECT DISTINCT TOP (1000) $safeCol FROM $safeRef"
+								$cmd.CommandTimeout = 30
+								$reader = $cmd.ExecuteReader()
+								$vals = [System.Collections.Generic.List[object]]::new()
+								while ($reader.Read()) {
+									$v = $reader.GetValue(0)
+									if ($v -isnot [DBNull]) { $vals.Add($v) }
+								}
+								$reader.Close()
+								$reader.Dispose()
+								$cmd.Dispose()
+								if ($vals.Count -gt 0) {
+									$FkValues[$refKey] = $vals.ToArray()
+									Write-PSFMessage -Level Verbose -Message ($script:strings.'Generation.FKFallbackLoaded' -f $refKey, $vals.Count)
+								}
+							}
+							catch {
+								Write-PSFMessage -Level Warning -Message ($script:strings.'Generation.FKFallbackFailed' -f $refKey, $_)
+							}
+						}
+					}
+				}
+
 				$tableRules = if ($Plan.GenerationRules.ContainsKey($tablePlan.FullName)) { $Plan.GenerationRules[$tablePlan.FullName] } else { $null }
 				$tableInfo = [PSCustomObject]@{
 					SchemaName  = $tablePlan.SchemaName
 					TableName   = $tablePlan.TableName
 					FullName    = $tablePlan.FullName
 					Columns     = foreach ($cp in $tablePlan.Columns) {
+						# Cross-reference table-level ForeignKeys to ensure column-level ForeignKey is set
+						$colFK = $cp.ForeignKey
+						if (-not $colFK -and $tablePlan.ForeignKeys) {
+							$matchedFK = $tablePlan.ForeignKeys | Where-Object { $_.ParentColumn -eq $cp.ColumnName } | Select-Object -First 1
+							if ($matchedFK) {
+								$colFK = [PSCustomObject]@{
+									ReferencedSchema = $matchedFK.ReferencedSchema
+									ReferencedTable  = $matchedFK.ReferencedTable
+									ReferencedColumn = $matchedFK.ReferencedColumn
+								}
+							}
+						}
 						[PSCustomObject]@{
 							ColumnName     = $cp.ColumnName
 							DataType       = $cp.DataType
@@ -203,7 +260,7 @@
 							IsUnique       = [bool]$cp.IsUnique
 							IsNullable     = if ($null -ne $cp.IsNullable) { [bool]$cp.IsNullable } else { $true }
 							MaxLength      = $cp.MaxLength
-							ForeignKey     = $cp.ForeignKey
+							ForeignKey     = $colFK
 							SchemaHint     = $cp.SchemaHint
 							Classification = [PSCustomObject]@{ SemanticType = $cp.SemanticType; IsPII = $cp.IsPII }
 							GenerationRule = $cp.CustomRule

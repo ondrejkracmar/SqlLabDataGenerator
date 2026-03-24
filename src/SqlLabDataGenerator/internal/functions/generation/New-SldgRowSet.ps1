@@ -180,6 +180,9 @@
 					$value = New-SldgGeneratedValue -Column $col -GeneratorMap $GeneratorMap -ForeignKeyValues $ForeignKeyValues -CustomRule $customRule -NullProbability $cachedNullProbability -RowContext $rowContext
 				}
 
+				# Convert string "null" from AI to actual DBNull
+				if ($value -is [string] -and $value -eq 'null') { $value = [DBNull]::Value }
+
 				if ($null -eq $value) { continue }
 
 				# Enforce uniqueness

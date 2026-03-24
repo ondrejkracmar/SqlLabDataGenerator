@@ -18,9 +18,11 @@ Rules:
 - For cross-column dependencies, make values consistent (e.g., if there's FirstName and Email, the email should contain the first name)
 - Vary the data — don't repeat the same patterns
 - For Status/Category columns, use realistic business values appropriate for the table context
-- For nullable columns, occasionally include null (use JSON null)
+- For nullable [NULLABLE] columns, occasionally use JSON null (the literal null token, NOT the string "null")
+- For [NOT NULL] columns, ALWAYS provide a non-null value — never use null
+- For [UNIQUE] columns, every value in the batch MUST be distinct — no duplicates allowed
 - For numeric columns, use appropriate ranges
-- For date columns, use ISO format (YYYY-MM-DD or YYYY-MM-DDTHH:mm:ss)
+- For date columns, use ISO format (YYYY-MM-DD or YYYY-MM-DDTHH:mm:ss) and ensure UNIQUE date columns have distinct dates
 
 Return ONLY a JSON array of {{BatchSize}} objects. Each object must have exactly these keys: {{ColumnNames}}
 No markdown, no explanation, just the JSON array.

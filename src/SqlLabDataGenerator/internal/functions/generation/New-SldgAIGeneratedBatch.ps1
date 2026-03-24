@@ -76,7 +76,8 @@
 		else { "" }
 		$pattern = if ($col.AIValuePattern) { " — pattern: $($col.AIValuePattern)" } else { "" }
 		$dependency = if ($col.AICrossColumnDependency) { " — depends on: $($col.AICrossColumnDependency)" } else { "" }
-		$nullable = if ($col.IsNullable) { " [NULLABLE]" } else { "" }
+		$nullable = if ($col.IsNullable) { " [NULLABLE]" } else { " [NOT NULL]" }
+		$unique = if ($col.IsUnique -or ($col.IsPrimaryKey)) { " [UNIQUE]" } else { "" }
 		$maxLen = if ($col.MaxLength -and $col.MaxLength -gt 0) { "($($col.MaxLength))" } else { "" }
 		# Add explicit numeric range constraint for bounded integer types
 		$rangeHint = switch ($col.DataType.ToLower()) {
@@ -85,7 +86,7 @@
 			default { "" }
 		}
 
-		"  - $($col.ColumnName): $($col.DataType)$maxLen, semantic: $semanticType$nullable$rangeHint$hint$examples$pattern$dependency"
+		"  - $($col.ColumnName): $($col.DataType)$maxLen, semantic: $semanticType$nullable$unique$rangeHint$hint$examples$pattern$dependency"
 	}
 	$colText = $colDescriptions -join "`n"
 
@@ -167,7 +168,7 @@
 				$rowHash = @{}
 				foreach ($colName in $colNames) {
 					$val = $row.$colName
-					$rowHash[$colName] = if ($null -eq $val) { [DBNull]::Value } else { $val }
+					$rowHash[$colName] = if ($null -eq $val -or ($val -is [string] -and $val -eq 'null')) { [DBNull]::Value } else { $val }
 				}
 				$allResults.Add($rowHash)
 			}
