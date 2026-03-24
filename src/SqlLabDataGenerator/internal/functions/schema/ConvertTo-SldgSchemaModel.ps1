@@ -31,27 +31,28 @@
 	$tableList = [System.Collections.Generic.List[object]]::new()
 
 	# Pre-index metadata by table key for O(1) lookups instead of O(n) per-table scans
+	# Use @() to safely enumerate: works for both DataTable and DataRow array inputs
 	$columnIndex = @{}
-	foreach ($colRow in $Columns.Rows) {
+	foreach ($colRow in @($Columns)) {
 		$key = "$([string]$colRow.TABLE_SCHEMA).$([string]$colRow.TABLE_NAME)"
 		if (-not $columnIndex.ContainsKey($key)) { $columnIndex[$key] = [System.Collections.Generic.List[object]]::new() }
 		$columnIndex[$key].Add($colRow)
 	}
 	$ucIndex = @{}
-	foreach ($ucRow in $UniqueConstraints.Rows) {
+	foreach ($ucRow in @($UniqueConstraints)) {
 		$key = "$([string]$ucRow.SchemaName).$([string]$ucRow.TableName).$([string]$ucRow.ColumnName)"
 		if (-not $ucIndex.ContainsKey($key)) { $ucIndex[$key] = [System.Collections.Generic.List[object]]::new() }
 		$ucIndex[$key].Add($ucRow)
 	}
 	$fkByParent = @{}
-	foreach ($fkRow in $ForeignKeys.Rows) {
+	foreach ($fkRow in @($ForeignKeys)) {
 		$key = "$([string]$fkRow.ParentSchema).$([string]$fkRow.ParentTable)"
 		if (-not $fkByParent.ContainsKey($key)) { $fkByParent[$key] = [System.Collections.Generic.List[object]]::new() }
 		$fkByParent[$key].Add($fkRow)
 	}
 	$ccIndex = @{}
 	if ($CheckConstraints) {
-		foreach ($ccRow in $CheckConstraints.Rows) {
+		foreach ($ccRow in @($CheckConstraints)) {
 			$key = "$([string]$ccRow.SchemaName).$([string]$ccRow.TableName).$([string]$ccRow.ColumnName)"
 			if (-not $ccIndex.ContainsKey($key)) { $ccIndex[$key] = [System.Collections.Generic.List[object]]::new() }
 			$ccIndex[$key].Add($ccRow)
@@ -61,8 +62,8 @@
 	# Pre-analyze view definitions to detect JSON/XML usage per table.column
 	# Maps "schema.table.column" -> @{ ViewDefinitions = [...]; DetectedFormat = 'Json'|'Xml'|$null }
 	$viewColumnHints = @{}
-	if ($ViewHints -and $ViewHints.Rows) {
-		foreach ($vhRow in $ViewHints.Rows) {
+	if ($ViewHints) {
+		foreach ($vhRow in @($ViewHints)) {
 			$tableKey = "$([string]$vhRow.TableSchema).$([string]$vhRow.TableName)"
 			$viewDef = [string]$vhRow.ViewDefinition
 			if (-not $viewDef) { continue }
@@ -114,7 +115,7 @@
 		}
 	}
 
-	foreach ($tableRow in $Tables.Rows) {
+	foreach ($tableRow in @($Tables)) {
 		$schemaName = [string]$tableRow.TABLE_SCHEMA
 		$tableName = [string]$tableRow.TABLE_NAME
 

@@ -34,7 +34,7 @@
 			$adapter.Dispose()
 			$cmd.Dispose()
 		}
-		$dataTable
+		, $dataTable
 	}
 
 	# Get tables
