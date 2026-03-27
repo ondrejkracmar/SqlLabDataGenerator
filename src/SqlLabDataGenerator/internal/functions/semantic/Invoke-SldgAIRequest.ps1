@@ -171,7 +171,7 @@
 	# Clear plaintext API key from variable — already embedded in headers
 	# Note: .NET strings are immutable; we can only remove the reference, not scrub memory.
 	if ($apiKey) {
-		$apiKey = $null
+		Remove-Variable -Name apiKey -ErrorAction SilentlyContinue
 	}
 
 	$params = @{
@@ -225,7 +225,7 @@
 				# Determine HTTP status code for intelligent retry decisions
 				$statusCode = 0
 				if ($_.Exception.Response) {
-					try { $statusCode = [int]$_.Exception.Response.StatusCode } catch { }
+					try { $statusCode = [int]$_.Exception.Response.StatusCode } catch { $null = $_ }
 				}
 
 				# Do not retry on authentication/authorization failures
@@ -247,7 +247,7 @@
 									$delay = $retryAfterSec
 								}
 							}
-						} catch { }
+						} catch { $null = $_ }
 					}
 
 					Write-PSFMessage -Level Warning -Message ($script:strings.'AI.RetryAttempt' -f $attempt, $retryCount, $delay, $_)

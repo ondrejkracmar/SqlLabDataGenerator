@@ -103,7 +103,7 @@
 				$skippedCount++
 			}
 			finally {
-				if ($cmd) { try { $cmd.Dispose() } catch { } }
+				if ($cmd) { try { $cmd.Dispose() } catch { $null = $_ } }
 			}
 		}
 
@@ -121,7 +121,7 @@
 				[void]$cmd.ExecuteNonQuery()
 			}
 			catch { Write-PSFMessage -Level Verbose -Message "IDENTITY_INSERT OFF failed after fallback: $_" }
-			finally { if ($cmd) { try { $cmd.Dispose() } catch { } } }
+			finally { if ($cmd) { try { $cmd.Dispose() } catch { $null = $_ } } }
 		}
 
 		Write-PSFMessage -Level Verbose -String 'Schema.SqlServer.Inserted' -StringValues $insertedCount, $qualifiedName

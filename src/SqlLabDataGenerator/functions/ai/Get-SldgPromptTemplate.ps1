@@ -34,6 +34,8 @@
 	param (
 		[string]$Purpose,
 
+		[string]$Variant,
+
 		[switch]$IncludeContent
 	)
 

@@ -14,7 +14,7 @@ if (-not $WorkingDirectory) {
 	else { $WorkingDirectory = Split-Path $PSScriptRoot }
 }
 
-$solutionPath = Join-Path $WorkingDirectory 'library\SqlLabDataGenerator\SqlLabDataGenerator.sln'
+$solutionPath = Join-Path $WorkingDirectory 'library\SqlLabDataGenerator.sln'
 
 if (-not (Test-Path $solutionPath)) {
 	Write-PSFMessage -Level Warning -Message "Solution not found at $solutionPath — skipping library build."

@@ -41,6 +41,7 @@ Describe "AI Layer Tests" {
 
 	Context "Invoke-SldgAIRequest - Retry and Rate Limiting Config" {
 		BeforeAll {
+			& $module { Set-PSFConfig -FullName 'SqlLabDataGenerator.AI.RetryCount' -Value 3 }
 			& $module { Set-PSFConfig -FullName 'SqlLabDataGenerator.AI.RetryDelaySeconds' -Value 2 }
 		}
 

@@ -23,6 +23,7 @@
 	$maxIterations = $Tables.Count
 	$iteration = 0
 	$changed = $true
+	$lastLevelSum = -1
 	while ($changed) {
 		if ($iteration++ -ge $maxIterations) {
 			Write-PSFMessage -Level Warning -String 'Generation.LevelComputationStopped' -StringValues $maxIterations
@@ -47,6 +48,12 @@
 				}
 			}
 		}
+
+		# Convergence early exit: if level sums haven't changed, no further progress is possible
+		$currentLevelSum = 0
+		foreach ($v in $levelMap.Values) { $currentLevelSum += $v }
+		if ($currentLevelSum -eq $lastLevelSum) { break }
+		$lastLevelSum = $currentLevelSum
 	}
 
 	# Group by level, preserving original order within each level

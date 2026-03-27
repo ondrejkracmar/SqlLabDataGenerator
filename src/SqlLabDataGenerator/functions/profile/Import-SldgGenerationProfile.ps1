@@ -110,7 +110,7 @@
 					# Validate column exists in the plan to avoid silently applying rules to non-existent columns
 					$targetTable = $Plan.Tables | Where-Object { $_.FullName -eq $tableName } | Select-Object -First 1
 					if ($targetTable) {
-						$colExists = $targetTable.Columns | Where-Object { $_.Name -eq $colName }
+						$colExists = $targetTable.Columns | Where-Object { $_.ColumnName -eq $colName }
 						if (-not $colExists) {
 							Write-PSFMessage -Level Warning -String 'Profile.ColumnNotFound' -StringValues $colName, $tableName, $Path
 							continue

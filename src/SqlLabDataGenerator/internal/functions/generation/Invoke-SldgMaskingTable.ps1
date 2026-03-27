@@ -1,4 +1,4 @@
-function Invoke-SldgMaskingTable {
+﻿function Invoke-SldgMaskingTable {
 	<#
 	.SYNOPSIS
 		Masks PII columns in a single table by reading, replacing, and re-inserting data.

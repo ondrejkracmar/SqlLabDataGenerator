@@ -1,4 +1,4 @@
-function Get-SldgAISchemaAnalysis {
+﻿function Get-SldgAISchemaAnalysis {
 	<#
 	.SYNOPSIS
 		Uses a smart AI model to deeply analyze the schema and sample data,

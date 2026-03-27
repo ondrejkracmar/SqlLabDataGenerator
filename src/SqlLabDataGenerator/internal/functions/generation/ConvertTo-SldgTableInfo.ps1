@@ -1,4 +1,4 @@
-function ConvertTo-SldgTableInfo {
+﻿function ConvertTo-SldgTableInfo {
 	<#
 	.SYNOPSIS
 		Converts a TablePlan object into a TableInfo PSCustomObject for the generation engine.
