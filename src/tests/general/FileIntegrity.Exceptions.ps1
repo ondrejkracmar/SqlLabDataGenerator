@@ -48,4 +48,5 @@ $global:MayContainCommand = @{
 	"Write-Output" = @()
 	"Write-Information" = @()
 	"Write-Debug" = @()
+	"Remove-Variable" = @('Invoke-SldgAIRequest.ps1')
 }
