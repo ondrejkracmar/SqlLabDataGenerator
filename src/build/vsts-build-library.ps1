@@ -28,13 +28,9 @@ if ($LASTEXITCODE -ne 0) {
 	throw "Failed to build SqlLabDataGenerator.dll! Exit code: $LASTEXITCODE"
 }
 
-# Copy output to module bin folder
-$outputDll = Join-Path $WorkingDirectory 'library\SqlLabDataGenerator\bin\Release\net*\SqlLabDataGenerator.dll'
-$targetBin = Join-Path $WorkingDirectory 'SqlLabDataGenerator\bin'
-
-$dll = Get-ChildItem -Path $outputDll -ErrorAction SilentlyContinue | Select-Object -First 1
-if (-not $dll) {
-	throw "DLL not found at $outputDll after successful build — check build output configuration."
+# Verify output in module bin folder (csproj OutputPath places DLL directly there)
+$targetDll = Join-Path $WorkingDirectory 'SqlLabDataGenerator\bin\SqlLabDataGenerator.dll'
+if (-not (Test-Path $targetDll)) {
+	throw "DLL not found at $targetDll after successful build — check csproj OutputPath configuration."
 }
-Copy-Item -Path $dll.FullName -Destination $targetBin -Force
-Write-PSFMessage -Level Important -Message "Copied $($dll.Name) to module bin folder"
+Write-PSFMessage -Level Important -Message "SqlLabDataGenerator.dll built successfully at $targetDll"
