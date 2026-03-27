@@ -59,7 +59,7 @@
 	}
 
 	if ($IndustryHint) {
-		$sanitizedHint = ($IndustryHint -replace '[^\p{L}\p{N}\s\.\-,;:()\[\]]', '')
+		$sanitizedHint = ($IndustryHint -replace '[^\p{L}\p{N}\s\.,()\[\]]', '')
 		if ($sanitizedHint.Length -gt 200) { $sanitizedHint = $sanitizedHint.Substring(0, 200) }
 		$systemPrompt += "`n`nIndustry: $sanitizedHint. Use domain knowledge for realistic ratios and business patterns."
 	}

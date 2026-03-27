@@ -137,7 +137,7 @@
 		}
 
 		if ($IndustryHint) {
-			$sanitizedHint = ($IndustryHint -replace '[^\p{L}\p{N}\s\.\-,;:()\[\]]', '')
+			$sanitizedHint = ($IndustryHint -replace '[^\p{L}\p{N}\s\.,()\[\]]', '')
 			if ($sanitizedHint.Length -gt 200) { $sanitizedHint = $sanitizedHint.Substring(0, 200) }
 			$chunkSystemPrompt += "`n`n" + ($script:strings.'AI.IndustryContext' -f $sanitizedHint)
 		}

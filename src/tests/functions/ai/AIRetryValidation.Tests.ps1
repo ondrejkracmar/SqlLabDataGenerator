@@ -88,31 +88,31 @@ Describe "AI Retry Intelligence and Response Validation" {
 	Context "IndustryHint Sanitization - Unit Tests" {
 		It "Allows normal alphabetic text" {
 			$input = 'Healthcare Industry'
-			$sanitized = ($input -replace '[^\p{L}\p{N}\s\.\-,;:()\[\]]', '')
+			$sanitized = ($input -replace '[^\p{L}\p{N}\s\.,()\[\]]', '')
 			$sanitized | Should -Be 'Healthcare Industry'
 		}
 
 		It "Strips special injection characters" {
 			$input = 'Healthcare; DROP TABLE--'
-			$sanitized = ($input -replace '[^\p{L}\p{N}\s\.\-,;:()\[\]]', '')
+			$sanitized = ($input -replace '[^\p{L}\p{N}\s\.,()\[\]]', '')
 			$sanitized | Should -Not -Match 'DROP TABLE--'
 		}
 
 		It "Allows diacritics and international characters" {
 			$input = 'Zdravotnictví (CZ)'
-			$sanitized = ($input -replace '[^\p{L}\p{N}\s\.\-,;:()\[\]]', '')
+			$sanitized = ($input -replace '[^\p{L}\p{N}\s\.,()\[\]]', '')
 			$sanitized | Should -Be 'Zdravotnictví (CZ)'
 		}
 
 		It "Strips curly braces from hints" {
 			$input = '{malicious}'
-			$sanitized = ($input -replace '[^\p{L}\p{N}\s\.\-,;:()\[\]]', '')
+			$sanitized = ($input -replace '[^\p{L}\p{N}\s\.,()\[\]]', '')
 			$sanitized | Should -Be 'malicious'
 		}
 
 		It "Truncates long hints to 200 chars" {
 			$input = 'A' * 300
-			$sanitized = ($input -replace '[^\p{L}\p{N}\s\.\-,;:()\[\]]', '')
+			$sanitized = ($input -replace '[^\p{L}\p{N}\s\.,()\[\]]', '')
 			if ($sanitized.Length -gt 200) { $sanitized = $sanitized.Substring(0, 200) }
 			$sanitized.Length | Should -Be 200
 		}
