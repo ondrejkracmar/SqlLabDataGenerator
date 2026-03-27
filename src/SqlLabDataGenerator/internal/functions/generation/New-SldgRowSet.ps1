@@ -37,7 +37,13 @@
 
 		[hashtable]$TableRules,
 
-		[hashtable]$SharedUniqueTracker
+		[hashtable]$SharedUniqueTracker,
+
+		[hashtable]$SharedPKAutoIncrements,
+
+		[hashtable]$ExistingUniqueValues,
+
+		[string]$TableNotes
 	)
 
 	if (-not $GeneratorMap) { $GeneratorMap = Get-SldgGeneratorMap }
@@ -97,10 +103,16 @@
 	$hasCompositePK = $pkColumns.Count -gt 1
 
 	# Build auto-increment counters for non-identity integer PK columns with PKStartValue
-	$pkAutoIncrements = @{}
-	foreach ($col in $activeColumns) {
-		if ($col.IsPrimaryKey -and -not $col.IsIdentity -and $null -ne $col.PKStartValue -and $col.DataType -match '^(int|bigint|smallint|tinyint)$') {
-			$pkAutoIncrements[$col.ColumnName] = [long]$col.PKStartValue
+	# When SharedPKAutoIncrements is provided (streaming mode), reuse it across chunks
+	if ($SharedPKAutoIncrements) {
+		$pkAutoIncrements = $SharedPKAutoIncrements
+	}
+	else {
+		$pkAutoIncrements = @{}
+		foreach ($col in $activeColumns) {
+			if ($col.IsPrimaryKey -and -not $col.IsIdentity -and $null -ne $col.PKStartValue -and $col.DataType -match '^(int|bigint|smallint|tinyint)$') {
+				$pkAutoIncrements[$col.ColumnName] = [long]$col.PKStartValue
+			}
 		}
 	}
 
@@ -113,7 +125,14 @@
 		$uniqueTracker = @{}
 		foreach ($col in $activeColumns) {
 			if ($col.IsUnique -or ($col.IsPrimaryKey -and -not $hasCompositePK)) {
-				$uniqueTracker[$col.ColumnName] = [System.Collections.Generic.HashSet[string]]::new()
+				$tracker = [System.Collections.Generic.HashSet[string]]::new()
+				# Pre-seed with existing DB values to avoid duplicating data already in the table
+				if ($ExistingUniqueValues -and $ExistingUniqueValues.ContainsKey($col.ColumnName)) {
+					foreach ($existingVal in $ExistingUniqueValues[$col.ColumnName]) {
+						[void]$tracker.Add([string]$existingVal)
+					}
+				}
+				$uniqueTracker[$col.ColumnName] = $tracker
 			}
 		}
 		if ($hasCompositePK) {
@@ -124,6 +143,7 @@
 	# Reorder: columns with cross-column dependencies go after their dependency columns
 	$dependentCols = @()
 	$independentCols = @()
+	$depGraph = @{}
 	foreach ($col in $activeColumns) {
 		$depCol = $null
 		if ($TableRules -and $TableRules.ContainsKey($col.ColumnName) -and $TableRules[$col.ColumnName].CrossColumnDependency) {
@@ -132,10 +152,40 @@
 		elseif ($col.CustomRule -is [hashtable] -and $col.CustomRule.CrossColumnDependency) {
 			$depCol = $col.CustomRule.CrossColumnDependency
 		}
-		if ($depCol) { $dependentCols += $col } else { $independentCols += $col }
+		if ($depCol) {
+			$depGraph[$col.ColumnName] = $depCol
+			$dependentCols += $col
+		} else { $independentCols += $col }
+	}
+	# Detect circular cross-column dependencies using DFS (handles A->B->C->A and longer cycles)
+	foreach ($colName in @($depGraph.Keys)) {
+		$visited = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+		[void]$visited.Add($colName)
+		$cursor = $depGraph[$colName]
+		while ($cursor -and $depGraph.ContainsKey($cursor)) {
+			if ($cursor -eq $colName) {
+				Write-PSFMessage -Level Warning -Message "Circular cross-column dependency detected for column '$colName' in '$($TableInfo.FullName)'. Dependency chain will be broken."
+				$depGraph.Remove($colName)
+				$dependentCols = @($dependentCols | Where-Object { $_.ColumnName -ne $colName })
+				$independentCols += ($activeColumns | Where-Object { $_.ColumnName -eq $colName })
+				break
+			}
+			if (-not $visited.Add($cursor)) { break }
+			$cursor = $depGraph[$cursor]
+		}
 	}
 	if ($dependentCols.Count -gt 0) {
 		$activeColumns = @($independentCols) + @($dependentCols)
+	}
+
+	# Pre-compute semantic types for columns that lack one (avoids per-row Resolve-SldgSemanticType calls)
+	foreach ($col in $activeColumns) {
+		if (-not $col.SemanticType -and -not ($col.Classification -and $col.Classification.SemanticType)) {
+			$resolved = Resolve-SldgSemanticType -DataType $col.DataType -MaxLength $col.MaxLength -IsNullable $col.IsNullable
+			if ($resolved -and $resolved.Type) {
+				$col | Add-Member -NotePropertyName 'SemanticType' -NotePropertyValue $resolved.Type -Force
+			}
+		}
 	}
 
 	# Determine which columns are FK-bound (AI shouldn't generate these)
@@ -151,7 +201,16 @@
 			})
 
 		if ($aiCandidates.Count -gt 0) {
-			$aiBatch = New-SldgAIGeneratedBatch -Columns $aiCandidates -TableName $TableInfo.FullName -BatchSize $RowCount -Locale $locale
+			$maxAIBatch = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.Generation.MaxAIBatchSize'
+			$aiParams = @{
+				Columns   = $aiCandidates
+				TableName = $TableInfo.FullName
+				BatchSize = [math]::Min($RowCount, $maxAIBatch)
+				Locale    = $locale
+			}
+			if ($ExistingUniqueValues) { $aiParams['ExistingUniqueValues'] = $ExistingUniqueValues }
+			if ($TableNotes) { $aiParams['TableNotes'] = $TableNotes }
+			$aiBatch = New-SldgAIGeneratedBatch @aiParams
 		}
 	}
 
@@ -159,12 +218,16 @@
 	$generatedValues = @{}
 	$aiBatchIndex = 0
 
+	# Suppress DataTable index/constraint checks during bulk population for better performance
+	$dataTable.BeginLoadData()
+	try {
+
 	for ($rowIdx = 0; $rowIdx -lt $RowCount; $rowIdx++) {
-		$row = $dataTable.NewRow()
 		$retryCount = 0
 		$rowValid = $false
 
 		while (-not $rowValid -and $retryCount -lt $maxUniqueRetries) {
+			$row = $dataTable.NewRow()
 			$rowValid = $true
 			$rowContext = @{}
 			foreach ($col in $activeColumns) {
@@ -199,13 +262,34 @@
 
 				if ($null -eq $value) { continue }
 
-				# Enforce uniqueness
+				# Clamp/convert values BEFORE uniqueness check so the tracked value matches what gets inserted
+				if ($value -isnot [DBNull]) {
+					# Clamp numeric values to valid SQL type ranges (AI can generate out-of-range values)
+					switch ($col.DataType.ToLower()) {
+						'tinyint' { $value = [Math]::Max(0, [Math]::Min(255, [int]$value)) }
+						'smallint' { $value = [Math]::Max(-32768, [Math]::Min(32767, [int]$value)) }
+						'int' { $value = [Math]::Max(-2147483648, [Math]::Min(2147483647, [long]$value)) }
+						'bigint' { $value = [Math]::Max([long]::MinValue, [Math]::Min([long]::MaxValue, [long]$value)) }
+						{ $_ -in @('decimal', 'numeric') } { try { $value = [decimal]$value } catch { $value = [decimal]0 } }
+						{ $_ -in @('float', 'real') } { try { $value = [double]$value } catch { $value = [double]0 } }
+						{ $_ -eq 'money' -or $_ -eq 'smallmoney' } { try { $value = [decimal]$value } catch { $value = [decimal]0 } }
+					}
+					# Truncate strings exceeding MaxLength
+					if ($col.MaxLength -and $col.MaxLength -gt 0 -and $value -is [string] -and $value.Length -gt $col.MaxLength) {
+						Write-PSFMessage -Level Warning -Message "Truncating value for column '$($col.ColumnName)' from $($value.Length) to $($col.MaxLength) characters."
+						$value = $value.Substring(0, $col.MaxLength)
+					}
+				}
+
+				# Enforce uniqueness (after clamping so tracked value matches inserted value)
 				if ($uniqueTracker.ContainsKey($col.ColumnName)) {
-					$valueStr = [string]$value
-					if ($uniqueTracker[$col.ColumnName].Contains($valueStr)) {
-						$rowValid = $false
-						$retryCount++
-						break
+					if ($value -isnot [DBNull]) {
+						$valueStr = [string]$value
+						if ($uniqueTracker[$col.ColumnName].Contains($valueStr)) {
+							$rowValid = $false
+							$retryCount++
+							break
+						}
 					}
 				}
 
@@ -217,16 +301,6 @@
 					$row[$col.ColumnName] = [guid]$value
 				}
 				else {
-					# Clamp numeric values to valid SQL type ranges (AI can generate out-of-range values)
-					switch ($col.DataType.ToLower()) {
-						'tinyint' { $value = [Math]::Max(0, [Math]::Min(255, [int]$value)) }
-						'smallint' { $value = [Math]::Max(-32768, [Math]::Min(32767, [int]$value)) }
-						'int' { $value = [Math]::Max(-2147483648, [Math]::Min(2147483647, [long]$value)) }
-					}
-					# Truncate strings exceeding MaxLength
-					if ($col.MaxLength -and $col.MaxLength -gt 0 -and $value -is [string] -and $value.Length -gt $col.MaxLength) {
-						$value = $value.Substring(0, $col.MaxLength)
-					}
 					# Unwrap PSObject to raw .NET type for DataTable compatibility
 					$row[$col.ColumnName] = $value.psobject.BaseObject
 				}
@@ -236,8 +310,8 @@
 			}
 
 			if ($rowValid -and $hasCompositePK) {
-				# Enforce composite PK uniqueness
-				$compositeKey = ($pkColumns | ForEach-Object { [string]$row[$_.ColumnName] }) -join '|'
+				# Enforce composite PK uniqueness (use null byte delimiter to avoid collisions with data containing '|')
+				$compositeKey = ($pkColumns | ForEach-Object { [string]$row[$_.ColumnName] }) -join "`0"
 				if ($uniqueTracker['__CompositePK__'].Contains($compositeKey)) {
 					$rowValid = $false
 					$retryCount++
@@ -252,14 +326,46 @@
 					}
 				}
 				if ($hasCompositePK) {
-					$compositeKey = ($pkColumns | ForEach-Object { [string]$row[$_.ColumnName] }) -join '|'
+					# Reuse $compositeKey already computed above
 					[void]$uniqueTracker['__CompositePK__'].Add($compositeKey)
 				}
 				$aiBatchIndex++
 			}
 		}
 
+		# Skip row if uniqueness retries were exhausted
+		if (-not $rowValid) {
+			Write-PSFMessage -Level Warning -Message "Row $rowIdx for '$($TableInfo.FullName)' skipped: could not generate unique values after $maxUniqueRetries retries."
+			continue
+		}
+
+		# Safety net: ensure non-nullable FK columns have values before adding to DataTable
+		$rowOK = $true
+		foreach ($col in $activeColumns) {
+			if (-not $col.ForeignKey -or $col.IsNullable) { continue }
+			if (-not $dataTable.Columns.Contains($col.ColumnName)) { continue }
+			if ($row[$col.ColumnName] -is [DBNull] -or $null -eq $row[$col.ColumnName]) {
+				# Last-resort FK resolution: try ForeignKeyValues one more time
+				$refKey = "$($col.ForeignKey.ReferencedSchema).$($col.ForeignKey.ReferencedTable).$($col.ForeignKey.ReferencedColumn)"
+				$lastResort = if ($ForeignKeyValues) { $ForeignKeyValues[$refKey] } else { $null }
+				if ($lastResort -and $lastResort.Count -gt 0) {
+					$row[$col.ColumnName] = ($lastResort | Get-Random)
+				}
+				else {
+					$msg = "Cannot resolve FK value for non-nullable column '$($col.ColumnName)' in '$($TableInfo.FullName)' (ref: $refKey). No parent values available."
+					Write-PSFMessage -Level Warning -Message $msg
+					Stop-PSFFunction -Message $msg -EnableException $true
+				}
+			}
+		}
+		if (-not $rowOK) { continue }
+
 		[void]$dataTable.Rows.Add($row)
+	}
+
+	} # end try
+	finally {
+		$dataTable.EndLoadData()
 	}
 
 	# Store generated values for FK reference by child tables

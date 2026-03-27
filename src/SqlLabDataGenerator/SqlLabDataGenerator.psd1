@@ -25,7 +25,9 @@
 	
 	# Modules that must be imported into the global environment prior to importing
 	# this module
-	RequiredModules    = @('PSFramework')
+	RequiredModules    = @(
+		@{ ModuleName = 'PSFramework'; ModuleVersion = '1.12.346' }
+	)
 	
 	# Assemblies that must be loaded prior to importing this module
 	# Assembly loading is centralized in bin\assembly.ps1

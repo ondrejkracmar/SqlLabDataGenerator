@@ -90,6 +90,27 @@
 		if ($aiAdvice) {
 			Write-PSFMessage -Level Host -Message ($script:strings.'AI.PlanAdviceApplying' -f $aiAdvice.Tables.Count, $aiAdvice.CustomRules.Count)
 		}
+
+		# Two-tier AI: run deep schema analysis with sample data to produce per-table generation notes.
+		# These notes are later passed to the batch-generation model so a local/cheap model can
+		# generate relationship-aware, realistic data based on the smart model's analysis.
+		$connectionInfo = $script:SldgState.ActiveConnection
+		$dbProvider = if ($connectionInfo) { Get-SldgProviderInternal -Name $connectionInfo.Provider } else { $null }
+		$tableNotes = Get-SldgAISchemaAnalysis -SchemaModel $Schema -BaseRowCount $RowCount `
+			-ConnectionInfo $connectionInfo -Provider $dbProvider
+		if ($tableNotes -and $tableNotes.Count -gt 0) {
+			if (-not $aiAdvice) {
+				$aiAdvice = [SqlLabDataGenerator.AIPlanAdvice]@{
+					Tables          = @{}
+					CustomRules     = @()
+					CrossTableRules = @()
+					Source          = (Get-PSFConfigValue -FullName 'SqlLabDataGenerator.AI.Provider')
+					GeneratedAt    = Get-Date
+				}
+			}
+			$aiAdvice.TableGenerationNotes = $tableNotes
+			Write-PSFMessage -Level Host -Message ($script:strings.'AI.SchemaAnalysisApplying' -f $tableNotes.Count)
+		}
 	}
 
 	# Scenario mode: load template for domain-specific row count ratios and value rules

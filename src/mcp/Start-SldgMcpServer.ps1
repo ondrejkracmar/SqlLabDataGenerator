@@ -41,7 +41,14 @@ $ErrorActionPreference = 'Stop'
 
 # Resolve paths
 $script:McpRoot = $PSScriptRoot
-$script:McpModuleRoot = Resolve-Path -Path "$PSScriptRoot\..\SqlLabDataGenerator"
+try {
+	$script:McpModuleRoot = Resolve-Path -Path "$PSScriptRoot\..\SqlLabDataGenerator" -ErrorAction Stop
+}
+catch {
+	$msg = "SqlLabDataGenerator module directory not found at '$PSScriptRoot\..\SqlLabDataGenerator': $($_.Exception.Message)"
+	if ($Transport -eq 'stdio') { [Console]::Error.WriteLine($msg) } else { Write-Error $msg }
+	exit 1
+}
 
 # Load the SqlLabDataGenerator module
 try {
@@ -69,6 +76,15 @@ foreach ($file in (Get-ChildItem -Path "$script:McpRoot\internal" -Recurse -Filt
 		else {
 			Write-Warning $msg
 		}
+	}
+}
+
+# Validate critical MCP functions loaded successfully
+foreach ($criticalFunc in @('Read-McpMessage', 'Write-McpMessage', 'Invoke-McpRequestHandler')) {
+	if (-not (Get-Command $criticalFunc -ErrorAction SilentlyContinue)) {
+		$critMsg = "Critical MCP function '$criticalFunc' failed to load. Server cannot start."
+		if ($Transport -eq 'stdio') { [Console]::Error.WriteLine($critMsg) } else { Write-Error $critMsg }
+		exit 1
 	}
 }
 

@@ -38,6 +38,9 @@
 	$levels = Group-SldgTablesByLevel -Tables $Plan.Tables
 	Write-PSFMessage -Level Host -Message ($script:strings.'Generation.ParallelStarting' -f $levels.Count, $ThrottleLimit)
 
+	$fkQueryLimit = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.Generation.ForeignKeyQueryLimit'
+	$dbCommandTimeout = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.Database.CommandTimeout'
+
 	$psd1Path = Join-Path (Get-Module SqlLabDataGenerator).ModuleBase 'SqlLabDataGenerator.psd1'
 
 	$tableResults = [System.Collections.Generic.List[object]]::new()
@@ -67,41 +70,7 @@
 				$gr = $using:localGenRules
 				if ($gr.ContainsKey($tp.FullName)) { $trules = $gr[$tp.FullName] }
 
-				$tInfo = [PSCustomObject]@{
-					SchemaName  = $tp.SchemaName
-					TableName   = $tp.TableName
-					FullName    = $tp.FullName
-					Columns     = foreach ($cp in $tp.Columns) {
-						# Cross-reference table-level ForeignKeys to ensure column-level ForeignKey is set
-						$colFK = $cp.ForeignKey
-						if (-not $colFK -and $tp.ForeignKeys) {
-							$matchedFK = $tp.ForeignKeys | Where-Object { $_.ParentColumn -eq $cp.ColumnName } | Select-Object -First 1
-							if ($matchedFK) {
-								$colFK = [PSCustomObject]@{
-									ReferencedSchema = $matchedFK.ReferencedSchema
-									ReferencedTable  = $matchedFK.ReferencedTable
-									ReferencedColumn = $matchedFK.ReferencedColumn
-								}
-							}
-						}
-						[PSCustomObject]@{
-							ColumnName     = $cp.ColumnName
-							DataType       = $cp.DataType
-							SemanticType   = $cp.SemanticType
-							IsIdentity     = [bool]$cp.IsIdentity
-							IsComputed     = [bool]$cp.IsComputed
-							IsPrimaryKey   = [bool]$cp.IsPrimaryKey
-							IsUnique       = [bool]$cp.IsUnique
-							IsNullable     = if ($null -ne $cp.IsNullable) { [bool]$cp.IsNullable } else { $true }
-							MaxLength      = $cp.MaxLength
-							ForeignKey     = $colFK
-							SchemaHint     = $cp.SchemaHint
-							Classification = [PSCustomObject]@{ SemanticType = $cp.SemanticType; IsPII = $cp.IsPII }
-							GenerationRule = $cp.CustomRule
-						}
-					}
-					ForeignKeys = $tp.ForeignKeys
-				}
+				$tInfo = ConvertTo-SldgTableInfo -TablePlan $tp
 
 				try {
 					$rs = New-SldgRowSet -TableInfo $tInfo -RowCount $tp.RowCount `
@@ -209,8 +178,8 @@
 								$safeCol = Get-SldgSafeSqlName -ColumnName $fk.ReferencedColumn
 								$cmd = $ConnectionInfo.DbConnection.CreateCommand()
 								if ($Transaction) { $cmd.Transaction = $Transaction }
-								$cmd.CommandText = "SELECT DISTINCT TOP (1000) $safeCol FROM $safeRef"
-								$cmd.CommandTimeout = 30
+								$cmd.CommandText = "SELECT DISTINCT TOP ($fkQueryLimit) $safeCol FROM $safeRef"
+								$cmd.CommandTimeout = $dbCommandTimeout
 								$reader = $cmd.ExecuteReader()
 								$vals = [System.Collections.Generic.List[object]]::new()
 								while ($reader.Read()) {
@@ -233,41 +202,7 @@
 				}
 
 				$tableRules = if ($Plan.GenerationRules.ContainsKey($tablePlan.FullName)) { $Plan.GenerationRules[$tablePlan.FullName] } else { $null }
-				$tableInfo = [PSCustomObject]@{
-					SchemaName  = $tablePlan.SchemaName
-					TableName   = $tablePlan.TableName
-					FullName    = $tablePlan.FullName
-					Columns     = foreach ($cp in $tablePlan.Columns) {
-						# Cross-reference table-level ForeignKeys to ensure column-level ForeignKey is set
-						$colFK = $cp.ForeignKey
-						if (-not $colFK -and $tablePlan.ForeignKeys) {
-							$matchedFK = $tablePlan.ForeignKeys | Where-Object { $_.ParentColumn -eq $cp.ColumnName } | Select-Object -First 1
-							if ($matchedFK) {
-								$colFK = [PSCustomObject]@{
-									ReferencedSchema = $matchedFK.ReferencedSchema
-									ReferencedTable  = $matchedFK.ReferencedTable
-									ReferencedColumn = $matchedFK.ReferencedColumn
-								}
-							}
-						}
-						[PSCustomObject]@{
-							ColumnName     = $cp.ColumnName
-							DataType       = $cp.DataType
-							SemanticType   = $cp.SemanticType
-							IsIdentity     = [bool]$cp.IsIdentity
-							IsComputed     = [bool]$cp.IsComputed
-							IsPrimaryKey   = [bool]$cp.IsPrimaryKey
-							IsUnique       = [bool]$cp.IsUnique
-							IsNullable     = if ($null -ne $cp.IsNullable) { [bool]$cp.IsNullable } else { $true }
-							MaxLength      = $cp.MaxLength
-							ForeignKey     = $colFK
-							SchemaHint     = $cp.SchemaHint
-							Classification = [PSCustomObject]@{ SemanticType = $cp.SemanticType; IsPII = $cp.IsPII }
-							GenerationRule = $cp.CustomRule
-						}
-					}
-					ForeignKeys = $tablePlan.ForeignKeys
-				}
+				$tableInfo = ConvertTo-SldgTableInfo -TablePlan $tablePlan
 
 				# For non-identity integer PK columns, query MAX(PK) so we can auto-generate sequential values
 				if ($ConnectionInfo) {
@@ -279,7 +214,7 @@
 								$cmd = $ConnectionInfo.DbConnection.CreateCommand()
 								if ($Transaction) { $cmd.Transaction = $Transaction }
 								$cmd.CommandText = "SELECT ISNULL(MAX($safeCol), 0) FROM $safeTbl"
-								$cmd.CommandTimeout = 30
+								$cmd.CommandTimeout = $dbCommandTimeout
 								$maxVal = $cmd.ExecuteScalar()
 								$cmd.Dispose()
 								$col | Add-Member -NotePropertyName 'PKStartValue' -NotePropertyValue ([long]$maxVal) -Force
@@ -344,8 +279,8 @@
 					if ($PassThru -and $rowSet) {
 						$tableResult.DataTable = $rowSet.DataTable
 					}
-					elseif ($PassThru -and $streamResult -and $streamResult.DataTables) {
-						$tableResult.DataTables = $streamResult.DataTables
+					elseif ($PassThru -and $streamResult -and $streamResult.DataTable) {
+						$tableResult.DataTable = $streamResult.DataTable
 					}
 					$tableResults.Add($tableResult)
 				}

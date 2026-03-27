@@ -106,8 +106,19 @@
 			Register-SldgLocaleInternal -Name $Name -Data $Data
 		}
 		'AI' {
-			$aiData = New-SldgAILocaleData -Locale $Name -PoolSize $PoolSize -Force:$Force
-			$script:SldgState.Locales[$Name] = $aiData
+			try {
+				$aiData = New-SldgAILocaleData -Locale $Name -PoolSize $PoolSize -Force:$Force
+				$script:SldgState.Locales[$Name] = $aiData
+			}
+			catch {
+				Write-PSFMessage -Level Warning -Message "AI locale generation failed for '$Name': $($_.Exception.Message). Falling back to en-US."
+				if ($script:SldgState.Locales.ContainsKey('en-US')) {
+					$script:SldgState.Locales[$Name] = $script:SldgState.Locales['en-US']
+				}
+				else {
+					throw
+				}
+			}
 		}
 		'Mix' {
 			Write-PSFMessage -Level Host -Message ($script:strings.'Locale.AIMixGenerating' -f $Name, ($MixFrom.Keys -join ', '))
@@ -175,14 +186,26 @@
 						Force    = $Force
 					}
 					if ($CustomInstructions) { $params['CustomInstructions'] = $CustomInstructions }
-					$catData = New-SldgAILocaleCategory @params
-					foreach ($key in $catData.Keys) {
-						$baseLocale[$key] = $catData[$key]
+					try {
+						$catData = New-SldgAILocaleCategory @params
+						foreach ($key in $catData.Keys) {
+							$baseLocale[$key] = $catData[$key]
+						}
+					}
+					catch {
+						Write-PSFMessage -Level Warning -Message "AI locale category '$category' generation failed for '$lang': $($_.Exception.Message). Keeping base locale data for this category."
 					}
 				}
 			}
 
 			$script:SldgState.Locales[$Name] = $baseLocale
+
+			# Validate required keys are present after mixing (same contract as Manual mode)
+			$requiredKeys = @('MaleNames', 'FemaleNames', 'LastNames', 'StreetNames', 'StreetTypes', 'Locations', 'Countries', 'EmailDomains', 'PhoneFormat', 'CompanyPrefixes', 'CompanyCores', 'CompanySuffixes', 'Departments', 'JobTitles', 'Industries')
+			$missingKeys = @($requiredKeys | Where-Object { -not $baseLocale.ContainsKey($_) })
+			if ($missingKeys.Count -gt 0) {
+				Write-PSFMessage -Level Warning -Message "Mixed locale '$Name' is missing required keys: $($missingKeys -join ', '). Generation may fail for some semantic types."
+			}
 		}
 	}
 

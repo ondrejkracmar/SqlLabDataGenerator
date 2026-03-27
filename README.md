@@ -88,10 +88,13 @@ $schema   = Get-SldgDatabaseSchema
 $analyzed = Get-SldgColumnAnalysis -Schema $schema -UseAI
 
 # Plan with AI advice — AI suggests realistic row counts and rules
+#   When schema-analysis provider is configured, also performs deep schema analysis
+#   with sample data and stores per-table generation notes in the plan
 $plan = New-SldgGenerationPlan -Schema $analyzed -RowCount 200 -UseAI
 
 # Generate — AI produces entire rows with cross-column consistency
 #   (e.g. Email matches FirstName + LastName, Address is coherent)
+#   Per-table notes from schema analysis guide the generation model automatically
 Invoke-SldgDataGeneration -Plan $plan
 
 Test-SldgGeneratedData -Schema $schema
@@ -198,6 +201,26 @@ Set-SldgAIProvider -Provider OpenAI -Model 'gpt-4o' -ApiKey $key              # 
 Set-SldgAIProvider -Provider Ollama -Model 'llama3' -Purpose 'batch-generation' # data gen: local
 Set-SldgAIProvider -Provider Ollama -Model 'codellama' -Purpose 'structured-value' # JSON/XML: local
 ```
+
+### Two-Tier AI Architecture
+
+For best results, combine a powerful cloud model for schema analysis with a fast local model for data generation:
+
+```powershell
+# Tier 1 — Smart cloud model analyzes schema + sample data, produces per-table generation notes
+Set-SldgAIProvider -Provider OpenAI -Model 'gpt-4o' -ApiKey $key -Purpose 'schema-analysis'
+
+# Tier 2 — Fast local model generates data, guided by the notes from Tier 1
+Set-SldgAIProvider -Provider Ollama -Model 'llama3' -EnableAIGeneration
+```
+
+When you run `New-SldgGenerationPlan -UseAI`, the module:
+1. Queries sample rows from each table
+2. Sends the full schema + samples to the schema-analysis model (Tier 1)
+3. Receives per-table generation notes (table purpose, relationship context, value diversity hints, etc.)
+4. Stores the notes in the plan and passes them to the batch-generation model (Tier 2) during `Invoke-SldgDataGeneration`
+
+The local model gets expert-level guidance without needing to analyze the schema itself — resulting in higher-quality data at lower cost.
 
 ## Output Without Database Insert
 

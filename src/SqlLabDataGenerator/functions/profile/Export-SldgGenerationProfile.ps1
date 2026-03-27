@@ -36,13 +36,12 @@
 		[switch]$IncludeSemanticAnalysis
 	)
 
-	# Resolve and normalize path — reject relative segments that could escape the caller's working directory
-	$resolvedPath = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Path)
-	$normalizedPath = [System.IO.Path]::GetFullPath($resolvedPath)
-	if ($normalizedPath -ne $resolvedPath) {
+	# Resolve and normalize path — reject path traversal attempts that escape working directory
+	if ($Path -match '(?:^|[\\/])\.\.(?:[\\/]|$)') {
 		Stop-PSFFunction -String 'Profile.ExportPathInvalid' -StringValues $Path -EnableException $true
 	}
-	$Path = $normalizedPath
+	$resolvedPath = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Path)
+	$Path = [System.IO.Path]::GetFullPath($resolvedPath)
 
 	Write-PSFMessage -Level Host -Message ($script:strings.'Profile.Exporting' -f $Path)
 

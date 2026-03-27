@@ -39,7 +39,7 @@
 	[CmdletBinding()]
 	[OutputType('SqlLabDataGenerator.AIProviderInfo')]
 	param (
-		[ValidateSet('column-analysis', 'batch-generation', 'plan-advice', 'structured-value', 'locale-data', 'locale-category')]
+		[ValidateSet('column-analysis', 'batch-generation', 'plan-advice', 'schema-analysis', 'structured-value', 'locale-data', 'locale-category')]
 		[string]$Purpose
 	)
 

@@ -16,6 +16,7 @@ Without AI the module falls back to pattern matching and static generators. See 
 - [Quick Setup](#quick-setup)
 - [Set-SldgAIProvider Parameters](#set-sldgaiprovider-parameters)
 - [Per-Purpose Model Overrides](#per-purpose-model-overrides)
+- [Two-Tier AI Architecture](#two-tier-ai-architecture)
 - [How AI Works in the Pipeline](#how-ai-works-in-the-pipeline)
 - [JSON and XML Column Configuration](#json-and-xml-column-configuration)
 - [Locales](#locales)
@@ -139,6 +140,7 @@ Available purposes:
 | `column-analysis` | `Get-SldgColumnAnalysis -UseAI` |
 | `batch-generation` | `Invoke-SldgDataGeneration` (AI row generation) |
 | `plan-advice` | `New-SldgGenerationPlan -UseAI` |
+| `schema-analysis` | `New-SldgGenerationPlan -UseAI` (deep schema analysis with sample data) |
 | `structured-value` | JSON/XML value generation |
 | `structured-value-contextual` | Context-dependent JSON/XML (uses `-CrossColumnDependency`) |
 | `locale-data` | `Register-SldgLocale -UseAI` |
@@ -149,6 +151,59 @@ View active overrides:
 ```powershell
 (Get-SldgAIProvider).ModelOverrides
 ```
+
+---
+
+## Two-Tier AI Architecture
+
+For the best data quality, use a **two-tier approach**: a powerful cloud model analyzes the schema and produces per-table generation notes, then a fast local model uses those notes to generate the actual data.
+
+### Setup
+
+```powershell
+# Tier 1 — Smart model for schema analysis (reads sample data, understands relationships)
+Set-SldgAIProvider -Provider OpenAI -Model 'gpt-4o' -ApiKey $key -Purpose 'schema-analysis'
+
+# Tier 2 — Fast local model for batch data generation (guided by Tier 1 notes)
+Set-SldgAIProvider -Provider Ollama -Model 'llama3' -EnableAIGeneration
+```
+
+### How It Works
+
+1. **`New-SldgGenerationPlan -UseAI`** triggers schema analysis:
+   - Queries a sample of rows (default 5) from each table via the database provider
+   - Sends the full schema model + sample data to the `schema-analysis` AI purpose
+   - The smart model returns per-table generation notes covering:
+     - **Table purpose** — what the table represents in the business domain
+     - **Relationship context** — how FK relationships should influence generated data
+     - **Column-level guidance** — realistic value ranges, formats, and patterns
+     - **Cross-column consistency** — rules like "Email should match FirstName.LastName"
+     - **Value diversity** — how varied or repetitive values should be
+     - **Locale awareness** — culture-specific formatting hints
+     - **Cardinality hints** — expected number of child rows per parent
+2. Notes are stored in `$plan.AIAdvice.TableGenerationNotes`
+3. **`Invoke-SldgDataGeneration`** extracts the notes for each table and passes them to the batch-generation model as part of the system prompt
+4. The local model generates data guided by expert-level analysis without needing to understand the full schema itself
+
+### Benefits
+
+- **Better quality** — the local model receives specific instructions instead of guessing from column names alone
+- **Lower cost** — the expensive cloud model is called once for analysis; the local model does the heavy lifting
+- **Works without cloud** — if no `schema-analysis` override is configured, the step is skipped and generation works as before
+
+### Customizing the Schema Analysis Prompt
+
+The schema analysis uses the `schema-analysis.default.prompt` template. You can override it:
+
+```powershell
+# View the built-in prompt
+Get-SldgPromptTemplate -Purpose schema-analysis -IncludeContent
+
+# Create a custom override
+Set-SldgPromptTemplate -Purpose 'schema-analysis' -Content $myPrompt -Description 'Custom schema analysis'
+```
+
+The prompt supports `{{Locale}}` and `{{BaseRowCount}}` variables.
 
 ---
 
@@ -182,9 +237,14 @@ AI analyzes the schema and suggests:
 - **Table types**: Lookup, Transaction, Bridge, Config
 - **Custom rules**: Realistic value lists for Status/Type columns, format hints
 
+When a `schema-analysis` purpose provider is configured, schema analysis runs first — querying sample data from each table and producing per-table generation notes. These notes are stored in `$plan.AIAdvice.TableGenerationNotes` and automatically passed to the batch-generation model during data generation.
+
+See [Two-Tier AI Architecture](#two-tier-ai-architecture) for details.
+
 ```powershell
 $plan = New-SldgGenerationPlan -Schema $analyzed -RowCount 100 -UseAI -IndustryHint 'Healthcare'
 # AI might suggest: dbo.PatientStatus -> 5 rows, dbo.Patient -> 500, dbo.Visit -> 2000
+# With schema-analysis configured, also produces per-table generation notes
 ```
 
 ### 3. Data Generation
@@ -449,6 +509,7 @@ Remove-SldgPromptTemplate -Purpose 'structured-value'
 | `column-analysis` | `Get-SldgColumnAnalysis -UseAI` |
 | `batch-generation` | `Invoke-SldgDataGeneration` (AI mode) |
 | `plan-advice` | `New-SldgGenerationPlan -UseAI` |
+| `schema-analysis` | `New-SldgGenerationPlan -UseAI` (deep schema analysis with sample data) |
 | `structured-value` | JSON/XML value generation |
 | `structured-value-contextual` | Context-dependent JSON/XML (uses `-CrossColumnDependency`) |
 | `locale-data` | `Register-SldgLocale -UseAI` |

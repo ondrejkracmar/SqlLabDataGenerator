@@ -167,6 +167,20 @@ The only difference from the basic pipeline is adding `-UseAI` to `Get-SldgColum
 
 > **Tip:** AI features are additive. You can use AI only for analysis (`-UseAI` on `Get-SldgColumnAnalysis`) while keeping static generators for data, or enable AI data generation without AI locale support.
 
+### Two-Tier AI (Optional)
+
+For the best results, configure a powerful cloud model for schema analysis and a fast local model for data generation. The cloud model analyzes your schema + sample data once and produces per-table generation notes that guide the local model:
+
+```powershell
+# Smart model analyzes schema — called once during New-SldgGenerationPlan -UseAI
+Set-SldgAIProvider -Provider OpenAI -Model 'gpt-4o' -ApiKey $key -Purpose 'schema-analysis'
+
+# Fast local model generates data — guided by notes from the smart model
+Set-SldgAIProvider -Provider Ollama -Model 'llama3' -EnableAIGeneration
+```
+
+See [AI Configuration — Two-Tier AI Architecture](ai-configuration.md#two-tier-ai-architecture) for details.
+
 ---
 
 ## Customizing Columns

@@ -136,6 +136,10 @@
 			Write-PSFMessage -Level Warning -String 'GenerationRule.ColumnNotFound' -StringValues $ColumnName, $TableName
 		}
 		else {
+			# Warn if a ValueList is set on a FK column — values may not exist in the parent table
+			if ($ValueList -and $colPlan.ForeignKey) {
+				Write-PSFMessage -Level Warning -Message "Column '$ColumnName' in '$TableName' has a foreign key to '$($colPlan.ForeignKey.ReferencedTable).$($colPlan.ForeignKey.ReferencedColumn)'. ValueList values may cause FK violations if they don't exist in the parent table."
+			}
 			$colPlan.CustomRule = $rule
 		}
 	}

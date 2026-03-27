@@ -24,8 +24,8 @@
 		param([string]$Query)
 		$cmd = $conn.CreateCommand()
 		$cmd.CommandText = $Query
-		$cmd.CommandTimeout = 120
-		$adapter = New-Object System.Data.SqlClient.SqlDataAdapter($cmd)
+		$cmd.CommandTimeout = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.Database.SchemaTimeout'
+		$adapter = New-Object Microsoft.Data.SqlClient.SqlDataAdapter($cmd)
 		$dataTable = New-Object System.Data.DataTable
 		try {
 			[void]$adapter.Fill($dataTable)

@@ -42,6 +42,13 @@ When -UseAI is specified, AI analyzes the schema to suggest:
 - Custom generation rules for domain-specific columns
 - Cross-table consistency requirements
 
+When a `schema-analysis` purpose provider is configured (via `Set-SldgAIProvider -Purpose 'schema-analysis'`),
+the command also performs deep schema analysis — querying sample data from each table and sending
+the full schema model + samples to a powerful AI model. The resulting per-table generation notes
+are stored in the plan (`$plan.AIAdvice.TableGenerationNotes`) and automatically passed to the
+batch-generation model during `Invoke-SldgDataGeneration`, guiding data generation with expert-level
+analysis of table purposes, relationships, and realistic value patterns.
+
 ## EXAMPLES
 
 ### EXAMPLE 1
@@ -61,6 +68,15 @@ AI suggests table-specific row counts (scaled from base 100) and custom rules.
 $plan = New-SldgGenerationPlan -Schema $analyzed -UseAI -IndustryHint 'eCommerce'
 
 AI uses eCommerce domain knowledge for realistic data patterns.
+
+### EXAMPLE 4
+
+Set-SldgAIProvider -Provider OpenAI -Model 'gpt-4o' -ApiKey $key -Purpose 'schema-analysis'
+PS C:\> Set-SldgAIProvider -Provider Ollama -Model 'llama3' -EnableAIGeneration
+PS C:\> $plan = New-SldgGenerationPlan -Schema $analyzed -UseAI -RowCount 200
+
+Two-tier AI: GPT-4o analyzes schema + sample data, produces per-table generation notes.
+The local Ollama model then uses those notes during Invoke-SldgDataGeneration.
 
 ## PARAMETERS
 

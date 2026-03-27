@@ -25,6 +25,7 @@
 		$tables += $reader['name']
 	}
 	$reader.Close()
+	$reader.Dispose()
 	$cmd.Dispose()
 
 	if ($TableFilter) {
@@ -48,6 +49,7 @@
 			}
 		}
 		$reader.Close()
+		$reader.Dispose()
 		$cmd.Dispose()
 
 		# Get foreign keys via PRAGMA
@@ -65,6 +67,7 @@
 			}
 		}
 		$reader.Close()
+		$reader.Dispose()
 		$cmd.Dispose()
 
 		# Get unique indexes via PRAGMA
@@ -79,6 +82,7 @@
 			}
 		}
 		$reader.Close()
+		$reader.Dispose()
 		$cmd.Dispose()
 
 		foreach ($idxName in $uniqueIndexes) {
@@ -89,6 +93,7 @@
 				$uniqueColumns[[string]$reader['name']] = $true
 			}
 			$reader.Close()
+			$reader.Dispose()
 			$cmd.Dispose()
 		}
 

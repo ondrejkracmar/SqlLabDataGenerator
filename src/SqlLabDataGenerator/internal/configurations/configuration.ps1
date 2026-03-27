@@ -18,22 +18,33 @@ Register-PSFConfigValidation -Name 'SqlLabDataGenerator.AIProvider' -ScriptBlock
 	[PSCustomObject]@{ Success = $false; Value = $Value; Message = "Invalid AI provider '$Value'. Valid values: $($validProviders -join ', ')" }
 }
 
+Register-PSFConfigValidation -Name 'SqlLabDataGenerator.NullProbability' -ScriptBlock {
+	param ($Value)
+	$intVal = $Value -as [int]
+	if ($null -ne $intVal -and $intVal -ge 0 -and $intVal -le 100) { return [PSCustomObject]@{ Success = $true; Value = $intVal; Message = '' } }
+	[PSCustomObject]@{ Success = $false; Value = $Value; Message = "NullProbability must be an integer between 0 and 100. Got: '$Value'" }
+}
+
 # Module runtime state
-$script:SldgState = @{
-	Providers              = @{}
+# Note: Parallel generation (-Parallel) is safe because each runspace re-imports
+# the module, creating isolated $script:SldgState per runspace. Synchronized wrapper
+# is a defensive measure for any future multi-threaded access patterns.
+$script:SldgState = [hashtable]::Synchronized(@{
+	Providers              = [System.Collections.Concurrent.ConcurrentDictionary[string,object]]::new()
 	ActiveConnection       = $null
 	ActiveProvider         = $null
-	GenerationPlans        = @{}
-	GeneratedData          = @{}
-	Locales                = @{}
-	Transformers           = @{}
-	AILocaleCache          = @{}
-	AILocaleCategoryCache  = @{}
-	AIValueCache           = @{}
-	AIRequestTimestamps    = [System.Collections.Generic.List[datetime]]::new()
-	CacheTimestamps        = @{}
-	AIModelOverrides       = @{}
-}
+	GenerationPlans        = [System.Collections.Concurrent.ConcurrentDictionary[string,object]]::new()
+	GeneratedData          = [System.Collections.Concurrent.ConcurrentDictionary[string,object]]::new()
+	Locales                = [System.Collections.Concurrent.ConcurrentDictionary[string,object]]::new()
+	Transformers           = [System.Collections.Concurrent.ConcurrentDictionary[string,object]]::new()
+	AILocaleCache          = [System.Collections.Concurrent.ConcurrentDictionary[string,object]]::new()
+	AILocaleCategoryCache  = [System.Collections.Concurrent.ConcurrentDictionary[string,object]]::new()
+	AIValueCache           = [System.Collections.Concurrent.ConcurrentDictionary[string,object]]::new()
+	AIRequestTimestamps    = [System.Collections.Concurrent.ConcurrentQueue[datetime]]::new()
+	AIRateLimitLock        = [object]::new()
+	CacheTimestamps        = [System.Collections.Concurrent.ConcurrentDictionary[string,datetime]]::new()
+	AIModelOverrides       = [System.Collections.Concurrent.ConcurrentDictionary[string,object]]::new()
+})
 
 # Import behavior
 Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'Import.DoDotSource' -Value $false -Initialize -Validation 'bool' -Description "Whether the module files should be dotsourced on import. By default, the files of this module are read as string value and invoked, which is faster but worse on debugging."
@@ -64,7 +75,7 @@ Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'Generation.Locale' -Value 'en
 Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'Generation.AILocale' -Value $false -Initialize -Validation 'bool' -Description "When enabled and AI is configured, automatically generate locale data for any culture code via AI. Supports any language without a pre-built data pack."
 Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'Generation.AIGeneration' -Value $false -Initialize -Validation 'bool' -Description "When enabled and AI is configured, use AI to generate entire rows of contextually-consistent data. AI understands column names, relationships, and business context for more realistic data. Falls back to static generators when AI is unavailable."
 Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'Generation.MaxAIBatchSize' -Value 50 -Initialize -Validation 'integerpositive' -Description "Maximum number of rows per single AI request. AI generates data in chunks of this size and loops until all requested rows are produced. Increase for faster local models (Ollama), decrease if AI truncates output."
-Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'Generation.NullProbability' -Value 10 -Initialize -Validation 'integerpositive' -Description "Probability (0-100) that a nullable non-FK, non-PK column will get a NULL value. Default: 10 (10%)"
+Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'Generation.NullProbability' -Value 10 -Initialize -Validation 'SqlLabDataGenerator.NullProbability' -Description "Probability (0-100) that a nullable non-FK, non-PK column will get a NULL value. Default: 10 (10%)."
 Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'Generation.Mode' -Value 'Synthetic' -Initialize -Validation 'SqlLabDataGenerator.GenerationMode' -Description "Default generation mode: Synthetic, Masking, or Scenario"
 
 # Magic-number extraction — centralised thresholds and limits
@@ -81,6 +92,15 @@ Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'Generation.StreamingChunkSize
 
 # Parallel — concurrent table generation for independent tables (PS 7+)
 Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'Generation.ThrottleLimit' -Value 4 -Initialize -Validation 'integerpositive' -Description "Maximum number of tables generated concurrently when -Parallel is used. Default: 4."
+
+# Query limits — control how many parent/unique values are fetched from the database
+Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'Generation.ForeignKeyQueryLimit' -Value 1000 -Initialize -Validation 'integerpositive' -Description "Maximum number of distinct parent values to fetch per FK column when resolving foreign key references from the database. Increase for large parent tables. Default: 1000."
+Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'Generation.UniqueValueQueryLimit' -Value 5000 -Initialize -Validation 'integerpositive' -Description "Maximum number of existing unique values to fetch per column to avoid generating duplicates. Increase for tables with many existing rows. Default: 5000."
+
+# Query timeouts — control timeout for schema discovery and data queries
+Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'Database.CommandTimeout' -Value 30 -Initialize -Validation 'integerpositive' -Description "Timeout in seconds for FK/PK/unique value queries during data generation. Default: 30."
+Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'Database.SchemaTimeout' -Value 120 -Initialize -Validation 'integerpositive' -Description "Timeout in seconds for schema discovery queries (INFORMATION_SCHEMA, sys catalog views). Default: 120."
+Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'Database.BulkCopyTimeout' -Value 600 -Initialize -Validation 'integerpositive' -Description "Timeout in seconds for SqlBulkCopy operations. Default: 600."
 
 # Cache management
 Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'Cache.MaxEntries' -Value 500 -Initialize -Validation 'integerpositive' -Description "Maximum number of entries per module cache (AILocaleCache, AIValueCache, etc.). Oldest entries are evicted when exceeded."

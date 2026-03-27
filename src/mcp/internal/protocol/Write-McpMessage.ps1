@@ -18,6 +18,9 @@ function Write-McpMessage {
 	$json = $Message | ConvertTo-Json -Depth 20 -Compress
 
 	if ($Stdio) {
+		if ([Console]::OutputEncoding.WebName -ne 'utf-8') {
+			[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+		}
 		[Console]::Out.WriteLine($json)
 		[Console]::Out.Flush()
 	}

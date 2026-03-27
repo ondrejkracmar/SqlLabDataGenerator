@@ -35,14 +35,14 @@ HAVING COUNT(*) > 1
 
 			$cmd = $conn.CreateCommand()
 			$cmd.CommandText = $query
-			$cmd.CommandTimeout = 120
+			$cmd.CommandTimeout = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.Database.SchemaTimeout'
 			$dt = New-Object System.Data.DataTable
 			try {
 				$reader = $cmd.ExecuteReader()
 				$dt.Load($reader)
 			}
 			finally {
-				if ($reader) { $reader.Close() }
+				if ($reader) { $reader.Close(); $reader.Dispose() }
 				$cmd.Dispose()
 			}
 

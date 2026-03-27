@@ -41,6 +41,9 @@
         <member name="P:SqlLabDataGenerator.AIPlanAdvice.CrossTableRules">
             <summary>Cross-table relationship rules.</summary>
         </member>
+        <member name="P:SqlLabDataGenerator.AIPlanAdvice.TableGenerationNotes">
+            <summary>Per-table generation notes produced by schema analysis (key = FullName, value = notes string).</summary>
+        </member>
         <member name="P:SqlLabDataGenerator.AIPlanAdvice.Source">
             <summary>The AI provider that generated this advice.</summary>
         </member>
@@ -224,6 +227,12 @@
         </member>
         <member name="M:SqlLabDataGenerator.Connection.#ctor">
             <summary>Initializes a new instance of the <see cref="T:SqlLabDataGenerator.Connection"/> class.</summary>
+        </member>
+        <member name="M:SqlLabDataGenerator.Connection.Dispose">
+            <summary>Disposes the underlying database connection.</summary>
+        </member>
+        <member name="M:SqlLabDataGenerator.Connection.Dispose(System.Boolean)">
+            <summary>Releases resources used by the connection.</summary>
         </member>
         <member name="T:SqlLabDataGenerator.ColumnPlan">
             <summary>

@@ -35,6 +35,16 @@ $modulesFolder = New-Item -Path $workingRoot.FullName -Name Modules -ItemType Di
 # Fill out the modules folder
 Write-PSFMessage -Level Host -Message "Transfering built module data into working directory"
 Copy-Item -Path "$moduleRoot\$moduleName" -Destination $modulesFolder.FullName -Recurse -Force
+
+# Ensure compiled DLLs from bin/ are included in the module directory
+$binSource = Join-Path "$moduleRoot\$moduleName" 'bin'
+$binDest = Join-Path $modulesFolder.FullName "$moduleName\bin"
+if (Test-Path $binSource) {
+	if (-not (Test-Path $binDest)) { $null = New-Item -Path $binDest -ItemType Directory -Force }
+	Copy-Item -Path "$binSource\*" -Destination $binDest -Recurse -Force
+	Write-PSFMessage -Level Host -Message "Copied bin/ DLLs to function package"
+}
+
 foreach ($dependency in (Import-PowerShellDataFile -Path "$moduleRoot\$moduleName\$moduleName.psd1").RequiredModules)
 {
 	$param = @{
@@ -46,6 +56,11 @@ foreach ($dependency in (Import-PowerShellDataFile -Path "$moduleRoot\$moduleNam
 	if ($dependency.RequiredVersion)
 	{
 		$param['RequiredVersion'] = $dependency.RequiredVersion
+	}
+	elseif ($dependency.ModuleVersion)
+	{
+		# Pin to the declared minimum version to ensure reproducible builds
+		$param['RequiredVersion'] = $dependency.ModuleVersion
 	}
 	Write-PSFMessage -Level Host -Message "Preparing Dependency: $($param['Name'])"
 	Save-Module @param

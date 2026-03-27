@@ -37,6 +37,11 @@
 		if ($parentValues -and $parentValues.Count -gt 0) {
 			return ($parentValues | Get-Random)
 		}
+
+		# FK column but no parent values available — warn and return sentinel $null
+		# so the caller (New-SldgRowSet) can handle the missing FK with its own fallback
+		Write-PSFMessage -Level Warning -Message "No parent values found for FK column '$($Column.ColumnName)' referencing '$refKey'. Parent table may not have been populated."
+		return $null
 	}
 
 	# Handle custom rule override
@@ -60,7 +65,8 @@
 	}
 
 	# Handle nullable columns (configurable chance of NULL for nullable non-FK columns)
-	if ($Column.IsNullable -and -not $Column.ForeignKey -and -not $Column.IsPrimaryKey) {
+	# Exempt PII columns — they must always have values for realistic masking/generation
+	if ($Column.IsNullable -and -not $Column.ForeignKey -and -not $Column.IsPrimaryKey -and -not ($Column.Classification -and $Column.Classification.IsPII)) {
 		$nullProb = if ($NullProbability -ge 0) { $NullProbability } else { Get-PSFConfigValue -FullName 'SqlLabDataGenerator.Generation.NullProbability' }
 		if ((Get-Random -Minimum 0 -Maximum 100) -lt $nullProb) { return [DBNull]::Value }
 	}
@@ -89,7 +95,13 @@
 		if ($dt -match '^(int|bigint|smallint|tinyint)$') { return (Get-Random -Minimum 1 -Maximum 10000) }
 		elseif ($dt -match '^(bit)$') { return [bool](Get-Random -Minimum 0 -Maximum 2) }
 		elseif ($dt -match '^(decimal|numeric|float|real|money)$') { return [Math]::Round((Get-Random -Minimum 1 -Maximum 10000) / 100.0, 2) }
-		elseif ($dt -match '^(date|datetime|datetime2)$') { return (Get-Date -Date ((Get-Date).AddDays(-(Get-Random -Minimum 1 -Maximum 1000))) -Format 'yyyy-MM-dd') }
+		elseif ($dt -match '^(date|datetime|datetime2|smalldatetime|datetimeoffset)$') { return (Get-Date -Date ((Get-Date).AddDays(-(Get-Random -Minimum 1 -Maximum 1000))) -Format 'yyyy-MM-dd') }
+		elseif ($dt -eq 'time') { return [timespan]::FromMinutes((Get-Random -Minimum 0 -Maximum 1440)) }
+		elseif ($dt -eq 'uniqueidentifier') { return [guid]::NewGuid() }
+		elseif ($dt -match '^(binary|varbinary|image)$') {
+			$len = if ($Column.MaxLength -and $Column.MaxLength -gt 0) { [Math]::Min($Column.MaxLength, 16) } else { 16 }
+			$bytes = [byte[]]::new($len); (New-Object System.Random).NextBytes($bytes); return $bytes
+		}
 		else { return "Value_$(Get-Random -Minimum 1 -Maximum 9999)" }
 	}
 
@@ -103,10 +115,26 @@
 	# Apply CHECK constraint ranges to numeric generators
 	if ($Column.CheckConstraints -and $Column.CheckConstraints.Count -gt 0) {
 		foreach ($check in $Column.CheckConstraints) {
-			if ($check -match '\[?\w+\]?\s*>=\s*([\d.]+)') { $params['Minimum'] = [double]$Matches[1] }
-			if ($check -match '\[?\w+\]?\s*<=\s*([\d.]+)') { $params['Maximum'] = [double]$Matches[1] }
-			if ($check -match '\[?\w+\]?\s*>\s*([\d.]+)') { $params['Minimum'] = [double]$Matches[1] + 1 }
-			if ($check -match '\[?\w+\]?\s*<\s*([\d.]+)') { $params['Maximum'] = [double]$Matches[1] - 1 }
+			# Split on AND to handle compound constraints like 'Qty >= 1 AND Qty <= 999'
+			$clauses = $check -split '\bAND\b'
+			foreach ($clause in $clauses) {
+				if ($clause -match '\[?\w+\]?\s*>=\s*([-+]?\d+\.?\d*)') {
+					$val = [double]$Matches[1]
+					if (-not $params.ContainsKey('Minimum') -or $val -gt $params['Minimum']) { $params['Minimum'] = $val }
+				}
+				if ($clause -match '\[?\w+\]?\s*<=\s*([-+]?\d+\.?\d*)') {
+					$val = [double]$Matches[1]
+					if (-not $params.ContainsKey('Maximum') -or $val -lt $params['Maximum']) { $params['Maximum'] = $val }
+				}
+				if ($clause -match '\[?\w+\]?\s*>\s*([-+]?\d+\.?\d*)') {
+					$val = [double]$Matches[1] + 1
+					if (-not $params.ContainsKey('Minimum') -or $val -gt $params['Minimum']) { $params['Minimum'] = $val }
+				}
+				if ($clause -match '\[?\w+\]?\s*<\s*([-+]?\d+\.?\d*)') {
+					$val = [double]$Matches[1] - 1
+					if (-not $params.ContainsKey('Maximum') -or $val -lt $params['Maximum']) { $params['Maximum'] = $val }
+				}
+			}
 		}
 	}
 

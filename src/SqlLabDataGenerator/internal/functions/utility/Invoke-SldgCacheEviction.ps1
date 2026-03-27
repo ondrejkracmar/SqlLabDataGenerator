@@ -10,7 +10,7 @@
 	[CmdletBinding()]
 	param (
 		[Parameter(Mandatory)]
-		[hashtable]$Cache,
+		$Cache,
 
 		[string]$CacheName = 'Unknown'
 	)

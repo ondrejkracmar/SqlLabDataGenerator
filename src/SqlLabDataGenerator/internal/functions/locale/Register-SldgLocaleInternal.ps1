@@ -18,6 +18,13 @@
 		if (-not $Data.ContainsKey($key)) {
 			Stop-PSFFunction -Message ($script:strings.'Locale.MissingKey' -f $Name, $key) -EnableException $true
 		}
+		$val = $Data[$key]
+		if ($null -eq $val) {
+			Stop-PSFFunction -Message "Locale '$Name': key '$key' has a `$null value. Each required key must contain a non-empty array or string." -EnableException $true
+		}
+		if ($val -is [System.Array] -and $val.Count -eq 0) {
+			Stop-PSFFunction -Message "Locale '$Name': key '$key' is an empty array. At least one value is required." -EnableException $true
+		}
 	}
 
 	$script:SldgState.Locales[$Name] = $Data

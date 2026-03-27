@@ -61,25 +61,68 @@
 	}
 
 	# Rate limiting: enforce max requests per minute
-	if ($rateLimit -and $rateLimit -gt 0) {
+	# Always clean up stale timestamps to prevent unbounded queue growth
+	# Use lock to make check-wait-enqueue atomic across concurrent callers
+	$rateLimitLock = $script:SldgState.AIRateLimitLock
+	[System.Threading.Monitor]::Enter($rateLimitLock)
+	try {
 		$now = [datetime]::UtcNow
 		$windowStart = $now.AddMinutes(-1)
-		# Remove timestamps older than 1 minute
-		while ($script:SldgState.AIRequestTimestamps.Count -gt 0 -and $script:SldgState.AIRequestTimestamps[0] -lt $windowStart) {
-			$script:SldgState.AIRequestTimestamps.RemoveAt(0)
+		$peeked = [datetime]::MinValue
+		while ($script:SldgState.AIRequestTimestamps.Count -gt 0 -and $script:SldgState.AIRequestTimestamps.TryPeek([ref]$peeked) -and $peeked -lt $windowStart) {
+			$null = $script:SldgState.AIRequestTimestamps.TryDequeue([ref]$peeked)
 		}
-		if ($script:SldgState.AIRequestTimestamps.Count -ge $rateLimit) {
-			$waitUntil = $script:SldgState.AIRequestTimestamps[0].AddMinutes(1)
-			$waitSeconds = [math]::Ceiling(($waitUntil - $now).TotalSeconds)
-			if ($waitSeconds -gt 0) {
-				Write-PSFMessage -Level Verbose -Message ($script:strings.'AI.RateLimitWaiting' -f $waitSeconds)
-				Start-Sleep -Seconds $waitSeconds
+		if ($rateLimit -and $rateLimit -gt 0) {
+			if ($script:SldgState.AIRequestTimestamps.Count -ge $rateLimit) {
+				$oldest = [datetime]::MinValue
+				$null = $script:SldgState.AIRequestTimestamps.TryPeek([ref]$oldest)
+				$waitUntil = $oldest.AddMinutes(1)
+				$waitSeconds = [math]::Ceiling(($waitUntil - $now).TotalSeconds)
+				if ($waitSeconds -gt 0) {
+					Write-PSFMessage -Level Verbose -Message ($script:strings.'AI.RateLimitWaiting' -f $waitSeconds)
+					# Release lock during sleep so other callers are not blocked
+					[System.Threading.Monitor]::Exit($rateLimitLock)
+					try {
+						Start-Sleep -Seconds $waitSeconds
+					}
+					finally {
+						[System.Threading.Monitor]::Enter($rateLimitLock)
+					}
+				}
+				# Clean up again after waiting
+				$now = [datetime]::UtcNow
+				$windowStart = $now.AddMinutes(-1)
+				$peeked = [datetime]::MinValue
+				while ($script:SldgState.AIRequestTimestamps.Count -gt 0 -and $script:SldgState.AIRequestTimestamps.TryPeek([ref]$peeked) -and $peeked -lt $windowStart) {
+					$null = $script:SldgState.AIRequestTimestamps.TryDequeue([ref]$peeked)
+				}
 			}
-			# Clean up again after waiting
-			$now = [datetime]::UtcNow
-			$windowStart = $now.AddMinutes(-1)
-			while ($script:SldgState.AIRequestTimestamps.Count -gt 0 -and $script:SldgState.AIRequestTimestamps[0] -lt $windowStart) {
-				$script:SldgState.AIRequestTimestamps.RemoveAt(0)
+		}
+		# Record timestamp before request (outside retry loop — one logical request per invocation)
+		$script:SldgState.AIRequestTimestamps.Enqueue([datetime]::UtcNow)
+	}
+	finally {
+		[System.Threading.Monitor]::Exit($rateLimitLock)
+	}
+
+	# Periodic cache maintenance: trim caches only when they exceed max entries
+	$maxCacheEntries = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.Cache.MaxEntries'
+	$cacheTTL = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.Cache.TTLMinutes'
+	foreach ($cacheName in @('AIValueCache', 'AILocaleCache', 'AILocaleCategoryCache')) {
+		$cache = $script:SldgState[$cacheName]
+		if ($cache.Count -gt $maxCacheEntries) {
+			# Evict entries older than TTL; if still over limit, remove oldest half
+			$cutoff = [datetime]::UtcNow.AddMinutes(-$cacheTTL)
+			$timestamps = $script:SldgState.CacheTimestamps
+			$expiredKeys = @($cache.Keys | Where-Object { $timestamps.ContainsKey("${cacheName}|$_") -and $timestamps["${cacheName}|$_"] -lt $cutoff })
+			foreach ($key in $expiredKeys) {
+				$cache.Remove($key)
+				$timestamps.Remove("${cacheName}|$key")
+			}
+			# If still over limit after TTL eviction, remove oldest half by timestamp
+			if ($cache.Count -gt $maxCacheEntries) {
+				$toRemove = @($cache.Keys | Sort-Object { if ($timestamps.ContainsKey("${cacheName}|$_")) { $timestamps["${cacheName}|$_"] } else { [datetime]::MinValue } } | Select-Object -First ([math]::Floor($cache.Count / 2)))
+				foreach ($key in $toRemove) { $cache.Remove($key); $timestamps.Remove("${cacheName}|$key") }
 			}
 		}
 	}
@@ -126,8 +169,8 @@
 	}
 
 	# Clear plaintext API key from variable — already embedded in headers
+	# Note: .NET strings are immutable; we can only remove the reference, not scrub memory.
 	if ($apiKey) {
-		$apiKey = [string]::new([char]0, $apiKey.Length)
 		$apiKey = $null
 	}
 
@@ -140,7 +183,7 @@
 	}
 
 	# Timeout support (PS 7+ has -TimeoutSec, PS 5.1 does not)
-	if ($PSVersionTable.PSVersion.Major -ge 7 -and $timeoutSec -gt 0) {
+	if ($timeoutSec -gt 0) {
 		$params['TimeoutSec'] = $timeoutSec
 	}
 
@@ -148,11 +191,11 @@
 	if ($aiProvider -eq 'Ollama') {
 		$skipCertCheck = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.AI.Ollama.SkipCertificateCheck'
 		if ($skipCertCheck -and $PSVersionTable.PSVersion.Major -ge 7) {
-			if (-not $env:SLDG_ALLOW_SKIP_TLS) {
-				Write-PSFMessage -Level Warning -String 'AI.TLSSkipBlocked'
-			} else {
+			if ($env:SLDG_ALLOW_SKIP_TLS -eq '1' -or $env:SLDG_ALLOW_SKIP_TLS -eq 'true') {
 				Write-PSFMessage -Level Warning -String 'AI.TLSSkipActive'
 				$params['SkipCertificateCheck'] = $true
+			} else {
+				Write-PSFMessage -Level Warning -String 'AI.TLSSkipBlocked'
 			}
 		}
 	}
@@ -162,9 +205,6 @@
 	try {
 		for ($attempt = 1; $attempt -le ($retryCount + 1); $attempt++) {
 			try {
-				# Record timestamp for rate limiting
-				$script:SldgState.AIRequestTimestamps.Add([datetime]::UtcNow)
-
 				$response = Invoke-RestMethod @params
 
 				# Ollama /api/chat returns message directly, OpenAI-compatible returns choices array
@@ -181,8 +221,35 @@
 			}
 			catch {
 				$lastError = $_
+
+				# Determine HTTP status code for intelligent retry decisions
+				$statusCode = 0
+				if ($_.Exception.Response) {
+					try { $statusCode = [int]$_.Exception.Response.StatusCode } catch { }
+				}
+
+				# Do not retry on authentication/authorization failures
+				if ($statusCode -in @(401, 403)) {
+					Write-PSFMessage -Level Warning -Message ($script:strings.'AI.RequestFailed' -f $_)
+					return $null
+				}
+
 				if ($attempt -le $retryCount) {
 					$delay = $retryDelay * [math]::Pow(2, $attempt - 1)
+
+					# Honor Retry-After header from rate-limited responses (429)
+					if ($statusCode -eq 429 -and $_.Exception.Response.Headers) {
+						try {
+							$retryAfter = $_.Exception.Response.Headers | Where-Object { $_.Key -eq 'Retry-After' } | Select-Object -First 1 -ExpandProperty Value
+							if ($retryAfter) {
+								$retryAfterSec = 0
+								if ([int]::TryParse(($retryAfter | Select-Object -First 1), [ref]$retryAfterSec) -and $retryAfterSec -gt $delay) {
+									$delay = $retryAfterSec
+								}
+							}
+						} catch { }
+					}
+
 					Write-PSFMessage -Level Warning -Message ($script:strings.'AI.RetryAttempt' -f $attempt, $retryCount, $delay, $_)
 					Start-Sleep -Seconds $delay
 				}
@@ -193,10 +260,10 @@
 		$null
 	}
 	finally {
-		# Zero-fill sensitive API key values from headers to prevent memory exposure
+		# Remove sensitive API key references from headers
 		foreach ($headerKey in @('Authorization', 'api-key')) {
-			if ($headers.ContainsKey($headerKey) -and $headers[$headerKey]) {
-				$headers[$headerKey] = [string]::new([char]0, $headers[$headerKey].Length)
+			if ($headers.ContainsKey($headerKey)) {
+				$headers.Remove($headerKey)
 			}
 		}
 		$headers.Clear()

@@ -93,6 +93,15 @@ PS C:\> Set-SldgAIProvider -Provider Ollama -Model 'llama3' -Purpose 'batch-gene
 
 Global: GPT-4o for classification and planning. Override: Ollama for batch data generation.
 
+### EXAMPLE 8
+
+Set-SldgAIProvider -Provider OpenAI -Model 'gpt-4o' -ApiKey $key -Purpose 'schema-analysis'
+PS C:\> Set-SldgAIProvider -Provider Ollama -Model 'llama3' -EnableAIGeneration
+
+Two-tier AI: GPT-4o analyzes schema + sample data during New-SldgGenerationPlan -UseAI,
+producing per-table generation notes. Ollama llama3 uses those notes to generate data
+during Invoke-SldgDataGeneration.
+
 ## PARAMETERS
 
 ### -ApiKey
@@ -346,8 +355,8 @@ HelpMessage: ''
 ### -Purpose
 
 Set a per-purpose AI model override instead of the global default.
-Valid purposes: column-analysis, batch-generation, plan-advice, structured-value,
-locale-data, locale-category.
+Valid purposes: column-analysis, batch-generation, plan-advice, schema-analysis,
+structured-value, locale-data, locale-category.
 When AI runs for that purpose, the override is used instead of the global config.
 
 ```yaml
@@ -367,6 +376,7 @@ AcceptedValues:
 - column-analysis
 - batch-generation
 - plan-advice
+- schema-analysis
 - structured-value
 - locale-data
 - locale-category

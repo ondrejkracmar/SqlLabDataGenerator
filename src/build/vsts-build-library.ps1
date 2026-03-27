@@ -33,7 +33,8 @@ $outputDll = Join-Path $WorkingDirectory 'library\SqlLabDataGenerator\SqlLabData
 $targetBin = Join-Path $WorkingDirectory 'SqlLabDataGenerator\bin'
 
 $dll = Get-ChildItem -Path $outputDll -ErrorAction SilentlyContinue | Select-Object -First 1
-if ($dll) {
-	Copy-Item -Path $dll.FullName -Destination $targetBin -Force
-	Write-PSFMessage -Level Important -Message "Copied $($dll.Name) to module bin folder"
+if (-not $dll) {
+	throw "DLL not found at $outputDll after successful build — check build output configuration."
 }
+Copy-Item -Path $dll.FullName -Destination $targetBin -Force
+Write-PSFMessage -Level Important -Message "Copied $($dll.Name) to module bin folder"

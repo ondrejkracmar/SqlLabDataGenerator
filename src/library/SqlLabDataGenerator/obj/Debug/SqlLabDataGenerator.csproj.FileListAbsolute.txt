@@ -1,0 +1,16 @@
+C:\Projects\PSModules\SqlLabDataGenerator\src\SqlLabDataGenerator\bin\SqlLabDataGenerator.deps.json
+C:\Projects\PSModules\SqlLabDataGenerator\src\SqlLabDataGenerator\bin\SqlLabDataGenerator.dll
+C:\Projects\PSModules\SqlLabDataGenerator\src\SqlLabDataGenerator\bin\SqlLabDataGenerator.pdb
+C:\Projects\PSModules\SqlLabDataGenerator\src\SqlLabDataGenerator\bin\SqlLabDataGenerator.xml
+C:\Projects\PSModules\SqlLabDataGenerator\src\library\SqlLabDataGenerator\obj\Debug\SqlLabDataGenerator.csproj.AssemblyReference.cache
+C:\Projects\PSModules\SqlLabDataGenerator\src\library\SqlLabDataGenerator\obj\Debug\SqlLabDataGenerator.GeneratedMSBuildEditorConfig.editorconfig
+C:\Projects\PSModules\SqlLabDataGenerator\src\library\SqlLabDataGenerator\obj\Debug\SqlLabDataGenerator.AssemblyInfoInputs.cache
+C:\Projects\PSModules\SqlLabDataGenerator\src\library\SqlLabDataGenerator\obj\Debug\SqlLabDataGenerator.AssemblyInfo.cs
+C:\Projects\PSModules\SqlLabDataGenerator\src\library\SqlLabDataGenerator\obj\Debug\SqlLabDataGenerator.csproj.CoreCompileInputs.cache
+C:\Projects\PSModules\SqlLabDataGenerator\src\library\SqlLabDataGenerator\obj\Debug\SqlLabDataGenerator.sourcelink.json
+C:\Projects\PSModules\SqlLabDataGenerator\src\library\SqlLabDataGenerator\obj\Debug\SqlLabDa.E01348DC.Up2Date
+C:\Projects\PSModules\SqlLabDataGenerator\src\library\SqlLabDataGenerator\obj\Debug\SqlLabDataGenerator.dll
+C:\Projects\PSModules\SqlLabDataGenerator\src\library\SqlLabDataGenerator\obj\Debug\refint\SqlLabDataGenerator.dll
+C:\Projects\PSModules\SqlLabDataGenerator\src\library\SqlLabDataGenerator\obj\Debug\SqlLabDataGenerator.xml
+C:\Projects\PSModules\SqlLabDataGenerator\src\library\SqlLabDataGenerator\obj\Debug\SqlLabDataGenerator.pdb
+C:\Projects\PSModules\SqlLabDataGenerator\src\library\SqlLabDataGenerator\obj\Debug\ref\SqlLabDataGenerator.dll

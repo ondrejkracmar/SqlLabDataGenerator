@@ -44,8 +44,9 @@
 	$safeColList = ($columnNames | ForEach-Object { Get-SldgSafeSqlName -ColumnName $_ }) -join ', '
 
 	# SQLite has a limit of SQLITE_MAX_VARIABLE_NUMBER (default 999) parameters per statement.
-	# Ensure batch size does not exceed this limit.
-	$maxBatchRows = [math]::Max(1, [math]::Floor(999 / [math]::Max($columnNames.Count, 1)))
+	# This value can be higher in custom SQLite builds compiled with SQLITE_MAX_VARIABLE_NUMBER.
+	$SQLITE_MAX_VARIABLES = 999
+	$maxBatchRows = [math]::Max(1, [math]::Floor($SQLITE_MAX_VARIABLES / [math]::Max($columnNames.Count, 1)))
 	$effectiveBatchSize = [math]::Min($BatchSize, $maxBatchRows)
 
 	# Use external transaction if provided, otherwise create a local one
@@ -66,7 +67,8 @@
 			# Build multi-row INSERT: INSERT INTO [T] (cols) VALUES (row1), (row2), ...
 			$valueClauses = [System.Collections.Generic.List[string]]::new()
 			for ($b = 0; $b -lt $currentBatchSize; $b++) {
-				$paramNames = ($columnNames | ForEach-Object { "@p${b}_$_" }) -join ', '
+				$ci = 0
+				$paramNames = ($columnNames | ForEach-Object { "@p${b}_$($ci)"; $ci++ }) -join ', '
 				$valueClauses.Add("($paramNames)")
 			}
 
@@ -77,18 +79,29 @@
 			# Bind parameters for all rows in this batch
 			for ($b = 0; $b -lt $currentBatchSize; $b++) {
 				$row = $Data.Rows[$rowIndex + $b]
+				$ci = 0
 				foreach ($colName in $columnNames) {
 					$value = $row[$colName]
 					$param = $cmd.CreateParameter()
-					$param.ParameterName = "@p${b}_$colName"
+					$param.ParameterName = "@p${b}_$($ci)"
+					$ci++
 					$param.Value = if ($value -is [DBNull] -or $null -eq $value) { [DBNull]::Value } else { $value }
 					[void]$cmd.Parameters.Add($param)
 				}
 			}
 
-			[void]$cmd.ExecuteNonQuery()
+			$affected = $cmd.ExecuteNonQuery()
 			$cmd.Dispose()
-			$insertedCount += $currentBatchSize
+			# Handle drivers that return -1 (unknown) for affected rows
+			if ($affected -lt 0) {
+				$affected = $currentBatchSize  # assume all rows succeeded when driver can't report
+			}
+			# Detect silently ignored rows and warn the user
+			$skippedRows = $currentBatchSize - $affected
+			if ($skippedRows -gt 0) {
+				Write-PSFMessage -Level Warning -Message "SQLite INSERT: $skippedRows of $currentBatchSize rows ignored due to constraint violations in table '$TableName'."
+			}
+			$insertedCount += $affected
 			$rowIndex += $currentBatchSize
 		}
 

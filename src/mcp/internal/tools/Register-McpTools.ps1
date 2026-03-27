@@ -113,6 +113,15 @@ function ConvertTo-JsonSchema {
 		{ $_ -eq [switch] } {
 			return [ordered]@{ type = 'boolean' }
 		}
+		{ $_ -eq [datetime] } {
+			return [ordered]@{ type = 'string'; format = 'date-time' }
+		}
+		{ $_ -eq [guid] } {
+			return [ordered]@{ type = 'string'; format = 'uuid' }
+		}
+		{ $_ -eq [timespan] } {
+			return [ordered]@{ type = 'string'; description = 'Duration as string (e.g. "01:30:00")' }
+		}
 		{ $_ -eq [string[]] } {
 			return [ordered]@{ type = 'array'; items = [ordered]@{ type = 'string' } }
 		}
@@ -143,7 +152,9 @@ function ConvertTo-JsonSchema {
 			return [ordered]@{ type = 'string'; enum = @($values) }
 		}
 		{ $_.IsArray } {
-			return [ordered]@{ type = 'array' }
+			$elemType = $_.GetElementType()
+			$itemSchema = if ($elemType) { ConvertTo-JsonSchema -ParameterType $elemType } else { [ordered]@{ type = 'string' } }
+			return [ordered]@{ type = 'array'; items = $itemSchema }
 		}
 		default {
 			return [ordered]@{ type = 'object' }

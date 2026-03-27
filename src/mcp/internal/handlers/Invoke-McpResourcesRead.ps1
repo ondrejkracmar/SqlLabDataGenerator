@@ -51,7 +51,7 @@ function Invoke-McpResourcesRead {
 					$schema | ConvertTo-Json -Depth 10
 				}
 				catch {
-					"{`"error`": `"$($_.Exception.Message)`"}"
+					[PSCustomObject]@{ error = $_.Exception.Message } | ConvertTo-Json -Compress
 				}
 			}
 		}

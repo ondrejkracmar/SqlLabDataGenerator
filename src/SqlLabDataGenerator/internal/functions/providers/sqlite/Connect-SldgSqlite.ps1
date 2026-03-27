@@ -33,6 +33,16 @@
 
 	# Resolve database path
 	$dbPath = if ([System.IO.Path]::IsPathRooted($Database)) { $Database } else { Join-Path (Get-Location) $Database }
+	$dbPath = [System.IO.Path]::GetFullPath($dbPath)
+
+	# Security: block path traversal — resolved path must be under the starting directory
+	$basePath = [System.IO.Path]::GetFullPath((Get-Location).Path)
+	if (-not $basePath.EndsWith([System.IO.Path]::DirectorySeparatorChar)) {
+		$basePath += [System.IO.Path]::DirectorySeparatorChar
+	}
+	if (-not $dbPath.StartsWith($basePath, [System.StringComparison]::OrdinalIgnoreCase)) {
+		Stop-PSFFunction -Message ($script:strings.'Connect.Failed' -f 'SQLite', $Database, '', "Path traversal detected. Resolved path '$dbPath' is outside the working directory.") -EnableException $true
+	}
 
 	if (-not $CreateIfNotExists -and -not (Test-Path $dbPath)) {
 		Stop-PSFFunction -Message ($script:strings.'Connect.Failed' -f 'SQLite', $dbPath, '', 'Database file not found. Use -CreateIfNotExists to create a new database.') -EnableException $true
@@ -50,9 +60,8 @@
 	catch { $null = $_ }
 
 	if (-not $connectionString) {
-		# Fallback: sanitize path to prevent connection-string parameter injection
-		$sanitizedPath = $dbPath -replace '[;=]', ''
-		$connectionString = "Data Source=$sanitizedPath"
+		# Fallback: use connection string builder pattern to prevent injection
+		$connectionString = "Data Source=$([System.Uri]::EscapeDataString($dbPath) -replace '%5C','\' -replace '%3A',':' -replace '%2F','/')"
 	}
 
 	try {

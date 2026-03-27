@@ -23,7 +23,7 @@
 	$conn = $ConnectionInfo.DbConnection
 
 	$colExpr = if ($ColumnFilter) {
-		($ColumnFilter | ForEach-Object { "[$_]" }) -join ', '
+		($ColumnFilter | ForEach-Object { "[$($_ -replace '\]', ']]')]" }) -join ', '
 	} else { '*' }
 
 	$sql = "SELECT $colExpr FROM [$TableName]"
@@ -38,7 +38,7 @@
 		$dataTable.Load($reader)
 	}
 	finally {
-		if ($reader) { $reader.Close() }
+		if ($reader) { $reader.Close(); $reader.Dispose() }
 		$cmd.Dispose()
 	}
 

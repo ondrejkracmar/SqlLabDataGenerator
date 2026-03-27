@@ -70,6 +70,10 @@ function Invoke-McpToolsCall {
 					foreach ($p in $value.PSObject.Properties) { $ht[$p.Name] = $p.Value }
 					$argObject[$key] = $ht
 				}
+				# Handle SecureString — MCP sends plaintext strings
+				elseif ($targetType -eq [System.Security.SecureString] -and $value -is [string]) {
+					$argObject[$key] = ConvertTo-SecureString -String $value -AsPlainText -Force
+				}
 			}
 		}
 

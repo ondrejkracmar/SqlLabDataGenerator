@@ -24,12 +24,18 @@
 				$min = if ($null -ne $Minimum) { [int]$Minimum } else { 1 }
 				$max = if ($null -ne $Maximum) { [int]$Maximum } else { 10000 }
 				if ($min -gt $max) { $min, $max = $max, $min }
-				Get-Random -Minimum $min -Maximum ($max + 1)
+				[int](Get-Random -Minimum ([long]$min) -Maximum ([long]$max + 1))
 			}
 			'Decimal' {
 				$min = if ($null -ne $Minimum) { [double]$Minimum } else { 0.0 }
 				$max = if ($null -ne $Maximum) { [double]$Maximum } else { 10000.0 }
 				if ($min -gt $max) { $min, $max = $max, $min }
+				# Constrain range to Precision: DECIMAL(P,S) allows max magnitude 10^(P-S)-1
+				if ($Precision -gt 0 -and $Precision -gt $Scale) {
+					$maxMagnitude = [math]::Pow(10, $Precision - $Scale) - 1
+					$min = [math]::Max($min, -$maxMagnitude)
+					$max = [math]::Min($max, $maxMagnitude)
+				}
 				[Math]::Round($min + (Get-Random -Minimum 0 -Maximum 10000) / 10000.0 * ($max - $min), $Scale)
 			}
 			'Money' {
@@ -42,7 +48,7 @@
 				$min = if ($null -ne $Minimum) { [int]$Minimum } else { 1 }
 				$max = if ($null -ne $Maximum) { [int]$Maximum } else { 500 }
 				if ($min -gt $max) { $min, $max = $max, $min }
-				Get-Random -Minimum $min -Maximum ($max + 1)
+				[int](Get-Random -Minimum ([long]$min) -Maximum ([long]$max + 1))
 			}
 			'Percentage' {
 				$min = if ($null -ne $Minimum) { [double]$Minimum } else { 0.0 }
@@ -54,7 +60,7 @@
 				$min = if ($null -ne $Minimum) { [int]$Minimum } else { 18 }
 				$max = if ($null -ne $Maximum) { [int]$Maximum } else { 80 }
 				if ($min -gt $max) { $min, $max = $max, $min }
-				Get-Random -Minimum $min -Maximum ($max + 1)
+				[int](Get-Random -Minimum ([long]$min) -Maximum ([long]$max + 1))
 			}
 			'Boolean' {
 				[bool](Get-Random -Minimum 0 -Maximum 2)

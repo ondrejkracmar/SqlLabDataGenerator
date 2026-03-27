@@ -96,6 +96,9 @@ foreach ($filePath in (& "$($PSScriptRoot)\..\SqlLabDataGenerator\internal\scrip
 
 #region Update the psm1 file
 $fileData = Get-Content -Path "$($publishDir.FullName)\SqlLabDataGenerator\SqlLabDataGenerator.psm1" -Raw
+if ($fileData -notmatch '"<was not compiled>"') {
+	throw "PSM1 missing expected placeholder '<was not compiled>' — module structure may have changed."
+}
 $fileData = $fileData.Replace('"<was not compiled>"', '"<was compiled>"')
 $fileData = $fileData.Replace('"<compile code into here>"', ($text -join "`n`n"))
 [System.IO.File]::WriteAllText("$($publishDir.FullName)\SqlLabDataGenerator\SqlLabDataGenerator.psm1", $fileData, [System.Text.Encoding]::UTF8)

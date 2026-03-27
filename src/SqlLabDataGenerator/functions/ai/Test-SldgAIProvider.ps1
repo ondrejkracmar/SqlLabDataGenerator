@@ -45,9 +45,13 @@
 		$response = Invoke-SldgAIRequest -SystemPrompt 'You are a test endpoint. Reply with exactly: OK' -UserMessage 'Ping'
 		$sw.Stop()
 
-		if ($response) {
+		if ($response -and $response -match 'OK') {
 			$status = 'Connected'
 			$errorMessage = $null
+		}
+		elseif ($response) {
+			$status = 'UnexpectedResponse'
+			$errorMessage = "AI responded but did not return expected 'OK'. Got: $($response | Select-Object -First 100)"
 		}
 		else {
 			$status = 'NoResponse'

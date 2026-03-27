@@ -15,6 +15,7 @@
 		[string]$Category,
 
 		[Parameter(Mandatory)]
+		[ValidatePattern('^[\p{L}\-]{2,20}$')]
 		[string]$Language,
 
 		[int]$Count = 30,
@@ -25,12 +26,15 @@
 	)
 
 	$cacheKey = "$Language|$Category"
-	if (-not $Force -and $script:SldgState.AILocaleCategoryCache.ContainsKey($cacheKey)) {
-		if (-not (Test-SldgCacheExpired -CacheName 'AILocaleCategoryCache' -Key $cacheKey)) {
-			return $script:SldgState.AILocaleCategoryCache[$cacheKey]
+	if (-not $Force) {
+		$cachedValue = $null
+		if ($script:SldgState.AILocaleCategoryCache.TryGetValue($cacheKey, [ref]$cachedValue)) {
+			if (-not (Test-SldgCacheExpired -CacheName 'AILocaleCategoryCache' -Key $cacheKey)) {
+				return $cachedValue
+			}
+			[void]$script:SldgState.AILocaleCategoryCache.TryRemove($cacheKey, [ref]$null)
+			[void]$script:SldgState.CacheTimestamps.TryRemove("AILocaleCategoryCache|$cacheKey", [ref]$null)
 		}
-		$script:SldgState.AILocaleCategoryCache.Remove($cacheKey)
-		$script:SldgState.CacheTimestamps.Remove("AILocaleCategoryCache|$cacheKey")
 	}
 
 	$aiProvider = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.AI.Provider'
@@ -132,8 +136,8 @@
 	}
 
 	if ($CustomInstructions) {
-		# Sanitize: limit length and strip control characters to mitigate prompt injection
-		$sanitized = ($CustomInstructions -replace '[\x00-\x1F\x7F]', ' ')
+		# Sanitize: limit length and strip control/invisible characters to mitigate prompt injection
+		$sanitized = ($CustomInstructions -replace '[\x00-\x1F\x7F\u200B-\u200F\u202A-\u202E\u2028\u2029]', ' ')
 		if ($sanitized.Length -gt 500) { $sanitized = $sanitized.Substring(0, 500) }
 		$systemPrompt += "`n`nAdditional instructions: $sanitized"
 	}

@@ -11,7 +11,7 @@ Describe "SQL Server Integration Tests" {
 
 		if ($testInstance -and $testDatabase) {
 			try {
-				$conn = New-Object System.Data.SqlClient.SqlConnection
+				$conn = New-Object Microsoft.Data.SqlClient.SqlConnection
 				$conn.ConnectionString = "Server=$testInstance;Database=$testDatabase;Integrated Security=True;TrustServerCertificate=True;Connect Timeout=5"
 				$conn.Open()
 				$conn.Close()
@@ -31,7 +31,7 @@ Describe "SQL Server Integration Tests" {
 		BeforeAll {
 			if ($sqlAvailable) {
 				# Create test schema
-				$conn = New-Object System.Data.SqlClient.SqlConnection
+				$conn = New-Object Microsoft.Data.SqlClient.SqlConnection
 				$conn.ConnectionString = "Server=$testInstance;Database=$testDatabase;Integrated Security=True;TrustServerCertificate=True"
 				$conn.Open()
 				$cmd = $conn.CreateCommand()
@@ -67,7 +67,7 @@ CREATE TABLE dbo.SldgTestOrder (
 			if ($sqlAvailable) {
 				# Cleanup test tables
 				try {
-					$conn = New-Object System.Data.SqlClient.SqlConnection
+					$conn = New-Object Microsoft.Data.SqlClient.SqlConnection
 					$conn.ConnectionString = "Server=$testInstance;Database=$testDatabase;Integrated Security=True;TrustServerCertificate=True"
 					$conn.Open()
 					$cmd = $conn.CreateCommand()

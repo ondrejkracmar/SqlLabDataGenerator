@@ -18,7 +18,7 @@
 		[int]$ConnectionTimeout = 30
 	)
 
-	$builder = New-Object System.Data.SqlClient.SqlConnectionStringBuilder
+	$builder = New-Object Microsoft.Data.SqlClient.SqlConnectionStringBuilder
 	$builder['Data Source'] = $ServerInstance
 	$builder['Initial Catalog'] = $Database
 	$builder['Connection Timeout'] = $ConnectionTimeout
@@ -30,14 +30,15 @@
 	if ($Credential) {
 		$builder['User ID'] = $Credential.UserName
 		$builder['Password'] = $Credential.GetNetworkCredential().Password
+		$builder['Persist Security Info'] = $false
 	}
 	else {
 		$builder['Integrated Security'] = $true
 	}
 
-	$connection = New-Object System.Data.SqlClient.SqlConnection($builder.ConnectionString)
-	# Clear password from builder to minimize exposure window in memory
-	if ($Credential) { $builder['Password'] = '' }
+	# Pass connection string directly to SqlConnection and clear builder immediately
+	$connection = New-Object Microsoft.Data.SqlClient.SqlConnection($builder.ConnectionString)
+	if ($Credential) { $builder['Password'] = ''; $builder.Clear() }
 	try {
 		$connection.Open()
 		Write-PSFMessage -Level Verbose -String 'Connect.SqlServer.Connected' -StringValues $ServerInstance, $Database

@@ -1,6 +1,24 @@
 ﻿<?xml version="1.0" encoding="utf-16"?>
 <Configuration>
 	<ViewDefinitions>
+		<!-- AnalyzedSchema — used when Get-SldgColumnAnalysis tags the schema with classification results -->
+		<View>
+			<Name>SqlLabDataGenerator.AnalyzedSchema</Name>
+			<ViewSelectedBy>
+				<TypeName>SqlLabDataGenerator.AnalyzedSchema</TypeName>
+			</ViewSelectedBy>
+			<CustomControl>
+				<CustomEntries>
+					<CustomEntry>
+						<CustomItem>
+							<ExpressionBinding>
+								<ScriptBlock>$_.ColumnClassifications | Format-Table TableName, ColumnName, SemanticType, IsPII, Source -AutoSize | Out-String</ScriptBlock>
+							</ExpressionBinding>
+						</CustomItem>
+					</CustomEntry>
+				</CustomEntries>
+			</CustomControl>
+		</View>
 		<!-- SchemaModel -->
 		<View>
 			<Name>SqlLabDataGenerator.SchemaModel</Name>

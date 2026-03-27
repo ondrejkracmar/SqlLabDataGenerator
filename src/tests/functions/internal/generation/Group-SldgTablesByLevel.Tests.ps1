@@ -134,4 +134,29 @@ Describe "Group-SldgTablesByLevel" {
 			$result[1].Tables.Count | Should -Be 2
 		}
 	}
+
+	Context "Convergence Early Exit" {
+		It "Converges quickly for simple linear chain" {
+			# A → B → C should complete in exactly 3 iterations
+			$tables = @(
+				[PSCustomObject]@{ FullName = 'dbo.Root'; ForeignKeys = @() }
+				[PSCustomObject]@{
+					FullName    = 'dbo.Mid'
+					ForeignKeys = @([PSCustomObject]@{ ReferencedSchema = 'dbo'; ReferencedTable = 'Root' })
+				}
+				[PSCustomObject]@{
+					FullName    = 'dbo.Leaf'
+					ForeignKeys = @([PSCustomObject]@{ ReferencedSchema = 'dbo'; ReferencedTable = 'Mid' })
+				}
+			)
+			$result = & $module { param($t) Group-SldgTablesByLevel -Tables $t } $tables
+			$result.Count | Should -Be 3
+		}
+
+		It "Source contains convergence early exit logic" {
+			$source = & $module { (Get-Command Group-SldgTablesByLevel).ScriptBlock.ToString() }
+			$source | Should -Match 'lastLevelSum'
+			$source | Should -Match 'currentLevelSum'
+		}
+	}
 }

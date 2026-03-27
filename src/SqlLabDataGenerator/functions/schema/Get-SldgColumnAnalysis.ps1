@@ -120,5 +120,20 @@
 		}
 	}
 
+	# Collect classification results and attach to schema for display
+	$classifications = [System.Collections.Generic.List[object]]::new()
+	foreach ($table in $Schema.Tables) {
+		foreach ($col in $table.Columns) {
+			if ($col.Classification) {
+				$col.Classification.TableName = $table.FullName
+				$col.Classification.ColumnName = $col.ColumnName
+				$classifications.Add($col.Classification)
+			}
+		}
+	}
+
+	# Tag schema with analysis results and a custom type for formatting
+	$Schema | Add-Member -NotePropertyName ColumnClassifications -NotePropertyValue $classifications.ToArray() -Force
+	$Schema.PSObject.TypeNames.Insert(0, 'SqlLabDataGenerator.AnalyzedSchema')
 	$Schema
 }

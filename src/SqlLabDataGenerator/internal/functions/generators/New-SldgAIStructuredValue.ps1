@@ -13,7 +13,7 @@
 		[string]$ColumnName,
 		[string]$TableName,
 		[string]$SchemaHint,
-		[int]$MaxLength,
+		[int]$MaxLength = 4000,
 		[string]$AIGenerationHint,
 		[string]$ContextColumn,
 		[string]$ContextValue,
@@ -21,8 +21,12 @@
 	)
 
 	# Build cache key — include context value when present for per-variant caching
-	$contextSuffix = if ($ContextColumn -and $ContextValue) { "|ctx:$ContextValue" } else { '' }
-	$cacheKey = "StructuredData|$TableName|$ColumnName|$Type$contextSuffix"
+	# Escape pipe characters in components to prevent key collision across different table/column combinations
+	$safeTable = $TableName.Replace('|', '||')
+	$safeColumn = $ColumnName.Replace('|', '||')
+	$safeType = $Type.Replace('|', '||')
+	$contextSuffix = if ($ContextColumn -and $ContextValue) { "|ctx:$($ContextValue.Replace('|', '||'))" } else { '' }
+	$cacheKey = "StructuredData|$safeTable|$safeColumn|$safeType$contextSuffix"
 
 	# Return from template cache if we have previously generated values
 	if ($script:SldgState.AIValueCache.ContainsKey($cacheKey)) {
@@ -36,7 +40,10 @@
 	$hintText = if ($SchemaHint) { "`nSchema hint (from view definition): $SchemaHint" } else { '' }
 	$aiHintText = if ($AIGenerationHint) { "`nGeneration context: $AIGenerationHint" } else { '' }
 	$contextText = if ($ContextColumn -and $ContextValue) {
-		"`nContext: The column '$ContextColumn' for this row has the value '$ContextValue'. Generate $format content that is appropriate for this specific $ContextColumn value. The structure and fields should reflect what '$ContextValue' means in business terms."
+		# Sanitize ContextValue to mitigate prompt injection from DB data
+		$safeContextValue = ($ContextValue -replace '[^\p{L}\p{N}\s\.\-,;:()\[\]_/''"=<>+#&]', '')
+		if ($safeContextValue.Length -gt 500) { $safeContextValue = $safeContextValue.Substring(0, 500) }
+		"`nContext: The column '$ContextColumn' for this row has the value '$safeContextValue'. Generate $format content that is appropriate for this specific $ContextColumn value. The structure and fields should reflect what '$safeContextValue' means in business terms."
 	} else { '' }
 	$examplesText = if ($ValueExamples -and $ValueExamples.Count -gt 0) {
 		$exList = ($ValueExamples | ForEach-Object { "  - $_" }) -join "`n"
@@ -79,8 +86,10 @@
 		$systemPrompt += $aiHintText + $contextText + $examplesText
 	}
 
+	$safeTableName = ($TableName -replace '[^\p{L}\p{N}\s\.\-_\[\]]', '')
+	$safeColumnName = ($ColumnName -replace '[^\p{L}\p{N}\s\.\-_\[\]]', '')
 	$contextLabel = if ($ContextValue) { " (context: $ContextColumn=$ContextValue)" } else { '' }
-	$userMessage = "Generate 10 realistic $format values for column '$ColumnName' in table '$TableName'$contextLabel."
+	$userMessage = "Generate 10 realistic $format values for column '$safeColumnName' in table '$safeTableName'$contextLabel."
 
 	Write-PSFMessage -Level Verbose -Message ($script:strings.'StructuredData.AIGenerating' -f $Type, $TableName, $ColumnName)
 
@@ -120,5 +129,7 @@
 		Write-PSFMessage -Level Warning -Message ($script:strings.'StructuredData.AIFailed' -f $Type, $TableName, $ColumnName, $_)
 	}
 
-	return $null
+	# Return type-appropriate fallback instead of $null to avoid NOT NULL constraint violations
+	$fallback = if ($Type -eq 'Xml') { '<root />' } else { '{}' }
+	return $fallback
 }

@@ -6,7 +6,7 @@ namespace SqlLabDataGenerator
     /// <summary>
     /// Represents an active database connection.
     /// </summary>
-    public class Connection
+    public class Connection : IDisposable
     {
         /// <summary>The underlying database connection object.</summary>
         public DbConnection DbConnection { get; set; }
@@ -25,5 +25,25 @@ namespace SqlLabDataGenerator
 
         /// <summary>Initializes a new instance of the <see cref="Connection"/> class.</summary>
         public Connection() { }
+
+        private bool _disposed;
+
+        /// <summary>Disposes the underlying database connection.</summary>
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        /// <summary>Releases resources used by the connection.</summary>
+        protected virtual void Dispose(bool disposing)
+        {
+            if (_disposed) return;
+            if (disposing)
+            {
+                DbConnection?.Dispose();
+            }
+            _disposed = true;
+        }
     }
 }

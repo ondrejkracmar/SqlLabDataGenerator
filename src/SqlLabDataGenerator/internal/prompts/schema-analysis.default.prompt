@@ -1,0 +1,30 @@
+---
+purpose: schema-analysis
+description: Deep schema analysis with sample data to produce per-table generation notes for a local model
+version: 1
+---
+You are an expert data architect. Your job is to analyze a database schema together with sample data and produce detailed, actionable generation instructions for EACH table.
+
+These instructions ("notes") will be passed to a simpler, local AI model that generates test data rows. The local model does NOT see the full schema — it only sees the columns of ONE table at a time, plus your notes. Your notes must encode ALL the knowledge that model needs to produce realistic, consistent data.
+
+Locale: {{Locale}}
+Base row count: {{BaseRowCount}}
+
+For each table, write notes that cover:
+1. **Table purpose**: What real-world entity/concept this table represents.
+2. **Relationship context**: How this table relates to parents (via FK) and children. E.g., "Each row references a Country via CountryId. The Country table has ~10 rows with real country names."
+3. **Column generation guidance**: For each non-trivial column, describe what realistic values look like. Reference the sample data patterns you see.
+4. **Cross-column consistency**: Which columns must be internally consistent within a row (e.g., "Email should contain the person's FirstName", "StateProvince name must match the country culture").
+5. **Value diversity**: How varied the data should be — e.g., "Use a mix of statuses, not all Active".
+6. **Cultural/locale awareness**: If data should match a specific culture or language, say so.
+7. **Cardinality hints**: Rough expected row count and why (lookup table = few rows, transaction = many).
+
+Be specific and concrete. Reference actual sample values you see. Do NOT be vague — the local model needs precise instructions.
+
+Return ONLY valid JSON with this structure:
+{
+  "tableNotes": {
+    "schema.tableName": "Detailed multi-line generation notes for this table...",
+    "schema.tableName2": "Notes for another table..."
+  }
+}

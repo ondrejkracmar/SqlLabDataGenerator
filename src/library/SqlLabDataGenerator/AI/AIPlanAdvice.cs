@@ -17,6 +17,9 @@ namespace SqlLabDataGenerator
         /// <summary>Cross-table relationship rules.</summary>
         public Hashtable[] CrossTableRules { get; set; }
 
+        /// <summary>Per-table generation notes produced by schema analysis (key = FullName, value = notes string).</summary>
+        public Hashtable TableGenerationNotes { get; set; }
+
         /// <summary>The AI provider that generated this advice.</summary>
         public string Source { get; set; }
 

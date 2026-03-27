@@ -64,6 +64,7 @@
 		}
 	}
 
-	Write-PSFMessage -Level Verbose -String 'Generation.DependencyLevels' -StringValues $groups.Count, $groups[0].Tables.Count
+	$firstGroupCount = if ($groups.Count -gt 0) { $groups[0].Tables.Count } else { 0 }
+	Write-PSFMessage -Level Verbose -String 'Generation.DependencyLevels' -StringValues $groups.Count, $firstGroupCount
 	$groups.ToArray()
 }

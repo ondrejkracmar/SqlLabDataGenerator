@@ -8,6 +8,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) with [Se
 
 ## [Unreleased]
 
+### Added — Two-Tier AI Architecture (Schema Analysis)
+- **`schema-analysis` AI purpose** — new per-purpose model override for deep schema analysis using a powerful cloud model.
+- **`Get-SldgAISchemaAnalysis`** (internal) — queries sample data from each table (default 5 rows), sends full schema with samples to a smart AI model, and receives per-table generation notes.
+- **`schema-analysis.default.prompt`** — new prompt template that instructs the AI to analyze table purposes, relationship context, column-level guidance, cross-column consistency rules, value diversity hints, locale awareness, and cardinality recommendations.
+- **`AIPlanAdvice.TableGenerationNotes`** — new C# property (`Hashtable`) on `AIPlanAdvice` that stores per-table notes from schema analysis.
+- **Two-tier pipeline integration** — `New-SldgGenerationPlan -UseAI` now automatically calls schema analysis (using the `schema-analysis` purpose provider) before plan advice; notes are stored in the plan and threaded through `Invoke-SldgDataGeneration` → `New-SldgRowSet` → `New-SldgAIGeneratedBatch` into the batch-generation system prompt.
+- **batch-generation prompt updated** — added rule: "If TABLE GENERATION NOTES are provided below, follow them carefully — they contain expert analysis of the schema and relationships."
+- **Per-purpose override for schema-analysis** — use `Set-SldgAIProvider -Purpose 'schema-analysis'` to assign a powerful cloud model (e.g., GPT-4o, o4-mini) for schema analysis while keeping a fast local model (Ollama) for batch data generation.
+- 6 new string resources: `AI.SchemaAnalysisRequesting`, `AI.SchemaAnalysisReceived`, `AI.SchemaAnalysisSkipped`, `AI.SchemaAnalysisNoResponse`, `AI.SchemaAnalysisFailed`, `AI.SchemaAnalysisApplying`.
+
+### Added — FK Resolution & Unique Constraint Fixes
+- **Post-insert identity PK collection** — after inserting rows into identity-column tables, the engine now queries back the actual PK values so child tables get valid FK references.
+- **Safety net for non-nullable FK columns** — if no parent values are available, the engine writes a clear warning instead of silently inserting NULLs.
+- **Existing unique values pre-seeding** — before generating data, existing unique column values are queried from the database and pre-loaded into the unique tracker to prevent constraint violations.
+- **FK null value handling** — NULL values in parent PK columns are now filtered out before FK assignment.
+
 ### Added — Context-Dependent Structured Data Generation
 - **`-AIGenerationHint`** parameter on `Set-SldgGenerationRule` — free-text instructions for AI-powered JSON/XML generation.
 - **`-CrossColumnDependency`** parameter on `Set-SldgGenerationRule` — links a structured column to another column whose value drives structure variation (e.g., JSON structure varies by report type).

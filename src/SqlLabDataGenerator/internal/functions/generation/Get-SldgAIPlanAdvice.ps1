@@ -59,7 +59,9 @@
 	}
 
 	if ($IndustryHint) {
-		$systemPrompt += "`n`nIndustry: $IndustryHint. Use domain knowledge for realistic ratios and business patterns."
+		$sanitizedHint = ($IndustryHint -replace '[^\p{L}\p{N}\s\.\-,;:()\[\]]', '')
+		if ($sanitizedHint.Length -gt 200) { $sanitizedHint = $sanitizedHint.Substring(0, 200) }
+		$systemPrompt += "`n`nIndustry: $sanitizedHint. Use domain knowledge for realistic ratios and business patterns."
 	}
 
 	$userMessage = "Analyze this schema and suggest generation parameters:`n`n$schemaText"
@@ -77,7 +79,7 @@
 	if ($jsonText -match '```(?:json)?\s*\n?([\s\S]*?)\n?```') {
 		$jsonText = $Matches[1]
 	}
-	elseif ($jsonText -match '(\{[\s\S]*\})') {
+	elseif ($jsonText -match '(\{[\s\S]*?\})') {
 		$jsonText = $Matches[1]
 	}
 

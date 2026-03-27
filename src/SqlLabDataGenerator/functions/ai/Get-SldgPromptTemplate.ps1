@@ -29,11 +29,10 @@
 
 		Shows the resolved column-analysis template with its content.
 	#>
+	[OutputType([SqlLabDataGenerator.PromptTemplate])]
 	[CmdletBinding()]
 	param (
 		[string]$Purpose,
-
-		[string]$Variant,
 
 		[switch]$IncludeContent
 	)

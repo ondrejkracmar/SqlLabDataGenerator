@@ -47,7 +47,7 @@ Describe "AI Provider Mock Tests" {
 
 		It "AI locale cache is initially empty or populated" {
 			$cacheType = & $module { $script:SldgState.AILocaleCache.GetType().Name }
-			$cacheType | Should -Be 'Hashtable' -Because 'cache should be a hashtable'
+			$cacheType | Should -BeIn @('Hashtable', 'ConcurrentDictionary`2') -Because 'cache should be a dictionary type'
 		}
 	}
 

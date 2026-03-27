@@ -24,6 +24,10 @@
 
 		[string]$IndustryHint,
 
+		[hashtable]$ExistingUniqueValues,
+
+		[string]$TableNotes,
+
 		[switch]$Force
 	)
 
@@ -46,17 +50,21 @@
 		$semanticType = if ($col.SemanticType) { $col.SemanticType } else { $col.DataType }
 		"$($col.ColumnName):$semanticType"
 	}
-	$cacheKey = "$TableName|$($colSignatures -join '|')|$Locale"
+	# Normalize locale order for consistent cache keys ("en-US,cs-CZ" == "cs-CZ,en-US")
+	$canonicalLocale = ($localeList | Sort-Object) -join ','
+	$cacheKey = "$TableName|$($colSignatures -join '|')|$canonicalLocale"
 
-	if (-not $Force -and $script:SldgState.AIValueCache.ContainsKey($cacheKey)) {
-		if (-not (Test-SldgCacheExpired -CacheName 'AIValueCache' -Key $cacheKey)) {
-			$cached = $script:SldgState.AIValueCache[$cacheKey]
-			if ($cached.Count -ge $BatchSize) {
-				return $cached
+	if (-not $Force) {
+		$cached = $null
+		if ($script:SldgState.AIValueCache.TryGetValue($cacheKey, [ref]$cached)) {
+			if (-not (Test-SldgCacheExpired -CacheName 'AIValueCache' -Key $cacheKey)) {
+				if ($cached.Count -ge $BatchSize) {
+					return $cached
+				}
+			} else {
+				[void]$script:SldgState.AIValueCache.TryRemove($cacheKey, [ref]$null)
+				[void]$script:SldgState.CacheTimestamps.TryRemove("AIValueCache|$cacheKey", [ref]$null)
 			}
-		} else {
-			$script:SldgState.AIValueCache.Remove($cacheKey)
-			$script:SldgState.CacheTimestamps.Remove("AIValueCache|$cacheKey")
 		}
 	}
 
@@ -118,10 +126,37 @@
 			Write-PSFMessage -Level Warning -String 'Prompt.ResolveFailed' -StringValues 'batch-generation'
 			break
 		}
+
+		# Inject per-table generation notes from schema analysis (two-tier AI)
+		# Sanitize first to prevent prompt injection, then escape braces to avoid format-string injection
+		if ($TableNotes) {
+			$escapedNotes = $TableNotes -replace '[^\p{L}\p{N}\s\.\-,;:()\[\]_/''\"=<>+#&]', ''
+			$escapedNotes = $escapedNotes -replace '\{', '{{' -replace '\}', '}}'
+			if ($escapedNotes.Length -gt 2000) { $escapedNotes = $escapedNotes.Substring(0, 2000) }
+			$chunkSystemPrompt += "`n`nTABLE GENERATION NOTES (from schema analysis — follow these instructions carefully):`n$escapedNotes"
+		}
+
 		if ($IndustryHint) {
-			$sanitizedHint = ($IndustryHint -replace '[\x00-\x1F\x7F]', ' ')
+			$sanitizedHint = ($IndustryHint -replace '[^\p{L}\p{N}\s\.\-,;:()\[\]]', '')
 			if ($sanitizedHint.Length -gt 200) { $sanitizedHint = $sanitizedHint.Substring(0, 200) }
 			$chunkSystemPrompt += "`n`n" + ($script:strings.'AI.IndustryContext' -f $sanitizedHint)
+		}
+
+		# Add existing UNIQUE values that must be avoided (prevent duplicate key violations)
+		if ($ExistingUniqueValues -and $ExistingUniqueValues.Count -gt 0) {
+			$exclusionLines = foreach ($col in $Columns) {
+				if ($ExistingUniqueValues.ContainsKey($col.ColumnName) -and ($col.IsUnique -or $col.IsPrimaryKey)) {
+					$existingVals = $ExistingUniqueValues[$col.ColumnName]
+					# Limit to first 50 values to avoid token overflow; sanitize to prevent prompt injection
+					$sample = @($existingVals | Select-Object -First 50 | ForEach-Object { "$_" -replace '[^\p{L}\p{N}\s\.\-_,]', '' } | Where-Object { $_.Length -gt 0 })
+					if ($sample.Count -gt 0) {
+						"  - $($col.ColumnName): DO NOT use these existing values: $($sample -join ', ')"
+					}
+				}
+			}
+			if ($exclusionLines) {
+				$chunkSystemPrompt += "`n`nEXISTING VALUES (must be avoided for UNIQUE columns — generate DIFFERENT values):`n$($exclusionLines -join "`n")"
+			}
 		}
 
 		$userMessage = $script:strings.'AI.BatchUserMessage' -f $chunkSize, $TableName, $localeDisplay
@@ -166,6 +201,12 @@
 
 			foreach ($row in $parsed) {
 				$rowHash = @{}
+				# Validate AI returned all expected columns
+				$rowProps = @($row.psobject.Properties.Name)
+				$missingCols = @($colNames | Where-Object { $_ -notin $rowProps })
+				if ($missingCols.Count -gt 0) {
+					Write-PSFMessage -Level Warning -Message "AI response for '$TableName' missing columns: $($missingCols -join ', '). Using NULL for missing values."
+				}
 				foreach ($colName in $colNames) {
 					$val = $row.$colName
 					$rowHash[$colName] = if ($null -eq $val -or ($val -is [string] -and $val -eq 'null')) { [DBNull]::Value } else { $val }
@@ -174,8 +215,11 @@
 			}
 
 			$remaining -= $parsed.Count
-			# If AI returned fewer rows than requested, it hit its output limit — stop looping
-			if ($parsed.Count -lt $chunkSize) { break }
+			# If AI returned fewer rows than requested, log a warning and stop looping
+			if ($parsed.Count -lt $chunkSize) {
+				Write-PSFMessage -Level Warning -Message "AI batch for '$TableName': received $($parsed.Count) of $chunkSize requested rows. AI may have hit output limit."
+				break
+			}
 		}
 		catch {
 			Write-PSFMessage -Level Warning -Message ($script:strings.'AI.BatchParseFailed' -f $TableName, $_)

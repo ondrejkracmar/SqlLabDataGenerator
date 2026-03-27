@@ -82,9 +82,15 @@
 		$body = $Matches[2]
 	}
 
-	# Substitute {{Variable}} placeholders
+	# Substitute {{Variable}} placeholders (use literal .Replace to avoid regex backreference injection via $0/$1/$&)
 	foreach ($key in $Variables.Keys) {
-		$body = $body -replace [regex]::Escape("{{$key}}"), ($Variables[$key])
+		$val = $Variables[$key]
+		$strVal = if ($val -is [hashtable] -or $val -is [System.Collections.IDictionary] -or $val -is [System.Array] -or $val -is [psobject] -and $val -isnot [string] -and $val -isnot [ValueType]) {
+			$val | ConvertTo-Json -Depth 5 -Compress
+		} else {
+			[string]$val
+		}
+		$body = $body.Replace("{{$key}}", $strVal)
 	}
 
 	$body.TrimEnd()

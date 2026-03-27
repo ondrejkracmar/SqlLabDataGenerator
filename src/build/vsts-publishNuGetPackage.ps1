@@ -53,9 +53,25 @@ if (-not $NupkgPath -or -not (Test-Path $NupkgPath)) {
 $feedUrl = "https://pkgs.dev.azure.com/$OrganizationName/$ArtifactRepositoryName/_packaging/$ArtifactFeedName/nuget/v3/index.json"
 
 # Add authenticated source for the push
+# Use NuGetAuthenticate@1 task token when available (pipeline), fall back to PAT for local use
 $sourceName = "AzArtifactsPush"
 $null = dotnet nuget remove source $sourceName 2>&1
-dotnet nuget add source $feedUrl --name $sourceName --username $FeedUsername --password $PersonalAccessToken --store-password-in-clear-text
+if ($env:VSS_NUGET_EXTERNAL_FEED_ENDPOINTS) {
+	# Pipeline context: NuGetAuthenticate@1 has already configured credentials
+	dotnet nuget add source $feedUrl --name $sourceName
+}
+else {
+	# Local/manual context: use PAT with environment variable when available,
+	# falling back to --store-password-in-clear-text (required by dotnet nuget on non-Windows or without credential provider)
+	if ($env:NUGET_PAT) {
+		dotnet nuget add source $feedUrl --name $sourceName --username $FeedUsername --password $env:NUGET_PAT --store-password-in-clear-text
+		Write-Host "Using NUGET_PAT environment variable for authentication."
+	}
+	else {
+		Write-Host "WARNING: Storing PAT in clear text. Set NUGET_PAT environment variable to avoid passing credentials on the command line."
+		dotnet nuget add source $feedUrl --name $sourceName --username $FeedUsername --password $PersonalAccessToken --store-password-in-clear-text
+	}
+}
 
 Write-Host "Publishing $NupkgPath to $ArtifactRepositoryName ($feedUrl)"
 

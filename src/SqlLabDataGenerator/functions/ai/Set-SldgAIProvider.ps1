@@ -54,8 +54,14 @@
 
 	.PARAMETER Purpose
 		Set a per-purpose AI model override instead of the global default. Valid purposes:
-		column-analysis, batch-generation, plan-advice, structured-value, locale-data, locale-category.
+		column-analysis, batch-generation, plan-advice, schema-analysis, structured-value,
+		locale-data, locale-category.
 		When AI runs for that purpose, the override is used instead of the global config.
+
+		Two-tier AI setup example: use a smart cloud model for schema-analysis and a fast
+		local model for batch-generation:
+		  Set-SldgAIProvider -Provider OpenAI -Model 'o3' -ApiKey $key
+		  Set-SldgAIProvider -Provider Ollama -Model 'llama3' -Purpose batch-generation
 
 	.EXAMPLE
 		PS C:\> Set-SldgAIProvider -Provider Ollama -Model 'llama3'
@@ -94,6 +100,7 @@
 
 		Global: GPT-4o for classification and planning. Override: Ollama for batch data generation.
 	#>
+	[OutputType([SqlLabDataGenerator.AIProviderInfo])]
 	[CmdletBinding()]
 	param (
 		[Parameter(Mandatory)]
@@ -120,7 +127,7 @@
 
 		[string]$Locale,
 
-		[ValidateSet('column-analysis', 'batch-generation', 'plan-advice', 'structured-value', 'locale-data', 'locale-category')]
+		[ValidateSet('column-analysis', 'batch-generation', 'plan-advice', 'schema-analysis', 'structured-value', 'locale-data', 'locale-category')]
 		[string]$Purpose
 	)
 
@@ -131,7 +138,23 @@
 		if ($Model) { $override['Model'] = $Model }
 		elseif ($Provider -eq 'Ollama') { $override['Model'] = 'llama3' }
 
-		if ($Endpoint) { $override['Endpoint'] = $Endpoint }
+		if ($Endpoint) {
+			# Enforce HTTPS for cloud providers (same validation as global path)
+			if ($Provider -in @('OpenAI', 'AzureOpenAI')) {
+				try {
+					$parsedUri = [System.Uri]::new($Endpoint)
+					if ($parsedUri.UserInfo) {
+						Stop-PSFFunction -Message "Endpoint URI must not contain embedded credentials. Use -ApiKey or -Credential instead." -EnableException $true
+					}
+					if ($parsedUri.Scheme -ne 'https') {
+						Stop-PSFFunction -Message "Endpoint for $Provider must use HTTPS. Got: $($parsedUri.Scheme)://$($parsedUri.Host)" -EnableException $true
+					}
+				} catch [System.UriFormatException] {
+					Stop-PSFFunction -Message "Invalid endpoint URI for ${Provider}." -EnableException $true
+				}
+			}
+			$override['Endpoint'] = $Endpoint
+		}
 		elseif ($Provider -eq 'Ollama') { $override['Endpoint'] = 'http://localhost:11434' }
 
 		if ($Credential) {
@@ -169,6 +192,20 @@
 
 	# Endpoint
 	if ($Endpoint) {
+		# Enforce HTTPS for cloud providers to protect API keys in transit
+		if ($Provider -in @('OpenAI', 'AzureOpenAI')) {
+			try {
+				$parsedUri = [System.Uri]::new($Endpoint)
+				if ($parsedUri.UserInfo) {
+					Stop-PSFFunction -Message "Endpoint URI must not contain embedded credentials. Use -ApiKey or -Credential instead." -EnableException $true
+				}
+				if ($parsedUri.Scheme -ne 'https') {
+					Stop-PSFFunction -Message "Endpoint for $Provider must use HTTPS. Got: $($parsedUri.Scheme)://$($parsedUri.Host)" -EnableException $true
+				}
+			} catch [System.UriFormatException] {
+				Stop-PSFFunction -Message "Invalid endpoint URI for ${Provider}." -EnableException $true
+			}
+		}
 		Set-PSFConfig -FullName 'SqlLabDataGenerator.AI.Endpoint' -Value $Endpoint
 	}
 	elseif ($Provider -eq 'Ollama') {
@@ -219,9 +256,10 @@
 	}
 
 	# Clear caches when provider changes
-	$script:SldgState.AIValueCache = @{}
-	$script:SldgState.AILocaleCache = @{}
-	$script:SldgState.AILocaleCategoryCache = @{}
+	$script:SldgState.AIValueCache = [System.Collections.Concurrent.ConcurrentDictionary[string,object]]::new()
+	$script:SldgState.AILocaleCache = [System.Collections.Concurrent.ConcurrentDictionary[string,object]]::new()
+	$script:SldgState.AILocaleCategoryCache = [System.Collections.Concurrent.ConcurrentDictionary[string,object]]::new()
+	$script:SldgState.CacheTimestamps = [System.Collections.Concurrent.ConcurrentDictionary[string,datetime]]::new()
 
 	# Display summary
 	$config = Get-SldgAIProvider

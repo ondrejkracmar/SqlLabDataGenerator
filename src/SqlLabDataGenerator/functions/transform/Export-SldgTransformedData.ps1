@@ -44,6 +44,8 @@
 
 		Creates Microsoft 365 group objects from department data.
 	#>
+	[OutputType([SqlLabDataGenerator.EntraIdUser])]
+	[OutputType([SqlLabDataGenerator.EntraIdGroup])]
 	[CmdletBinding()]
 	param (
 		[Parameter(Mandatory)]

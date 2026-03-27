@@ -26,6 +26,7 @@
 
 		Shows only failed validations.
 	#>
+	[OutputType([SqlLabDataGenerator.ValidationResult])]
 	[CmdletBinding()]
 	param (
 		[Parameter(Mandatory)]

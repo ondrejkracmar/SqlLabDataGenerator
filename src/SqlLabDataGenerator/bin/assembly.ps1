@@ -19,6 +19,17 @@ catch {
     throw
 }
 
+# Load Microsoft.Data.SqlClient assembly for SQL Server provider
+try {
+    $sqlClientPath = "$script:ModuleRoot\bin\Microsoft.Data.SqlClient.dll"
+    if (Test-Path $sqlClientPath) {
+        Add-Type -Path $sqlClientPath -ErrorAction Stop
+    }
+}
+catch {
+    Write-Warning "Failed to load Microsoft.Data.SqlClient assembly! SQL Server provider will not be available."
+}
+
 # Load SQLite assemblies from the module bin directory
 # Dependencies must be loaded in order: core → provider → batteries → main
 try {
@@ -32,6 +43,9 @@ try {
         $dllPath = "$script:ModuleRoot\bin\$dll"
         if (Test-Path $dllPath) {
             Add-Type -Path $dllPath -ErrorAction Stop
+        }
+        else {
+            Write-Warning "SQLite dependency '$dll' not found at '$dllPath'. SQLite provider may not work correctly."
         }
     }
     # Initialize the native SQLite provider

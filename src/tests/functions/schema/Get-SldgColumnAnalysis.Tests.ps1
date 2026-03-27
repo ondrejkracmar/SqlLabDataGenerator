@@ -90,10 +90,12 @@ Describe "Get-SldgColumnAnalysis" {
 			}
 		}
 
-		It "Returns the schema object" {
+		It "Returns the enriched schema object" {
 			$result = Get-SldgColumnAnalysis -Schema $script:schema
 			$result | Should -Not -BeNullOrEmpty
 			$result.Database | Should -Be 'TestDB'
+			$result.ColumnClassifications | Should -Not -BeNullOrEmpty
+			$result.ColumnClassifications.Count | Should -Be 4
 		}
 
 		It "Classifies Email column" {

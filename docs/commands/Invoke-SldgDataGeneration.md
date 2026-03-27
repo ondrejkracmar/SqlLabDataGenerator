@@ -200,6 +200,13 @@ automatically reorders column generation within each row so that dependency colu
 first. The dependency column's value is then passed to AI as context for generating the dependent
 column (e.g., a JSON column that varies its structure based on a report type column).
 
+When the plan contains per-table generation notes from schema analysis
+(`$plan.AIAdvice.TableGenerationNotes` — populated by `New-SldgGenerationPlan -UseAI` when a
+`schema-analysis` purpose provider is configured), the notes are automatically injected into the
+batch-generation AI system prompt for each table. This guides the data generation model with
+expert-level analysis of table purposes, relationships, and realistic value patterns — enabling
+higher-quality data especially when using a fast local model (Ollama) for generation.
+
 ## RELATED LINKS
 
 - [New-SldgGenerationPlan](New-SldgGenerationPlan.md)

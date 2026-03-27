@@ -55,6 +55,13 @@
 
 	Write-PSFMessage -Level Host -Message ($script:strings.'Profile.Importing' -f $Path)
 
+	# Guard against excessively large profile files (default 10 MB limit)
+	$maxProfileSizeMB = 10
+	$fileSize = (Get-Item -Path $Path).Length
+	if ($fileSize -gt ($maxProfileSizeMB * 1MB)) {
+		Stop-PSFFunction -Message "Profile file '$Path' is $([math]::Round($fileSize / 1MB, 1)) MB, exceeding the $maxProfileSizeMB MB limit." -EnableException $true
+	}
+
 	$profileData = Get-Content -Path $Path -Raw | ConvertFrom-Json
 
 	# Build known generator whitelist from the generator map
@@ -72,7 +79,12 @@
 			if ($tableProfile.rowCount) {
 				$tablePlan = $Plan.Tables | Where-Object { $_.FullName -eq $tableName } | Select-Object -First 1
 				if ($tablePlan) {
-					$tablePlan.RowCount = [int]$tableProfile.rowCount
+					try {
+						$tablePlan.RowCount = [int]$tableProfile.rowCount
+					}
+					catch {
+						Write-PSFMessage -Level Warning -Message "Profile: Invalid rowCount '$($tableProfile.rowCount)' for table '$tableName' — skipping override."
+					}
 				}
 			}
 
@@ -93,6 +105,16 @@
 					if ($colProfile.generator -and $colProfile.generator -notin $knownGenerators) {
 						Write-PSFMessage -Level Warning -String 'Profile.UnknownGenerator' -StringValues $Path, $colName, $tableName, $colProfile.generator, ($knownGenerators -join ', ')
 						continue
+					}
+
+					# Validate column exists in the plan to avoid silently applying rules to non-existent columns
+					$targetTable = $Plan.Tables | Where-Object { $_.FullName -eq $tableName } | Select-Object -First 1
+					if ($targetTable) {
+						$colExists = $targetTable.Columns | Where-Object { $_.Name -eq $colName }
+						if (-not $colExists) {
+							Write-PSFMessage -Level Warning -String 'Profile.ColumnNotFound' -StringValues $colName, $tableName, $Path
+							continue
+						}
 					}
 
 					$ruleParams = @{

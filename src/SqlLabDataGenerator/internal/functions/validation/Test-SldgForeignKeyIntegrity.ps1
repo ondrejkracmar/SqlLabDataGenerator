@@ -36,7 +36,7 @@ WHERE child.$parentCol IS NOT NULL
 			$conn = $ConnectionInfo.DbConnection
 			$cmd = $conn.CreateCommand()
 			$cmd.CommandText = $query
-			$cmd.CommandTimeout = 120
+			$cmd.CommandTimeout = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.Database.SchemaTimeout'
 			try {
 				$orphanCount = $cmd.ExecuteScalar()
 			}

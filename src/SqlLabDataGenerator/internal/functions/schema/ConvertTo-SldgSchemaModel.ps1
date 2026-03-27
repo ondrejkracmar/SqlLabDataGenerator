@@ -73,44 +73,54 @@
 			$viewHintIndex[$tableKey].Add($viewDef)
 
 			# Detect JSON parsing functions: JSON_VALUE(x.col, ...), OPENJSON(x.col), JSON_QUERY(x.col, ...), ISJSON(x.col)
-			$jsonMatches = [regex]::Matches($viewDef, '(?:JSON_VALUE|JSON_QUERY|OPENJSON|ISJSON)\s*\(\s*(?:\w+\.)?\[?(\w+)\]?', 'IgnoreCase')
-			foreach ($m in $jsonMatches) {
-				$detectedCol = $m.Groups[1].Value
-				$hintKey = "$tableKey.$detectedCol"
-				if (-not $viewColumnHints.ContainsKey($hintKey)) {
-					$viewColumnHints[$hintKey] = @{ ViewDefinitions = [System.Collections.Generic.List[string]]::new(); DetectedFormat = 'Json' }
+			# Use regex timeout to prevent ReDoS on pathological view definitions
+			$regexTimeout = [timespan]::FromSeconds(2)
+			try {
+				$jsonRegex = [regex]::new('(?:JSON_VALUE|JSON_QUERY|OPENJSON|ISJSON)\s*\(\s*(?:\w+\.)?\[?(\w+)\]?', 'IgnoreCase', $regexTimeout)
+				$jsonMatches = $jsonRegex.Matches($viewDef)
+				foreach ($m in $jsonMatches) {
+					$detectedCol = $m.Groups[1].Value
+					$hintKey = "$tableKey.$detectedCol"
+					if (-not $viewColumnHints.ContainsKey($hintKey)) {
+						$viewColumnHints[$hintKey] = @{ ViewDefinitions = [System.Collections.Generic.List[string]]::new(); DetectedFormat = 'Json' }
+					}
+					if ($viewColumnHints[$hintKey].DetectedFormat -ne 'Json') { $viewColumnHints[$hintKey].DetectedFormat = 'Json' }
+					if (-not $viewColumnHints[$hintKey].ViewDefinitions.Contains($viewDef)) {
+						$viewColumnHints[$hintKey].ViewDefinitions.Add($viewDef)
+					}
 				}
-				if ($viewColumnHints[$hintKey].DetectedFormat -ne 'Json') { $viewColumnHints[$hintKey].DetectedFormat = 'Json' }
-				if (-not $viewColumnHints[$hintKey].ViewDefinitions.Contains($viewDef)) {
-					$viewColumnHints[$hintKey].ViewDefinitions.Add($viewDef)
+
+				# Detect XML parsing: col.value(...), col.query(...), col.nodes(...), col.exist(...)
+				$xmlRegex = [regex]::new('(?:\w+\.)?\[?(\w+)\]?\s*\.\s*(?:value|query|nodes|exist|modify)\s*\(', 'IgnoreCase', $regexTimeout)
+				$xmlMatches = $xmlRegex.Matches($viewDef)
+				foreach ($m in $xmlMatches) {
+					$detectedCol = $m.Groups[1].Value
+					$hintKey = "$tableKey.$detectedCol"
+					if (-not $viewColumnHints.ContainsKey($hintKey)) {
+						$viewColumnHints[$hintKey] = @{ ViewDefinitions = [System.Collections.Generic.List[string]]::new(); DetectedFormat = 'Xml' }
+					}
+					if ($viewColumnHints[$hintKey].DetectedFormat -ne 'Xml') { $viewColumnHints[$hintKey].DetectedFormat = 'Xml' }
+					if (-not $viewColumnHints[$hintKey].ViewDefinitions.Contains($viewDef)) {
+						$viewColumnHints[$hintKey].ViewDefinitions.Add($viewDef)
+					}
+				}
+
+				# Detect CAST/CONVERT to xml: CAST(col AS xml), CONVERT(xml, col)
+				$castXmlRegex = [regex]::new('CAST\s*\(\s*(?:\w+\.)?\[?(\w+)\]?\s+AS\s+xml\s*\)', 'IgnoreCase', $regexTimeout)
+				$castXmlMatches = $castXmlRegex.Matches($viewDef)
+				foreach ($m in $castXmlMatches) {
+					$detectedCol = $m.Groups[1].Value
+					$hintKey = "$tableKey.$detectedCol"
+					if (-not $viewColumnHints.ContainsKey($hintKey)) {
+						$viewColumnHints[$hintKey] = @{ ViewDefinitions = [System.Collections.Generic.List[string]]::new(); DetectedFormat = 'Xml' }
+					}
+					if (-not $viewColumnHints[$hintKey].ViewDefinitions.Contains($viewDef)) {
+						$viewColumnHints[$hintKey].ViewDefinitions.Add($viewDef)
+					}
 				}
 			}
-
-			# Detect XML parsing: col.value(...), col.query(...), col.nodes(...), col.exist(...)
-			$xmlMatches = [regex]::Matches($viewDef, '(?:\w+\.)?\[?(\w+)\]?\s*\.\s*(?:value|query|nodes|exist|modify)\s*\(', 'IgnoreCase')
-			foreach ($m in $xmlMatches) {
-				$detectedCol = $m.Groups[1].Value
-				$hintKey = "$tableKey.$detectedCol"
-				if (-not $viewColumnHints.ContainsKey($hintKey)) {
-					$viewColumnHints[$hintKey] = @{ ViewDefinitions = [System.Collections.Generic.List[string]]::new(); DetectedFormat = 'Xml' }
-				}
-				if ($viewColumnHints[$hintKey].DetectedFormat -ne 'Xml') { $viewColumnHints[$hintKey].DetectedFormat = 'Xml' }
-				if (-not $viewColumnHints[$hintKey].ViewDefinitions.Contains($viewDef)) {
-					$viewColumnHints[$hintKey].ViewDefinitions.Add($viewDef)
-				}
-			}
-
-			# Detect CAST/CONVERT to xml: CAST(col AS xml), CONVERT(xml, col)
-			$castXmlMatches = [regex]::Matches($viewDef, 'CAST\s*\(\s*(?:\w+\.)?\[?(\w+)\]?\s+AS\s+xml\s*\)', 'IgnoreCase')
-			foreach ($m in $castXmlMatches) {
-				$detectedCol = $m.Groups[1].Value
-				$hintKey = "$tableKey.$detectedCol"
-				if (-not $viewColumnHints.ContainsKey($hintKey)) {
-					$viewColumnHints[$hintKey] = @{ ViewDefinitions = [System.Collections.Generic.List[string]]::new(); DetectedFormat = 'Xml' }
-				}
-				if (-not $viewColumnHints[$hintKey].ViewDefinitions.Contains($viewDef)) {
-					$viewColumnHints[$hintKey].ViewDefinitions.Add($viewDef)
-				}
+			catch [System.Text.RegularExpressions.RegexMatchTimeoutException] {
+				Write-PSFMessage -Level Warning -Message "Regex timeout while parsing view definition for table '$tableKey'. View hints skipped for this view."
 			}
 		}
 	}

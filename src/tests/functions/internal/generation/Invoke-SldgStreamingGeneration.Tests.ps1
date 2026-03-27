@@ -130,7 +130,7 @@ Describe "Invoke-SldgStreamingGeneration" {
 	}
 
 	Context "PassThru Mode" {
-		It "Returns DataTables when PassThru is specified" {
+		It "Returns merged DataTable when PassThru is specified" {
 			$tableInfo = & $script:buildTableInfo
 			$genMap = & $module { Get-SldgGeneratorMap -Locale 'en-US' }
 
@@ -140,8 +140,8 @@ Describe "Invoke-SldgStreamingGeneration" {
 					-GeneratorMap $gm -NoInsert -PassThru
 			} $tableInfo $genMap
 
-			$result.DataTables | Should -Not -BeNullOrEmpty
-			$result.DataTables.Count | Should -Be 2
+			$result.DataTable | Should -Not -BeNullOrEmpty
+			$result.DataTable.Rows.Count | Should -Be 15
 		}
 	}
 
@@ -179,12 +179,10 @@ Describe "Invoke-SldgStreamingGeneration" {
 					-GeneratorMap $gm -NoInsert -PassThru
 			} $tableInfo $genMap
 
-			# All generated codes across all chunks should be unique
+			# All generated codes across all chunks should be unique (merged into single DataTable)
 			$allCodes = @()
-			foreach ($dt in $result.DataTables) {
-				foreach ($row in $dt.Rows) {
-					$allCodes += $row['Code']
-				}
+			foreach ($row in $result.DataTable.Rows) {
+				$allCodes += $row['Code']
 			}
 			$allCodes.Count | Should -Be 20
 			($allCodes | Select-Object -Unique).Count | Should -Be 20

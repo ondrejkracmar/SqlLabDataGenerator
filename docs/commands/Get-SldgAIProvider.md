@@ -91,6 +91,7 @@ AcceptedValues:
 - column-analysis
 - batch-generation
 - plan-advice
+- schema-analysis
 - structured-value
 - locale-data
 - locale-category

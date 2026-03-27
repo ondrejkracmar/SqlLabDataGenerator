@@ -143,13 +143,17 @@
 				Simple        = '{Area}{Exchange}{Subscriber}'
 			}
 		}
+		$phoneExchangeMin = 100; try { if ($pf.ExchangeMin) { $phoneExchangeMin = [int]$pf.ExchangeMin } } catch { Write-PSFMessage -Level Debug -Message "Non-numeric ExchangeMin '$($pf.ExchangeMin)', using default" }
+		$phoneExchangeMax = 999; try { if ($pf.ExchangeMax) { $phoneExchangeMax = [int]$pf.ExchangeMax } } catch { Write-PSFMessage -Level Debug -Message "Non-numeric ExchangeMax '$($pf.ExchangeMax)', using default" }
+		$phoneSubscriberMin = 1000; try { if ($pf.SubscriberMin) { $phoneSubscriberMin = [int]$pf.SubscriberMin } } catch { Write-PSFMessage -Level Debug -Message "Non-numeric SubscriberMin '$($pf.SubscriberMin)', using default" }
+		$phoneSubscriberMax = 9999; try { if ($pf.SubscriberMax) { $phoneSubscriberMax = [int]$pf.SubscriberMax } } catch { Write-PSFMessage -Level Debug -Message "Non-numeric SubscriberMax '$($pf.SubscriberMax)', using default" }
 		$localeData['PhoneFormat'] = @{
 			AreaCodes     = @(if ($pf.AreaCodes) { $pf.AreaCodes } else { @('000') })
 			Formats       = $formats
-			ExchangeMin   = if ($pf.ExchangeMin) { [int]$pf.ExchangeMin } else { 100 }
-			ExchangeMax   = if ($pf.ExchangeMax) { [int]$pf.ExchangeMax } else { 999 }
-			SubscriberMin = if ($pf.SubscriberMin) { [int]$pf.SubscriberMin } else { 1000 }
-			SubscriberMax = if ($pf.SubscriberMax) { [int]$pf.SubscriberMax } else { 9999 }
+			ExchangeMin   = $phoneExchangeMin
+			ExchangeMax   = $phoneExchangeMax
+			SubscriberMin = $phoneSubscriberMin
+			SubscriberMax = $phoneSubscriberMax
 		}
 	}
 	else {

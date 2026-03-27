@@ -145,6 +145,7 @@
 	# Profile Import
 	'Profile.ScriptBlockSkipped'             = "Profile '{0}': column '{1}' in table '{2}' contains a 'scriptBlock' key — skipped for security."
 	'Profile.UnknownGenerator'               = "Profile '{0}': column '{1}' in table '{2}' specifies unknown generator '{3}' — skipped. Known generators: {4}"
+	'Profile.ColumnNotFound'                 = "Profile '{2}': column '{0}' not found in table '{1}' — skipped."
 	'Profile.Exported'                       = 'Profile exported to: {0}'
 	'Profile.ExportPathInvalid'              = 'Invalid export path (contains relative segments): {0}'
 
@@ -172,6 +173,12 @@
 	'AI.TLSSkipActive'                       = 'TLS certificate validation is disabled for Ollama (SLDG_ALLOW_SKIP_TLS is set). This should NEVER be used in production environments.'
 	'AI.PlanAdviceSkipped'                   = "AI plan advice skipped: AI provider is 'None'."
 	'AI.PlanAdviceNoResponse'                = 'AI plan advice returned no response.'
+	'AI.SchemaAnalysisSkipped'               = "AI schema analysis skipped: AI provider is 'None'."
+	'AI.SchemaAnalysisNoResponse'            = 'AI schema analysis returned no response.'
+	'AI.SchemaAnalysisRequesting'            = 'Requesting AI schema analysis with sample data for {0} tables'
+	'AI.SchemaAnalysisReceived'              = 'AI schema analysis received: {0} table generation notes'
+	'AI.SchemaAnalysisFailed'                = 'Failed to parse AI schema analysis: {0}'
+	'AI.SchemaAnalysisApplying'              = 'Applying schema analysis notes for {0} tables (two-tier AI)'
 	'AI.BatchSkipped'                        = "AI batch generation skipped for table '{0}': AI provider is 'None'."
 	'AI.BatchNoResponse'                     = "AI batch generation for table '{0}' returned no response."
 	'AI.BatchNotArray'                       = 'AI response is not an array'

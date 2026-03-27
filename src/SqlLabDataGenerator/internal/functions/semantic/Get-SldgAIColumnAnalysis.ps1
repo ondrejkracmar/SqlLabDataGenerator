@@ -108,14 +108,19 @@
 			if ($jsonContent -match '```(?:json)?\s*([\s\S]*?)\s*```') {
 				$jsonContent = $Matches[1]
 			}
-			elseif ($jsonContent -match '(\[[\s\S]*\])') {
+			elseif ($jsonContent -match '(\[[\s\S]*?\])') {
 				$jsonContent = $Matches[1]
 			}
 
 			# Fix invalid JSON escape sequences from AI-generated regex patterns (e.g., \d, \+, \w)
 			# Valid JSON escapes: \", \\, \/, \b, \f, \n, \r, \t, \uXXXX — everything else is illegal
 			# (?<!\\) lookbehind: skip the second \ in valid \\ pairs so we only fix bare invalid escapes
-			$jsonContent = [regex]::Replace($jsonContent, '(?<!\\)\\(?!["\\\//bfnrtu])', '\\')
+			# Only apply the regex fix if initial parse fails — avoids corrupting valid regex patterns in values
+			$parseError = $null
+			try { $null = $jsonContent | ConvertFrom-Json -ErrorAction Stop } catch { $parseError = $_ }
+			if ($parseError) {
+				$jsonContent = [regex]::Replace($jsonContent, '(?<!\\)\\(?!["\\\/bfnrtu])', '\\')
+			}
 
 			# Remove AI truncation artifacts: trailing "..." or ", ..." before closing bracket
 			$jsonContent = $jsonContent -replace ',?\s*\.{3,}\s*\]', ']'
@@ -128,7 +133,7 @@
 					TableName             = $item.TableName
 					SemanticType          = $item.SemanticType
 					IsPII                 = [bool]$item.IsPII
-					Confidence            = 0.95
+					Confidence            = if ($item.PSObject.Properties.Name -contains 'Confidence' -and $item.Confidence) { [Math]::Min([double]$item.Confidence, 1.0) } else { 0.95 }
 					Source                = 'AI'
 					MatchedRule           = $item.GenerationHint
 					ValueExamples         = @(if ($item.ValueExamples) { $item.ValueExamples } else { @() })

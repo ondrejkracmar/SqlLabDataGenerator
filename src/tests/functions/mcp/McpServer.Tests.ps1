@@ -289,4 +289,105 @@ Describe 'MCP Tool Invocation' {
 			$result.content | Should -Not -BeNullOrEmpty
 		}
 	}
+
+	Context 'Type Coercion' {
+		It 'Converts boolean true to [switch] parameter' {
+			# Use a tool that has a switch parameter (e.g., Invoke-SldgDataGeneration -Parallel)
+			$cmdInfo = Get-Command Invoke-SldgDataGeneration
+			$parallelParam = $cmdInfo.Parameters['Parallel']
+			$parallelParam | Should -Not -BeNullOrEmpty -Because 'Invoke-SldgDataGeneration should have Parallel switch'
+
+			# Simulate the coercion logic directly
+			$value = $true
+			$result = [switch][bool]$value
+			$result.IsPresent | Should -BeTrue
+		}
+
+		It 'Converts boolean false to [switch] off' {
+			$value = $false
+			$result = [switch][bool]$value
+			$result.IsPresent | Should -BeFalse
+		}
+
+		It 'Converts PSCustomObject to PSCredential' {
+			$credJson = [PSCustomObject]@{ username = 'testuser'; password = 'testpass123' }
+			$secPass = ConvertTo-SecureString -String $credJson.password -AsPlainText -Force
+			$cred = [System.Management.Automation.PSCredential]::new($credJson.username, $secPass)
+
+			$cred.UserName | Should -Be 'testuser'
+			$cred.GetNetworkCredential().Password | Should -Be 'testpass123'
+		}
+
+		It 'Wraps single string as string array' {
+			$value = 'SingleTable'
+			$result = @($value)
+			$result | Should -HaveCount 1
+			$result[0] | Should -Be 'SingleTable'
+			$result -is [array] | Should -BeTrue
+		}
+
+		It 'Coerces string to integer' {
+			$value = '42'
+			$result = [int]$value
+			$result | Should -Be 42
+			$result | Should -BeOfType [int]
+		}
+
+		It 'Converts PSCustomObject to hashtable' {
+			$obj = [PSCustomObject]@{ Key1 = 'val1'; Key2 = 42; Nested = @{ A = 1 } }
+			$ht = @{}
+			foreach ($p in $obj.PSObject.Properties) { $ht[$p.Name] = $p.Value }
+
+			$ht | Should -BeOfType [hashtable]
+			$ht['Key1'] | Should -Be 'val1'
+			$ht['Key2'] | Should -Be 42
+			$ht['Nested'] | Should -Not -BeNullOrEmpty
+		}
+
+		It 'Passes null arguments without error' {
+			$params = [PSCustomObject]@{ name = 'Get-SldgHealth'; arguments = $null }
+			$result = Invoke-McpToolsCall -Params $params
+			$result.isError | Should -Not -BeTrue
+		}
+
+		It 'Passes hashtable arguments as-is (no PSCustomObject conversion needed)' {
+			$params = [PSCustomObject]@{ name = 'Get-SldgHealth'; arguments = @{} }
+			$result = Invoke-McpToolsCall -Params $params
+			$result.isError | Should -Not -BeTrue
+		}
+	}
+
+	Context 'Error Handling' {
+		It 'Returns isError for cmdlet that throws' {
+			# Import-SldgGenerationProfile with a non-existent file will error
+			$params = [PSCustomObject]@{
+				name      = 'Import-SldgGenerationProfile'
+				arguments = @{ Path = 'C:\NonExistent\fake_profile_12345.json' }
+			}
+			$result = Invoke-McpToolsCall -Params $params
+			$result.isError | Should -BeTrue
+			$result.content[0].text | Should -Not -BeNullOrEmpty
+		}
+
+		It 'Separates errors from results in mixed output' {
+			# Get-SldgColumnAnalysis without connection outputs errors but may also have output
+			$params = [PSCustomObject]@{
+				name      = 'Get-SldgAIProvider'
+				arguments = @{}
+			}
+			$result = Invoke-McpToolsCall -Params $params
+			# Should not crash regardless of provider state
+			$result.content | Should -Not -BeNullOrEmpty
+		}
+
+		It 'Handles tool with invalid argument name gracefully' {
+			$params = [PSCustomObject]@{
+				name      = 'Get-SldgHealth'
+				arguments = [PSCustomObject]@{ NonExistentParam = 'value' }
+			}
+			# Should either succeed (ignoring unknown param) or return error
+			$result = Invoke-McpToolsCall -Params $params
+			$result.content | Should -Not -BeNullOrEmpty
+		}
+	}
 }

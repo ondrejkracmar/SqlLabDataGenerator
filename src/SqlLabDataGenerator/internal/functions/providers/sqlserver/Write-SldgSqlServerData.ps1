@@ -21,11 +21,12 @@
 
 		[switch]$IdentityInsert,
 
-		[System.Data.SqlClient.SqlTransaction]$Transaction
+		[Microsoft.Data.SqlClient.SqlTransaction]$Transaction
 	)
 
 	$conn = $ConnectionInfo.DbConnection
 	$qualifiedName = Get-SldgSafeSqlName -SchemaName $SchemaName -TableName $TableName
+	$bulkCopy = $null
 
 	try {
 		if ($IdentityInsert) {
@@ -35,23 +36,24 @@
 			try { [void]$cmd.ExecuteNonQuery() } finally { $cmd.Dispose() }
 		}
 
-		$bulkCopyOptions = [System.Data.SqlClient.SqlBulkCopyOptions]::Default
+		$bulkCopyOptions = [Microsoft.Data.SqlClient.SqlBulkCopyOptions]::Default
 		if ($Transaction) {
-			$bulkCopy = New-Object System.Data.SqlClient.SqlBulkCopy($conn, $bulkCopyOptions, $Transaction)
+			$bulkCopy = New-Object Microsoft.Data.SqlClient.SqlBulkCopy($conn, $bulkCopyOptions, $Transaction)
 		}
 		else {
-			$bulkCopy = New-Object System.Data.SqlClient.SqlBulkCopy($conn)
+			$bulkCopy = New-Object Microsoft.Data.SqlClient.SqlBulkCopy($conn)
 		}
 		$bulkCopy.DestinationTableName = $qualifiedName
 		$bulkCopy.BatchSize = $BatchSize
-		$bulkCopy.BulkCopyTimeout = 600
+		$bulkCopy.BulkCopyTimeout = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.Database.BulkCopyTimeout'
 
 		foreach ($col in $Data.Columns) {
 			[void]$bulkCopy.ColumnMappings.Add($col.ColumnName, $col.ColumnName)
 		}
 
 		$bulkCopy.WriteToServer($Data)
-		$bulkCopy.Close()
+		$bulkCopy.Dispose()
+		$bulkCopy = $null
 
 		if ($IdentityInsert) {
 			$cmd = $conn.CreateCommand()
@@ -66,7 +68,8 @@
 	catch {
 		# Ensure bulk copy resources are released on failure
 		if ($bulkCopy) {
-			try { $bulkCopy.Close() } catch { $null = $_ }
+			try { $bulkCopy.Dispose() } catch { Write-PSFMessage -Level Verbose -Message "BulkCopy dispose failed: $_" }
+			$bulkCopy = $null
 		}
 
 		# Row-by-row fallback: if BulkCopy failed (e.g. unique constraint), insert rows individually and skip failures
@@ -75,27 +78,32 @@
 		$skippedCount = 0
 		$safeColNames = ($Data.Columns | ForEach-Object { Get-SldgSafeSqlName -ColumnName $_.ColumnName })
 		$colList = $safeColNames -join ', '
-		$paramList = ($Data.Columns | ForEach-Object { "@p_$($_.ColumnName)" }) -join ', '
+		$colIndex = 0
+		$paramList = ($Data.Columns | ForEach-Object { "@p_$($colIndex)"; $colIndex++ }) -join ', '
 
 		foreach ($row in $Data.Rows) {
+			$cmd = $null
 			try {
 				$cmd = $conn.CreateCommand()
 				if ($Transaction) { $cmd.Transaction = $Transaction }
 				$cmd.CommandText = "INSERT INTO $qualifiedName ($colList) VALUES ($paramList)"
+				$ci = 0
 				foreach ($col in $Data.Columns) {
 					$val = $row[$col.ColumnName]
 					$p = $cmd.CreateParameter()
-					$p.ParameterName = "@p_$($col.ColumnName)"
+					$p.ParameterName = "@p_$ci"
 					$p.Value = if ($val -is [DBNull] -or $null -eq $val) { [DBNull]::Value } else { $val }
 					[void]$cmd.Parameters.Add($p)
+					$ci++
 				}
 				[void]$cmd.ExecuteNonQuery()
-				$cmd.Dispose()
 				$insertedCount++
 			}
 			catch {
 				$skippedCount++
-				try { $cmd.Dispose() } catch { $null = $_ }
+			}
+			finally {
+				if ($cmd) { try { $cmd.Dispose() } catch { } }
 			}
 		}
 
@@ -103,15 +111,17 @@
 			Write-PSFMessage -Level Warning -Message ($script:strings.'Generation.RowsSkipped' -f $skippedCount, $qualifiedName)
 		}
 
+		# Ensure IDENTITY_INSERT is turned off even after fallback
 		if ($IdentityInsert) {
+			$cmd = $null
 			try {
 				$cmd = $conn.CreateCommand()
 				if ($Transaction) { $cmd.Transaction = $Transaction }
 				$cmd.CommandText = "SET IDENTITY_INSERT $qualifiedName OFF"
 				[void]$cmd.ExecuteNonQuery()
-				$cmd.Dispose()
 			}
-			catch { $null = $_ }
+			catch { Write-PSFMessage -Level Verbose -Message "IDENTITY_INSERT OFF failed after fallback: $_" }
+			finally { if ($cmd) { try { $cmd.Dispose() } catch { } } }
 		}
 
 		Write-PSFMessage -Level Verbose -String 'Schema.SqlServer.Inserted' -StringValues $insertedCount, $qualifiedName

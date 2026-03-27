@@ -50,6 +50,17 @@ function Read-McpMessage {
 		}
 	}
 
+	# Validate method field: required for both requests and notifications (JSON-RPC 2.0)
+	if (-not $message.method) {
+		return [PSCustomObject]@{
+			IsValid = $false
+			Error   = 'Invalid Request: method is required'
+			Code    = -32600
+			Id      = $message.id
+			Raw     = $raw
+		}
+	}
+
 	[PSCustomObject]@{
 		IsValid = $true
 		Method  = $message.method

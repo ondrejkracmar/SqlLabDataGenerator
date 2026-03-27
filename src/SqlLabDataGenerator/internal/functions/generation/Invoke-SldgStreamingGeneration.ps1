@@ -19,6 +19,7 @@
 		[int]$TotalRowCount,
 
 		[Parameter(Mandatory)]
+		[ValidateRange(1, [int]::MaxValue)]
 		[int]$ChunkSize,
 
 		[hashtable]$GeneratorMap,
@@ -43,8 +44,9 @@
 	$chunkCount = [math]::Ceiling($TotalRowCount / $ChunkSize)
 	$insertedTotal = 0
 	$allGeneratedValues = @{}
-	$allDataTables = $null
-	if ($PassThru) { $allDataTables = [System.Collections.Generic.List[System.Data.DataTable]]::new() }
+	# When PassThru is requested, merge rows into a single DataTable instead of
+	# accumulating separate DataTables per chunk (which defeats streaming's memory benefit).
+	$mergedDataTable = $null
 
 	# Build shared uniqueness tracker so chunks don't collide
 	$sharedTracker = @{}
@@ -61,6 +63,16 @@
 		$sharedTracker['__CompositePK__'] = [System.Collections.Generic.HashSet[string]]::new()
 	}
 
+	# Build shared PK auto-increment counters so chunks don't reset and generate duplicate PKs
+	$sharedPKAutoIncrements = @{}
+	foreach ($col in $TableInfo.Columns) {
+		if ($col.IsPrimaryKey -and -not $col.IsIdentity -and $null -ne $col.PKStartValue -and $col.DataType -match '^(int|bigint|smallint|tinyint)$') {
+			$sharedPKAutoIncrements[$col.ColumnName] = [long]$col.PKStartValue
+		}
+	}
+
+	try {
+
 	for ($chunk = 0; $chunk -lt $chunkCount; $chunk++) {
 		$rowsInChunk = [math]::Min($ChunkSize, $TotalRowCount - ($chunk * $ChunkSize))
 
@@ -68,7 +80,8 @@
 
 		$rowSet = New-SldgRowSet -TableInfo $TableInfo -RowCount $rowsInChunk `
 			-GeneratorMap $GeneratorMap -ForeignKeyValues $ForeignKeyValues `
-			-TableRules $TableRules -SharedUniqueTracker $sharedTracker
+			-TableRules $TableRules -SharedUniqueTracker $sharedTracker `
+			-SharedPKAutoIncrements $sharedPKAutoIncrements
 
 		# Accumulate FK values for child tables
 		foreach ($key in $rowSet.GeneratedValues.Keys) {
@@ -101,12 +114,28 @@
 		}
 
 		if ($PassThru) {
-			$allDataTables.Add($rowSet.DataTable)
+			# Merge rows into a single DataTable to avoid holding N separate DataTables in memory
+			if (-not $mergedDataTable) {
+				$mergedDataTable = $rowSet.DataTable.Clone()
+			}
+			foreach ($dtRow in $rowSet.DataTable.Rows) {
+				[void]$mergedDataTable.ImportRow($dtRow)
+			}
+			$rowSet.DataTable.Dispose()
 		}
 		else {
 			# Dispose DataTable to free memory — the whole point of streaming
 			$rowSet.DataTable.Dispose()
 		}
+	}
+
+	} catch {
+		# Dispose mergedDataTable on error to prevent memory leak
+		if ($mergedDataTable) {
+			$mergedDataTable.Dispose()
+			$mergedDataTable = $null
+		}
+		throw
 	}
 
 	# Convert accumulated value lists to arrays
@@ -118,6 +147,6 @@
 	[PSCustomObject]@{
 		InsertedCount   = $insertedTotal
 		GeneratedValues = $finalValues
-		DataTables      = $allDataTables
+		DataTable       = $mergedDataTable
 	}
 }

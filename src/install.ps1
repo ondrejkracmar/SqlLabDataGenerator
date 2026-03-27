@@ -72,8 +72,24 @@ try
 	[System.Net.ServicePointManager]::SecurityProtocol = "Tls12"
 
 	Write-LocalMessage -Message "Downloading repository from '$($BaseUrl)/archive/$($Branch).zip'"
-	Invoke-WebRequest -Uri "$($BaseUrl)/archive/$($Branch).zip" -UseBasicParsing -OutFile "$($env:TEMP)\$($ModuleName).zip" -ErrorAction Stop
-	
+	$zipPath = "$($env:TEMP)\$($ModuleName).zip"
+	Invoke-WebRequest -Uri "$($BaseUrl)/archive/$($Branch).zip" -UseBasicParsing -OutFile $zipPath -ErrorAction Stop
+
+	# Verify download integrity via SHA256 checksum file (if available)
+	$checksumUrl = "$($BaseUrl)/releases/download/$($Branch)/$($ModuleName).sha256"
+	try {
+		$expectedHash = (Invoke-WebRequest -Uri $checksumUrl -UseBasicParsing -ErrorAction Stop).Content.Trim().Split(' ')[0]
+		$actualHash = (Get-FileHash -Path $zipPath -Algorithm SHA256).Hash
+		if ($expectedHash -ne $actualHash) {
+			Remove-Item -Path $zipPath -Force -ErrorAction SilentlyContinue
+			throw "SHA256 checksum mismatch! Expected: $expectedHash, Got: $actualHash. Download may be corrupted or tampered with."
+		}
+		Write-LocalMessage -Message "SHA256 checksum verified successfully."
+	}
+	catch [System.Net.WebException] {
+		Write-LocalMessage -Message "WARNING: No checksum file found at $checksumUrl — skipping integrity verification."
+	}
+
 	Write-LocalMessage -Message "Creating temporary project folder: '$($env:TEMP)\$($ModuleName)'"
 	$null = New-Item -Path $env:TEMP -Name $ModuleName -ItemType Directory -Force -ErrorAction Stop
 	

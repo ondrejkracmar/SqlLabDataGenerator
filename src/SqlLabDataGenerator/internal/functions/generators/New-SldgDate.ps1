@@ -24,7 +24,7 @@
 				$min = if ($MinDate) { $MinDate } else { $now.AddYears(-80) }
 				$max = if ($MaxDate) { $MaxDate } else { $now.AddYears(-18) }
 				$range = ($max - $min).TotalDays
-				$min.AddDays((Get-Random -Minimum 0 -Maximum ([int]$range)))
+				$min.AddDays((Get-Random -Minimum 0 -Maximum ([int][Math]::Max(1, $range))))
 			}
 			'PastDate' {
 				$min = if ($MinDate) { $MinDate } else { $now.AddYears(-5) }

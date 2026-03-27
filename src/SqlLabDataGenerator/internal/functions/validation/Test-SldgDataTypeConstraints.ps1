@@ -28,7 +28,7 @@
 
 			$cmd = $conn.CreateCommand()
 			$cmd.CommandText = $query
-			$cmd.CommandTimeout = 60
+			$cmd.CommandTimeout = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.Database.CommandTimeout'
 			try {
 				$nullCount = $cmd.ExecuteScalar()
 			}
@@ -54,7 +54,7 @@
 		$safeName = Get-SldgSafeSqlName -SchemaName $table.SchemaName -TableName $table.TableName
 		$cmd = $conn.CreateCommand()
 		$cmd.CommandText = "SELECT COUNT(*) FROM $safeName"
-		$cmd.CommandTimeout = 60
+		$cmd.CommandTimeout = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.Database.CommandTimeout'
 		try {
 			$rowCount = $cmd.ExecuteScalar()
 		}

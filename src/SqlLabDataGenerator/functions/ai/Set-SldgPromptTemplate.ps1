@@ -64,6 +64,7 @@
 
 		Copies and modifies the built-in template.
 	#>
+	[OutputType([SqlLabDataGenerator.PromptTemplate])]
 	[CmdletBinding(SupportsShouldProcess, DefaultParameterSetName = 'Content')]
 	param (
 		[Parameter(ValueFromPipeline, ParameterSetName = 'InputObject')]

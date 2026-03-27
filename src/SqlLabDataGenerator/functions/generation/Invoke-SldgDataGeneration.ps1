@@ -126,6 +126,11 @@
 	$streamingThreshold = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.Generation.StreamingThreshold'
 	$streamingChunkSize = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.Generation.StreamingChunkSize'
 
+	# Query limits and timeouts
+	$fkQueryLimit = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.Generation.ForeignKeyQueryLimit'
+	$uniqueQueryLimit = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.Generation.UniqueValueQueryLimit'
+	$dbCommandTimeout = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.Database.CommandTimeout'
+
 	# Parallel config
 	if (-not $ThrottleLimit) { $ThrottleLimit = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.Generation.ThrottleLimit' }
 	$useParallel = $Parallel -and -not ($Plan.Mode -eq 'Masking') -and $PSVersionTable.PSVersion.Major -ge 7
@@ -143,9 +148,12 @@
 	$tableIndex = 0
 	$tableTotal = $Plan.Tables.Count
 
-	# A2: Pre-scan and disable FK constraints for ALL circular dependency tables before insertion
+	# A2: Pre-scan and disable FK constraints for circular dependency tables before insertion
 	$circularTables = @($Plan.Tables | Where-Object { $_.HasCircularDependency })
+	$circularTableNames = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+	foreach ($ct in $circularTables) { [void]$circularTableNames.Add($ct.FullName) }
 	$disabledCircularFKs = [System.Collections.Generic.List[object]]::new()
+	$disabledFKConstraintNames = [System.Collections.Generic.List[string]]::new()
 	if ($circularTables.Count -gt 0 -and -not $NoInsert -and $ConnectionInfo -and $ConnectionInfo.DbConnection) {
 		if ($ConnectionInfo.Provider -eq 'SQLite') {
 			# SQLite PRAGMA is connection-global — disable once
@@ -162,19 +170,29 @@
 			}
 		}
 		else {
-			# SQL Server — disable per-table so entire cycle is unconstrained during insertion
+			# SQL Server — disable only the FK constraints that form circular dependencies, not all constraints
 			foreach ($ct in $circularTables) {
-				try {
-					$fkCmd = $ConnectionInfo.DbConnection.CreateCommand()
-					if ($transaction) { $fkCmd.Transaction = $transaction }
-					$safeName = Get-SldgSafeSqlName -SchemaName $ct.SchemaName -TableName $ct.TableName
-					$fkCmd.CommandText = "ALTER TABLE $safeName NOCHECK CONSTRAINT ALL"
-					try { [void]$fkCmd.ExecuteNonQuery() } finally { $fkCmd.Dispose() }
-					$disabledCircularFKs.Add($ct)
-					Write-PSFMessage -Level Verbose -String 'Generation.FKDisabledTable' -StringValues $ct.FullName
+				$circularFKs = @($ct.ForeignKeys | Where-Object {
+					$refFullName = "$($_.ReferencedSchema).$($_.ReferencedTable)"
+					$circularTableNames.Contains($refFullName)
+				})
+				foreach ($fk in $circularFKs) {
+					try {
+						$fkCmd = $ConnectionInfo.DbConnection.CreateCommand()
+						if ($transaction) { $fkCmd.Transaction = $transaction }
+						$safeName = Get-SldgSafeSqlName -SchemaName $ct.SchemaName -TableName $ct.TableName
+						$safeFKName = "[$($fk.ForeignKeyName -replace '\]', ']]')]"
+						$fkCmd.CommandText = "ALTER TABLE $safeName NOCHECK CONSTRAINT $safeFKName"
+						try { [void]$fkCmd.ExecuteNonQuery() } finally { $fkCmd.Dispose() }
+						$disabledFKConstraintNames.Add("$($ct.FullName)|$($fk.ForeignKeyName)")
+						Write-PSFMessage -Level Verbose -String 'Generation.FKDisabledTable' -StringValues "$($ct.FullName).$($fk.ForeignKeyName)"
+					}
+					catch {
+						Write-PSFMessage -Level Warning -String 'Generation.FKDisableTableFailed' -StringValues "$($ct.FullName).$($fk.ForeignKeyName)", $_
+					}
 				}
-				catch {
-					Write-PSFMessage -Level Warning -String 'Generation.FKDisableTableFailed' -StringValues $ct.FullName, $_
+				if ($circularFKs.Count -gt 0) {
+					$disabledCircularFKs.Add($ct)
 				}
 			}
 		}
@@ -191,7 +209,10 @@
 		$tableResults.AddRange($parallelResult.TableResults)
 		$totalInserted = $parallelResult.TotalInserted
 		$generationFailed = $parallelResult.GenerationFailed
-		if ($generationFailed -and $transaction) { $transaction = $null }
+		if ($generationFailed -and $transaction) {
+			try { $transaction.Rollback() } catch { Write-PSFMessage -Level Warning -Message "Parallel rollback failed: $_" }
+			$transaction = $null
+		}
 	}
 	# ── Sequential generation path (original) ──
 	else {
@@ -212,99 +233,20 @@
 			}
 
 			Invoke-PSFProtectedCommand -ActionString 'Generation.MaskingTable' -ActionStringValues $tablePlan.RowCount, $tablePlan.SchemaName, $tablePlan.TableName -Target $tablePlan.FullName -ScriptBlock {
-				# Read existing data
-				$readParams = @{
+				$maskParams = @{
+					TablePlan      = $tablePlan
 					ConnectionInfo = $ConnectionInfo
-					SchemaName     = $tablePlan.SchemaName
-					TableName      = $tablePlan.TableName
+					Provider       = $provider
+					Plan           = $Plan
+					BatchSize      = $batchSize
+					NoInsert       = $NoInsert
+					PassThru       = $PassThru
 				}
-				if ($transaction) { $readParams['Transaction'] = $transaction }
-				$existingData = & $provider.FunctionMap.ReadData @readParams
+				if ($transaction) { $maskParams['Transaction'] = $transaction }
 
-				# Safety guard: skip masking if no rows were read (prevents data loss from DELETE)
-				if (-not $existingData -or $existingData.Rows.Count -eq 0) {
-					Write-PSFMessage -Level Warning -String 'Generation.MaskingNoRows' -StringValues $tablePlan.FullName
-					$tableResults.Add([SqlLabDataGenerator.TableResult]@{
-							TableName  = $tablePlan.FullName
-							RowCount   = 0
-							Success    = $true
-							Error      = 'Skipped — no rows to mask'
-					})
-					return
-				}
-
-				# Mask PII columns using the generation plan rules
-				$tableRules = if ($Plan.GenerationRules.ContainsKey($tablePlan.FullName)) { $Plan.GenerationRules[$tablePlan.FullName] } else { $null }
-				$generatorMap = if ($Plan.GeneratorMap) { $Plan.GeneratorMap } else { Get-SldgGeneratorMap }
-
-				foreach ($row in $existingData.Rows) {
-					foreach ($col in $tablePlan.Columns) {
-						if (-not $col.IsPII -and -not ($tableRules -and $tableRules.ContainsKey($col.ColumnName))) { continue }
-						if ($col.Skip -or $col.IsPrimaryKey) { continue }
-
-						$colObj = [PSCustomObject]@{
-							ColumnName   = $col.ColumnName
-							DataType     = $col.DataType
-							SemanticType = $col.SemanticType
-							MaxLength    = $col.MaxLength
-							IsNullable   = $col.IsNullable
-							ForeignKey   = $null
-						}
-						$customRule = if ($tableRules -and $tableRules.ContainsKey($col.ColumnName)) { $tableRules[$col.ColumnName] } else { $null }
-						$maskedValue = New-SldgGeneratedValue -Column $colObj -GeneratorMap $generatorMap -CustomRule $customRule -NullProbability 0
-						if ($null -ne $maskedValue) {
-							$row[$col.ColumnName] = $maskedValue
-						}
-					}
-				}
-
-				if (-not $NoInsert) {
-					# Masking mode: delete existing rows, then re-insert the masked data
-					$deleteParams = @{
-						ConnectionInfo = $ConnectionInfo
-						SchemaName     = $tablePlan.SchemaName
-						TableName      = $tablePlan.TableName
-					}
-					if ($transaction) { $deleteParams['Transaction'] = $transaction }
-					if ($provider.FunctionMap.ContainsKey('DeleteData')) {
-						& $provider.FunctionMap.DeleteData @deleteParams
-					} else {
-						# Fallback: execute DELETE directly
-						$delCmd = $ConnectionInfo.DbConnection.CreateCommand()
-						if ($transaction) { $delCmd.Transaction = $transaction }
-						$safeName = Get-SldgSafeSqlName -SchemaName $tablePlan.SchemaName -TableName $tablePlan.TableName -SQLite:($ConnectionInfo.Provider -eq 'SQLite')
-						$delCmd.CommandText = "DELETE FROM $safeName"
-						[void]$delCmd.ExecuteNonQuery()
-						$delCmd.Dispose()
-					}
-
-					$writeParams = @{
-						ConnectionInfo = $ConnectionInfo
-						SchemaName     = $tablePlan.SchemaName
-						TableName      = $tablePlan.TableName
-						Data           = $existingData
-						BatchSize      = $batchSize
-					}
-					if ($transaction) { $writeParams['Transaction'] = $transaction }
-					$insertedCount = & $provider.FunctionMap.WriteData @writeParams
-				}
-				else {
-					$insertedCount = $existingData.Rows.Count
-				}
-
-				$totalInserted += $insertedCount
-				Write-PSFMessage -Level Host -Message ($script:strings.'Generation.MaskingComplete' -f $tablePlan.SchemaName, $tablePlan.TableName, $insertedCount)
-
-				$tableResult = [SqlLabDataGenerator.TableResult]@{
-					TableName  = $tablePlan.FullName
-					RowCount   = $insertedCount
-					Success    = $true
-					Error      = $null
-				}
-				if ($PassThru) {
-					$tableResult.DataTable = $existingData
-				}
-				$tableResults.Add($tableResult)
+				$maskResult = Invoke-SldgMaskingTable @maskParams
+				$totalInserted += $maskResult.RowCount
+				$tableResults.Add($maskResult)
 			} -PSCmdlet $PSCmdlet -EnableException $false
 
 			if (Test-PSFFunctionInterrupt) {
@@ -331,34 +273,60 @@
 
 		Write-PSFMessage -Level Host -Message ($script:strings.'Generation.Table' -f $tablePlan.RowCount, $tablePlan.SchemaName, $tablePlan.TableName)
 
-		# FK DB fallback: for each FK reference, ensure $fkValues has parent values.
-		# If a parent table failed or wasn't in the plan, read existing PK values from the database.
+		# FK DB fallback: batch-load missing FK parent values grouped by parent table
+		# to minimize database round-trips (one query per parent table instead of per FK column).
 		if ($tablePlan.ForeignKeys -and $tablePlan.ForeignKeys.Count -gt 0 -and $ConnectionInfo -and $provider) {
+			# Group FK columns by parent table
+			$fkByParent = @{}
 			foreach ($fk in $tablePlan.ForeignKeys) {
 				$refKey = "$($fk.ReferencedSchema).$($fk.ReferencedTable).$($fk.ReferencedColumn)"
 				if (-not $fkValues.ContainsKey($refKey) -or $fkValues[$refKey].Count -eq 0) {
-					try {
-						$safeRef = Get-SldgSafeSqlName -SchemaName $fk.ReferencedSchema -TableName $fk.ReferencedTable
-						$safeCol = Get-SldgSafeSqlName -ColumnName $fk.ReferencedColumn
-						$cmd = $ConnectionInfo.DbConnection.CreateCommand()
-						if ($transaction) { $cmd.Transaction = $transaction }
-						$cmd.CommandText = "SELECT DISTINCT TOP (1000) $safeCol FROM $safeRef"
-						$cmd.CommandTimeout = 30
-						$reader = $cmd.ExecuteReader()
-						$vals = [System.Collections.Generic.List[object]]::new()
-						while ($reader.Read()) {
-							$v = $reader.GetValue(0)
-							if ($v -isnot [DBNull]) { $vals.Add($v) }
-						}
-						$reader.Close()
-						$reader.Dispose()
-						$cmd.Dispose()
-						if ($vals.Count -gt 0) {
-							$fkValues[$refKey] = $vals.ToArray()
-							Write-PSFMessage -Level Verbose -Message ($script:strings.'Generation.FKFallbackLoaded' -f $refKey, $vals.Count)
+					$parentKey = "$($fk.ReferencedSchema).$($fk.ReferencedTable)"
+					if (-not $fkByParent.ContainsKey($parentKey)) { $fkByParent[$parentKey] = @() }
+					$fkByParent[$parentKey] += $fk
+				}
+			}
+
+			foreach ($parentKey in $fkByParent.Keys) {
+				$parentFks = $fkByParent[$parentKey]
+				$firstFk = $parentFks[0]
+				$safeRef = Get-SldgSafeSqlName -SchemaName $firstFk.ReferencedSchema -TableName $firstFk.ReferencedTable
+				try {
+					# Build one SELECT with all needed columns from this parent table
+					$safeCols = @($parentFks | ForEach-Object { Get-SldgSafeSqlName -ColumnName $_.ReferencedColumn } | Select-Object -Unique)
+					$cmd = $ConnectionInfo.DbConnection.CreateCommand()
+					if ($transaction) { $cmd.Transaction = $transaction }
+					$cmd.CommandText = "SELECT DISTINCT TOP ($fkQueryLimit) $($safeCols -join ', ') FROM $safeRef ORDER BY $($safeCols -join ', ')"
+					$cmd.CommandTimeout = $dbCommandTimeout
+					$reader = $cmd.ExecuteReader()
+
+					# Initialize value lists per column
+					$colLists = @{}
+					foreach ($fk in $parentFks) { $colLists[$fk.ReferencedColumn] = [System.Collections.Generic.List[object]]::new() }
+
+					while ($reader.Read()) {
+						foreach ($fk in $parentFks) {
+							$ordinal = $reader.GetOrdinal($fk.ReferencedColumn)
+							if (-not $reader.IsDBNull($ordinal)) {
+								$colLists[$fk.ReferencedColumn].Add($reader.GetValue($ordinal))
+							}
 						}
 					}
-					catch {
+					$reader.Close()
+					$reader.Dispose()
+					$cmd.Dispose()
+
+					foreach ($fk in $parentFks) {
+						$refKey = "$($fk.ReferencedSchema).$($fk.ReferencedTable).$($fk.ReferencedColumn)"
+						if ($colLists[$fk.ReferencedColumn].Count -gt 0) {
+							$fkValues[$refKey] = $colLists[$fk.ReferencedColumn].ToArray()
+							Write-PSFMessage -Level Verbose -Message ($script:strings.'Generation.FKFallbackLoaded' -f $refKey, $colLists[$fk.ReferencedColumn].Count)
+						}
+					}
+				}
+				catch {
+					foreach ($fk in $parentFks) {
+						$refKey = "$($fk.ReferencedSchema).$($fk.ReferencedTable).$($fk.ReferencedColumn)"
 						Write-PSFMessage -Level Warning -Message ($script:strings.'Generation.FKFallbackFailed' -f $refKey, $_)
 					}
 				}
@@ -372,41 +340,7 @@
 		else { $null }
 
 		# Build a table info object with semantic types
-		$tableInfo = [PSCustomObject]@{
-			SchemaName  = $tablePlan.SchemaName
-			TableName   = $tablePlan.TableName
-			FullName    = $tablePlan.FullName
-			Columns     = foreach ($cp in $tablePlan.Columns) {
-				# Cross-reference table-level ForeignKeys to ensure column-level ForeignKey is set
-				$colFK = $cp.ForeignKey
-				if (-not $colFK -and $tablePlan.ForeignKeys) {
-					$matchedFK = $tablePlan.ForeignKeys | Where-Object { $_.ParentColumn -eq $cp.ColumnName } | Select-Object -First 1
-					if ($matchedFK) {
-						$colFK = [PSCustomObject]@{
-							ReferencedSchema = $matchedFK.ReferencedSchema
-							ReferencedTable  = $matchedFK.ReferencedTable
-							ReferencedColumn = $matchedFK.ReferencedColumn
-						}
-					}
-				}
-				[PSCustomObject]@{
-					ColumnName  = $cp.ColumnName
-					DataType    = $cp.DataType
-					SemanticType = $cp.SemanticType
-					IsIdentity  = [bool]$cp.IsIdentity
-					IsComputed  = [bool]$cp.IsComputed
-					IsPrimaryKey = [bool]$cp.IsPrimaryKey
-					IsUnique    = [bool]$cp.IsUnique
-					IsNullable  = if ($null -ne $cp.IsNullable) { [bool]$cp.IsNullable } else { $true }
-					MaxLength   = $cp.MaxLength
-					ForeignKey  = $colFK
-					SchemaHint  = $cp.SchemaHint
-					Classification = [PSCustomObject]@{ SemanticType = $cp.SemanticType; IsPII = $cp.IsPII }
-					GenerationRule = $cp.CustomRule
-				}
-			}
-			ForeignKeys = $tablePlan.ForeignKeys
-		}
+		$tableInfo = ConvertTo-SldgTableInfo -TablePlan $tablePlan
 
 		# For non-identity integer PK columns, query MAX(PK) so we can auto-generate sequential values
 		if ($ConnectionInfo) {
@@ -418,7 +352,7 @@
 						$cmd = $ConnectionInfo.DbConnection.CreateCommand()
 						if ($transaction) { $cmd.Transaction = $transaction }
 						$cmd.CommandText = "SELECT ISNULL(MAX($safeCol), 0) FROM $safeTbl"
-						$cmd.CommandTimeout = 30
+						$cmd.CommandTimeout = $dbCommandTimeout
 						$maxVal = $cmd.ExecuteScalar()
 						$cmd.Dispose()
 						$col | Add-Member -NotePropertyName 'PKStartValue' -NotePropertyValue ([long]$maxVal) -Force
@@ -459,8 +393,69 @@
 				$insertedCount = $streamResult.InsertedCount
 			}
 			else {
-				$rowSet = New-SldgRowSet -TableInfo $tableInfo -RowCount $tablePlan.RowCount `
-					-GeneratorMap $Plan.GeneratorMap -ForeignKeyValues $fkValues -TableRules $tableRules
+				# Query existing unique values from the DB in a single batched query
+				# to avoid N+1 round-trips (one query per table instead of per column).
+				$existingUnique = $null
+				if ($ConnectionInfo -and $provider) {
+					$existingUnique = @{}
+					$uniqueCols = @($tableInfo.Columns | Where-Object {
+						($_.IsUnique -or ($_.IsPrimaryKey -and -not $_.IsIdentity -and -not $_.IsComputed)) -and
+						-not $_.IsIdentity -and -not $_.IsComputed
+					})
+					if ($uniqueCols.Count -gt 0) {
+						$safeTbl = Get-SldgSafeSqlName -SchemaName $tablePlan.SchemaName -TableName $tablePlan.TableName
+						$safeCols = @($uniqueCols | ForEach-Object { Get-SldgSafeSqlName -ColumnName $_.ColumnName })
+						try {
+							$uqCmd = $ConnectionInfo.DbConnection.CreateCommand()
+							if ($transaction) { $uqCmd.Transaction = $transaction }
+							$uqCmd.CommandText = "SELECT TOP ($uniqueQueryLimit) $($safeCols -join ', ') FROM $safeTbl"
+							$uqCmd.CommandTimeout = $dbCommandTimeout
+							$uqReader = $uqCmd.ExecuteReader()
+
+							# Initialize value lists per column
+							$uqLists = @{}
+							foreach ($col in $uniqueCols) { $uqLists[$col.ColumnName] = [System.Collections.Generic.List[object]]::new() }
+
+							while ($uqReader.Read()) {
+								foreach ($col in $uniqueCols) {
+									$ordinal = $uqReader.GetOrdinal($col.ColumnName)
+									if (-not $uqReader.IsDBNull($ordinal)) {
+										$uqLists[$col.ColumnName].Add($uqReader.GetValue($ordinal))
+									}
+								}
+							}
+							$uqReader.Close()
+							$uqReader.Dispose()
+							$uqCmd.Dispose()
+
+							foreach ($col in $uniqueCols) {
+								if ($uqLists[$col.ColumnName].Count -gt 0) {
+									$existingUnique[$col.ColumnName] = $uqLists[$col.ColumnName].ToArray()
+								}
+							}
+						}
+						catch {
+							Write-PSFMessage -Level Verbose -Message "Could not query existing unique values for $($tablePlan.FullName): $_"
+						}
+					}
+					if ($existingUnique.Count -eq 0) { $existingUnique = $null }
+				}
+
+				$rowSetParams = @{
+					TableInfo           = $tableInfo
+					RowCount            = $tablePlan.RowCount
+					GeneratorMap        = $Plan.GeneratorMap
+					ForeignKeyValues    = $fkValues
+					TableRules          = $tableRules
+					ExistingUniqueValues = $existingUnique
+				}
+
+				# Two-tier AI: pass per-table generation notes from schema analysis
+				if ($Plan.AIAdvice -and $Plan.AIAdvice.TableGenerationNotes -and $Plan.AIAdvice.TableGenerationNotes.ContainsKey($tablePlan.FullName)) {
+					$rowSetParams['TableNotes'] = $Plan.AIAdvice.TableGenerationNotes[$tablePlan.FullName]
+				}
+
+				$rowSet = New-SldgRowSet @rowSetParams
 
 				# Merge generated FK values for child tables
 				foreach ($key in $rowSet.GeneratedValues.Keys) {
@@ -478,6 +473,39 @@
 					}
 					if ($transaction) { $writeParams['Transaction'] = $transaction }
 					$insertedCount = & $provider.FunctionMap.WriteData @writeParams
+
+					# Post-insert: collect actual PK values from DB for identity/auto-increment columns
+					# that are NOT in the in-memory DataTable. Child tables need these FK references.
+					foreach ($col in $tablePlan.Columns) {
+						if (-not $col.IsPrimaryKey -and -not $col.IsUnique) { continue }
+						$colKey = "$($tablePlan.SchemaName).$($tablePlan.TableName).$($col.ColumnName)"
+						# Only query if this column's values are NOT already in fkValues (e.g., identity PKs)
+						if ($fkValues.ContainsKey($colKey) -and $fkValues[$colKey].Count -gt 0) { continue }
+						try {
+							$safeTbl = Get-SldgSafeSqlName -SchemaName $tablePlan.SchemaName -TableName $tablePlan.TableName
+							$safeCol = Get-SldgSafeSqlName -ColumnName $col.ColumnName
+							$pkCmd = $ConnectionInfo.DbConnection.CreateCommand()
+							if ($transaction) { $pkCmd.Transaction = $transaction }
+							$pkCmd.CommandText = "SELECT DISTINCT TOP ($fkQueryLimit) $safeCol FROM $safeTbl"
+							$pkCmd.CommandTimeout = $dbCommandTimeout
+							$pkReader = $pkCmd.ExecuteReader()
+							$pkVals = [System.Collections.Generic.List[object]]::new()
+							while ($pkReader.Read()) {
+								$pkv = $pkReader.GetValue(0)
+								if ($pkv -isnot [DBNull]) { $pkVals.Add($pkv) }
+							}
+							$pkReader.Close()
+							$pkReader.Dispose()
+							$pkCmd.Dispose()
+							if ($pkVals.Count -gt 0) {
+								$fkValues[$colKey] = $pkVals.ToArray()
+								Write-PSFMessage -Level Verbose -Message "Post-insert PK collection: $colKey = $($pkVals.Count) values"
+							}
+						}
+						catch {
+							Write-PSFMessage -Level Verbose -Message "Could not collect post-insert PK for $colKey`: $_"
+						}
+					}
 				}
 				else {
 					$insertedCount = $rowSet.RowCount
@@ -496,8 +524,12 @@
 			if ($PassThru -and $rowSet) {
 				$tableResult.DataTable = $rowSet.DataTable
 			}
-			elseif ($PassThru -and $streamResult -and $streamResult.DataTables) {
-				$tableResult.DataTables = $streamResult.DataTables
+			elseif ($PassThru -and $streamResult -and $streamResult.DataTable) {
+				$tableResult.DataTable = $streamResult.DataTable
+			}
+			elseif ($rowSet -and $rowSet.DataTable) {
+				# Release DataTable memory when not returning to caller
+				$rowSet.DataTable.Dispose()
 			}
 			$tableResults.Add($tableResult)
 		} -PSCmdlet $PSCmdlet -EnableException $false
@@ -533,34 +565,53 @@
 	} # end: sequential/parallel branch
 
 	# Re-enable FK constraints for all circular dependency tables after insertion
-	if ($disabledCircularFKs.Count -gt 0 -and $ConnectionInfo -and $ConnectionInfo.DbConnection -and -not $generationFailed) {
-		if ($ConnectionInfo.Provider -eq 'SQLite') {
+	$fkReenableFailures = [System.Collections.Generic.List[string]]::new()
+
+	# SQLite PRAGMA must be re-enabled regardless of $generationFailed to avoid leaving FK checks off
+	if ($disabledCircularFKs.Count -gt 0 -and $ConnectionInfo -and $ConnectionInfo.DbConnection -and $ConnectionInfo.Provider -eq 'SQLite') {
+		try {
+			$fkCmd = $ConnectionInfo.DbConnection.CreateCommand()
+			if ($transaction) { $fkCmd.Transaction = $transaction }
+			$fkCmd.CommandText = "PRAGMA foreign_keys = ON"
+			try { [void]$fkCmd.ExecuteNonQuery() } finally { $fkCmd.Dispose() }
+			Write-PSFMessage -Level Verbose -String 'Generation.FKReenabledPragma'
+		}
+		catch {
+			Write-PSFMessage -Level Warning -String 'Generation.FKReenablePragmaFailed' -StringValues $_
+			$fkReenableFailures.Add("SQLite PRAGMA: $_")
+		}
+	}
+
+	# SQL Server FK re-enable always — data integrity requires constraints re-enabled even on failure (like SQLite PRAGMA)
+	if ($disabledCircularFKs.Count -gt 0 -and $ConnectionInfo -and $ConnectionInfo.DbConnection -and $ConnectionInfo.Provider -ne 'SQLite') {
+		foreach ($entry in $disabledFKConstraintNames) {
+			$parts = $entry -split '\|', 2
+			$tblFullName = $parts[0]
+			$fkName = $parts[1]
+			$ct = $disabledCircularFKs | Where-Object { $_.FullName -eq $tblFullName } | Select-Object -First 1
+			if (-not $ct) { continue }
 			try {
 				$fkCmd = $ConnectionInfo.DbConnection.CreateCommand()
 				if ($transaction) { $fkCmd.Transaction = $transaction }
-				$fkCmd.CommandText = "PRAGMA foreign_keys = ON"
+				$safeName = Get-SldgSafeSqlName -SchemaName $ct.SchemaName -TableName $ct.TableName
+				$safeFKName = "[$($fkName -replace '\]', ']]')]"
+				$fkCmd.CommandText = "ALTER TABLE $safeName WITH CHECK CHECK CONSTRAINT $safeFKName"
 				try { [void]$fkCmd.ExecuteNonQuery() } finally { $fkCmd.Dispose() }
-				Write-PSFMessage -Level Verbose -String 'Generation.FKReenabledPragma'
+				Write-PSFMessage -Level Verbose -String 'Generation.FKReenabledTable' -StringValues "$tblFullName.$fkName"
 			}
 			catch {
-				Write-PSFMessage -Level Warning -String 'Generation.FKReenablePragmaFailed' -StringValues $_
+				Write-PSFMessage -Level Warning -String 'Generation.FKReenableTableFailed' -StringValues "$tblFullName.$fkName", $_
+				$fkReenableFailures.Add("$tblFullName.$fkName")
 			}
 		}
-		else {
-			foreach ($ct in $disabledCircularFKs) {
-				try {
-					$fkCmd = $ConnectionInfo.DbConnection.CreateCommand()
-					if ($transaction) { $fkCmd.Transaction = $transaction }
-					$safeName = Get-SldgSafeSqlName -SchemaName $ct.SchemaName -TableName $ct.TableName
-					$fkCmd.CommandText = "ALTER TABLE $safeName WITH CHECK CHECK CONSTRAINT ALL"
-					try { [void]$fkCmd.ExecuteNonQuery() } finally { $fkCmd.Dispose() }
-					Write-PSFMessage -Level Verbose -String 'Generation.FKReenabledTable' -StringValues $ct.FullName
-				}
-				catch {
-					Write-PSFMessage -Level Warning -String 'Generation.FKReenableTableFailed' -StringValues $ct.FullName, $_
-				}
-			}
+	}
+	if ($fkReenableFailures.Count -gt 0) {
+		$generationFailed = $true
+		if ($transaction) {
+			try { $transaction.Rollback() } catch { Write-PSFMessage -Level Error -Message "FK re-enable rollback failed: $_" }
+			$transaction = $null
 		}
+		Stop-PSFFunction -Message "CRITICAL: FK constraints could not be re-enabled on: $($fkReenableFailures -join ', '). Manual intervention required." -EnableException $true
 	}
 
 	# Commit transaction if all succeeded
