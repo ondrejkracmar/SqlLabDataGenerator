@@ -29,7 +29,7 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 # Copy output to module bin folder
-$outputDll = Join-Path $WorkingDirectory 'library\SqlLabDataGenerator\SqlLabDataGenerator\bin\Release\net*\SqlLabDataGenerator.dll'
+$outputDll = Join-Path $WorkingDirectory 'library\SqlLabDataGenerator\bin\Release\net*\SqlLabDataGenerator.dll'
 $targetBin = Join-Path $WorkingDirectory 'SqlLabDataGenerator\bin'
 
 $dll = Get-ChildItem -Path $outputDll -ErrorAction SilentlyContinue | Select-Object -First 1
