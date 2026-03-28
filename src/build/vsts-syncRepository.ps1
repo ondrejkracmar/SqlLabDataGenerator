@@ -1,67 +1,56 @@
-<#
-	.SYNOPSIS
-		Synchronizes Azure DevOps repository with a GitHub mirror.
-	.DESCRIPTION
-		Pushes the current branch to the corresponding GitHub repository,
-		keeping public and internal repos in sync.
-#>
 param (
-	[Parameter(Mandatory)]
 	[string]$AzureDevOpsOrganizationName,
-
-	[Parameter(Mandatory)]
 	[string]$AzureDevOpsProjectName,
-
-	[Parameter(Mandatory)]
 	[string]$AzureDevOpsRepositoryName,
-
-	[Parameter(Mandatory)]
 	[string]$AzureDevOpsUsername,
-
-	[Parameter(Mandatory)]
 	[string]$AzureDevOpsToken,
-
-	[Parameter(Mandatory)]
-	[string]$GitHubRepositoryName,
-
-	[Parameter(Mandatory)]
 	[string]$GitHubUsername,
-
-	[Parameter(Mandatory)]
+	[string]$GitHubRepositoryName,
 	[string]$GitHubToken
 )
 
-$encodedAzureDevOpsPAT = [System.Web.HttpUtility]::UrlEncode($AzureDevOpsToken)
-$encodedGitHubToken = [System.Web.HttpUtility]::UrlEncode($GitHubToken)
-
-$azureRepoUrl = "https://${encodedAzureDevOpsPAT}@dev.azure.com/${AzureDevOpsOrganizationName}/${AzureDevOpsProjectName}/_git/${AzureDevOpsRepositoryName}"
-$gitHubRepoUrl = "https://${GitHubUsername}:${encodedGitHubToken}@github.com/${GitHubUsername}/${GitHubRepositoryName}.git"
-
-$tempDir = Join-Path ([System.IO.Path]::GetTempPath()) "repo-sync-$([Guid]::NewGuid().ToString('N').Substring(0,8))"
-
 try {
-	# Disable any credential helper set by 'persistCredentials: true' in the pipeline checkout step
-	Write-Host "Cloning $AzureDevOpsRepositoryName from Azure DevOps"
-	git -c credential.helper= clone --mirror $azureRepoUrl $tempDir 2>&1
-	if ($LASTEXITCODE -ne 0) { throw "Failed to clone from Azure DevOps (exit code $LASTEXITCODE)" }
+	# Construct the Azure DevOps and GitHub repository URLs
+	$encodedAzureDevOpsPAT = [System.Web.HttpUtility]::UrlEncode($AzureDevOpsToken)
+	$encodedGitHubToken = [System.Web.HttpUtility]::UrlEncode($GitHubToken)
+	$azureRepoUrl = ('https://{0}@dev.azure.com/{1}/{2}/_git/{3}' -f $encodedAzureDevOpsPAT, $AzureDevOpsOrganizationName, $AzureDevOpsProjectName, $AzureDevOpsRepositoryName)
+	$gitHubRepoUrl = ('https://{0}:{1}@github.com/{2}/{3}' -f $GitHubUsername, $encodedGitHubToken, $GitHubUsername, $GitHubRepositoryName)
 
-	Push-Location $tempDir
-	try {
-		Write-Host "Adding GitHub remote: $GitHubRepositoryName"
-		git remote add github $gitHubRepoUrl 2>&1
+	# Configure Git to use credentials for Azure DevOps
+	Write-Host "Configuring Git credentials for Azure DevOps..."
+	$credentialAzureDevOpsContent = @'
+protocol=https
+host=dev.azure.com
+username=$AzureDevOpsUserName
+password=$AzureDevOpsToken
+'@
 
-		Write-Host "Pushing to GitHub mirror: $GitHubRepositoryName"
-		git -c credential.helper= push --mirror github 2>&1
-		if ($LASTEXITCODE -ne 0) { throw "Failed to push to GitHub (exit code $LASTEXITCODE)" }
+	$tempCredentialFile = New-TemporaryFile
+	$credentialAzureDevOpsContent | Set-Content -Path $tempCredentialFile.FullName
 
-		Write-Host "Repository synchronized successfully"
-	}
-	finally {
-		Pop-Location
-	}
-}
-finally {
-	if (Test-Path $tempDir) {
-		Remove-Item -Path $tempDir -Recurse -Force -ErrorAction SilentlyContinue
-	}
+	# Pipe credentials to Git credential helper
+	Get-Content $tempCredentialFile.FullName | git credential approve
+
+	# Remove temporary credential file
+	Remove-Item $tempCredentialFile.FullName
+
+	# Clone the Azure DevOps repository in mirror mode
+	Write-Host "Cloning Azure DevOps repository..."
+	git clone --mirror $azureRepoUrl repo.git
+
+	# Add GitHub as a remote repository
+	Write-Host "Adding GitHub remote repository..."
+	git remote add github $gitHubRepoUrl
+	git remote -v
+
+	# Push to GitHub
+	Write-Host "Pushing to GitHub..."
+	git push --mirror github
+
+	# Return to the original directory
+	Set-Location -Path ..
+	Write-Host "Synchronization completed successfully."
+} catch {
+	Write-Error "An error occurred: $_"
+	exit 1
 }

@@ -138,20 +138,35 @@ stages:
                 Set-Content -Path '$(Build.ArtifactStagingDirectory)/CHANGELOG-increment.md' -Value $changelog
             condition: and(succeeded(), or(eq(variables['Build.SourceBranch'], 'refs/heads/main'), startsWith(variables['Build.SourceBranch'], 'refs/tags/v')))
 
+          - task: PowerShell@2
+            displayName: 'Synchronize Azure DevOps Repository With GitHub'
+            inputs:
+              targetType: 'filePath'
+              filePath: '$(sourceDirectory)/build/vsts-syncRepository.ps1'
+              arguments: >
+                 -AzureDevOpsOrganizationName '$(organizationName)'
+                 -AzureDevOpsProjectName '$(projectName)'
+                 -AzureDevOpsRepositoryName "SqlLabDataGenerator"
+                 -AzureDevOpsUsername '$(azureDevOpsUsername)'
+                 -AzureDevOpsToken '$(azureDevOpsPAT)'
+                 -GitHubRepositoryName "SqlLabDataGenerator"
+                 -GitHubUsername '$(gitHubUsername)'
+                 -GitHubToken '$(gitHubPAT)'
+            condition: and(succeeded(), or(eq(variables['Build.SourceBranch'], 'refs/heads/main'), startsWith(variables['Build.SourceBranch'], 'refs/tags/v')))
+
   - stage: Publish
     displayName: 'Publish Package'
     dependsOn: Build
     condition: and(succeeded(), or(eq(variables['Build.SourceBranch'], 'refs/heads/main'), startsWith(variables['Build.SourceBranch'], 'refs/tags/v')))
     jobs:
       - deployment: PublishPackage
-        displayName: 'Publish NuGet & Sync'
+        displayName: 'Publish NuGet Package'
         environment: 'Production'
         strategy:
           runOnce:
             deploy:
               steps:
                 - checkout: self
-                  persistCredentials: true
 
                 - download: current
                   artifact: NuGetPackage
@@ -170,18 +185,3 @@ stages:
                        -ArtifactFeedName '$(artifactFeedName)'
                        -FeedUsername '$(FeedUsername)'
                        -PersonalAccessToken '$(personalAccessToken)'
-
-                - task: PowerShell@2
-                  displayName: 'Synchronize Azure DevOps Repository With GitHub'
-                  inputs:
-                    targetType: 'filePath'
-                    filePath: '$(sourceDirectory)/build/vsts-syncRepository.ps1'
-                    arguments: >
-                       -AzureDevOpsOrganizationName '$(organizationName)'
-                       -AzureDevOpsProjectName '$(projectName)'
-                       -AzureDevOpsRepositoryName "SqlLabDataGenerator"
-                       -AzureDevOpsUsername '$(azureDevOpsUsername)'
-                       -AzureDevOpsToken '$(azureDevOpsPAT)'
-                       -GitHubRepositoryName "SqlLabDataGenerator"
-                       -GitHubUsername '$(gitHubUsername)'
-                       -GitHubToken '$(gitHubPAT)'
