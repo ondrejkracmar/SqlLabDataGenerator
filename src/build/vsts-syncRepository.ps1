@@ -35,7 +35,7 @@ $sourceUrl = "https://dev.azure.com/${AzureDevOpsOrganizationName}/${AzureDevOps
 $targetUrl = "https://github.com/${GitHubUsername}/${GitHubRepositoryName}.git"
 
 # Use extraheader for auth — avoids embedding tokens in URLs (which can leak in logs/stack traces)
-$azureAuthHeader = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes(":${AzureDevOpsToken}"))
+$azureAuthHeader = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("${AzureDevOpsUsername}:${AzureDevOpsToken}"))
 $githubAuthHeader = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes(":${GitHubToken}"))
 
 $tempDir = Join-Path ([System.IO.Path]::GetTempPath()) "repo-sync-$([Guid]::NewGuid().ToString('N').Substring(0,8))"
