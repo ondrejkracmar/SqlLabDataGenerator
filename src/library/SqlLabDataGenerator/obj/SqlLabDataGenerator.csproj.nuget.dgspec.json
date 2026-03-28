@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Projects\\PSModules\\SqlLabDataGenerator\\src\\library\\SqlLabDataGenerator\\SqlLabDataGenerator.csproj": {}
+    "c:\\Projects\\PSModules\\SqlLabDataGenerator\\src\\library\\SqlLabDataGenerator\\SqlLabDataGenerator.csproj": {}
   },
   "projects": {
-    "C:\\Projects\\PSModules\\SqlLabDataGenerator\\src\\library\\SqlLabDataGenerator\\SqlLabDataGenerator.csproj": {
+    "c:\\Projects\\PSModules\\SqlLabDataGenerator\\src\\library\\SqlLabDataGenerator\\SqlLabDataGenerator.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Projects\\PSModules\\SqlLabDataGenerator\\src\\library\\SqlLabDataGenerator\\SqlLabDataGenerator.csproj",
+        "projectUniqueName": "c:\\Projects\\PSModules\\SqlLabDataGenerator\\src\\library\\SqlLabDataGenerator\\SqlLabDataGenerator.csproj",
         "projectName": "SqlLabDataGenerator",
-        "projectPath": "C:\\Projects\\PSModules\\SqlLabDataGenerator\\src\\library\\SqlLabDataGenerator\\SqlLabDataGenerator.csproj",
+        "projectPath": "c:\\Projects\\PSModules\\SqlLabDataGenerator\\src\\library\\SqlLabDataGenerator\\SqlLabDataGenerator.csproj",
         "packagesPath": "C:\\Users\\KracmarOndrej\\.nuget\\packages\\",
-        "outputPath": "C:\\Projects\\PSModules\\SqlLabDataGenerator\\src\\library\\SqlLabDataGenerator\\obj\\",
+        "outputPath": "c:\\Projects\\PSModules\\SqlLabDataGenerator\\src\\library\\SqlLabDataGenerator\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"

@@ -20,8 +20,14 @@ catch {
 }
 
 # Load Microsoft.Data.SqlClient assembly for SQL Server provider
+# Microsoft.Data.SqlClient 6.x ships platform-specific managed assemblies under runtimes/
 try {
-    $sqlClientPath = "$script:ModuleRoot\bin\Microsoft.Data.SqlClient.dll"
+    $rid = if ($IsLinux -or $IsMacOS) { 'unix' } else { 'win' }
+    $sqlClientPath = "$script:ModuleRoot\bin\runtimes\$rid\lib\net8.0\Microsoft.Data.SqlClient.dll"
+    if (-not (Test-Path $sqlClientPath)) {
+        # Fallback to root DLL for older package layouts
+        $sqlClientPath = "$script:ModuleRoot\bin\Microsoft.Data.SqlClient.dll"
+    }
     if (Test-Path $sqlClientPath) {
         Add-Type -Path $sqlClientPath -ErrorAction Stop
     }

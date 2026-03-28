@@ -21,6 +21,8 @@
     <!-- Keep only common platform runtimes for PowerShell 7 -->
     <ItemGroup>
       <UnwantedRuntimes Include="$(OutputPath)runtimes\**" />
+      <UnwantedRuntimes Remove="$(OutputPath)runtimes\unix\**" />
+      <UnwantedRuntimes Remove="$(OutputPath)runtimes\win\**" />
       <UnwantedRuntimes Remove="$(OutputPath)runtimes\win-x64\**" />
       <UnwantedRuntimes Remove="$(OutputPath)runtimes\win-arm64\**" />
       <UnwantedRuntimes Remove="$(OutputPath)runtimes\linux-x64\**" />
