@@ -10,36 +10,19 @@ param (
 )
 
 try {
-	# Construct repository URLs
-	# Azure DevOps: NO credentials in URL - they come from credential store (set up below)
-	# If credentials are in URL, git uses that username and ignores credential store
+	# Azure DevOps: use basic auth via http.extraheader (same mechanism as persistCredentials uses for bearer)
+	# This bypasses all credential helper/store issues
 	$azureRepoUrl = ('https://dev.azure.com/{0}/{1}/_git/{2}' -f $AzureDevOpsOrganizationName, $AzureDevOpsProjectName, $AzureDevOpsRepositoryName)
+	$pair = '{0}:{1}' -f $AzureDevOpsUsername, $AzureDevOpsToken
+	$base64 = [System.Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($pair))
+	$azureAuthHeader = "AUTHORIZATION: basic $base64"
+
 	$encodedGitHubToken = [System.Web.HttpUtility]::UrlEncode($GitHubToken)
 	$gitHubRepoUrl = ('https://{0}:{1}@github.com/{2}/{3}' -f $GitHubUsername, $encodedGitHubToken, $GitHubUsername, $GitHubRepositoryName)
 
-	# Configure Git credential helper so credential approve actually stores credentials
-	Write-PSFMessage -Level Host -Message "Configuring Git credentials for Azure DevOps..."
-	git config --global credential.helper store
-
-	$credentialAzureDevOpsContent = @"
-protocol=https
-host=dev.azure.com
-username=$AzureDevOpsUsername
-password=$AzureDevOpsToken
-"@
-
-	$tempCredentialFile = New-TemporaryFile
-	$credentialAzureDevOpsContent | Set-Content -Path $tempCredentialFile.FullName
-
-	# Pipe credentials to Git credential helper
-	Get-Content $tempCredentialFile.FullName | git credential approve
-
-	# Remove temporary credential file
-	Remove-Item $tempCredentialFile.FullName
-
 	# Clone the Azure DevOps repository in mirror mode
 	Write-PSFMessage -Level Host -Message "Cloning Azure DevOps repository..."
-	git clone --mirror $azureRepoUrl repo.git
+	git -c "http.extraheader=$azureAuthHeader" clone --mirror $azureRepoUrl repo.git
 
 	# Navigate into the cloned repository
 	Set-Location repo.git
