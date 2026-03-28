@@ -31,31 +31,27 @@ param (
 	[string]$GitHubToken
 )
 
-$sourceUrl = "https://dev.azure.com/${AzureDevOpsOrganizationName}/${AzureDevOpsProjectName}/_git/${AzureDevOpsRepositoryName}"
-$targetUrl = "https://github.com/${GitHubUsername}/${GitHubRepositoryName}.git"
+$encodedAzureDevOpsPAT = [System.Web.HttpUtility]::UrlEncode($AzureDevOpsToken)
+$encodedGitHubToken = [System.Web.HttpUtility]::UrlEncode($GitHubToken)
 
-# Use extraheader for auth — avoids embedding tokens in URLs (which can leak in logs/stack traces)
-$azureAuthHeader = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("${AzureDevOpsUsername}:${AzureDevOpsToken}"))
-$githubAuthHeader = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes(":${GitHubToken}"))
+$azureRepoUrl = "https://${encodedAzureDevOpsPAT}@dev.azure.com/${AzureDevOpsOrganizationName}/${AzureDevOpsProjectName}/_git/${AzureDevOpsRepositoryName}"
+$gitHubRepoUrl = "https://${GitHubUsername}:${encodedGitHubToken}@github.com/${GitHubUsername}/${GitHubRepositoryName}.git"
 
 $tempDir = Join-Path ([System.IO.Path]::GetTempPath()) "repo-sync-$([Guid]::NewGuid().ToString('N').Substring(0,8))"
 
 try {
 	Write-Host "Cloning $AzureDevOpsRepositoryName from Azure DevOps"
-	$output = git -c "http.extraheader=Authorization: Basic $azureAuthHeader" clone --mirror $sourceUrl $tempDir 2>&1
-	if ($LASTEXITCODE -ne 0) {
-		$errorLines = $output | Where-Object { $_ -is [System.Management.Automation.ErrorRecord] } | ForEach-Object { $_.ToString() }
-		throw "Failed to clone from Azure DevOps (exit code $LASTEXITCODE): $($errorLines -join '; ')"
-	}
+	git clone --mirror $azureRepoUrl $tempDir 2>&1
+	if ($LASTEXITCODE -ne 0) { throw "Failed to clone from Azure DevOps (exit code $LASTEXITCODE)" }
 
 	Push-Location $tempDir
 	try {
+		Write-Host "Adding GitHub remote: $GitHubRepositoryName"
+		git remote add github $gitHubRepoUrl 2>&1
+
 		Write-Host "Pushing to GitHub mirror: $GitHubRepositoryName"
-		$output = git -c "http.extraheader=Authorization: Basic $githubAuthHeader" push --mirror $targetUrl 2>&1
-		if ($LASTEXITCODE -ne 0) {
-			$errorLines = $output | Where-Object { $_ -is [System.Management.Automation.ErrorRecord] } | ForEach-Object { $_.ToString() }
-			throw "Failed to push to GitHub (exit code $LASTEXITCODE): $($errorLines -join '; ')"
-		}
+		git push --mirror github 2>&1
+		if ($LASTEXITCODE -ne 0) { throw "Failed to push to GitHub (exit code $LASTEXITCODE)" }
 
 		Write-Host "Repository synchronized successfully"
 	}
