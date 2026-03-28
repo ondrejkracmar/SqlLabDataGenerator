@@ -1,22 +1,30 @@
 ﻿# SqlLabDataGenerator
 
-PowerShell module that fills your SQL Server or SQLite databases with realistic test data — names, addresses, emails, phone numbers, financial values, and more. The provider architecture is extensible to additional database engines (PostgreSQL, MySQL, Oracle, and others). The module reads the database schema, understands what each column means, and generates rows that respect foreign keys, constraints, and cross-column relationships.
+**AI-powered** PowerShell module that fills your SQL Server or SQLite databases with realistic test data. Uses large language models (OpenAI, Azure OpenAI, or Ollama) to **understand your database structure** — recognizing what each column represents regardless of naming conventions or language — and then **generates contextually consistent rows** where names, emails, addresses, and business data make sense together.
 
-Works out of the box with built-in generators. Add AI (OpenAI, Azure OpenAI, or Ollama) for smarter analysis, richer data, and any-language locale support.
+### Key AI Capabilities
+
+- **Semantic schema analysis** — AI reads your tables, columns, sample data, and relationships to understand the *purpose* of each column (e.g. `Jmeno` → person name, `CisloUctu` → bank account) instead of relying solely on naming patterns
+- **Intelligent data generation** — AI produces entire rows with cross-column consistency: emails match names, addresses are coherent, financial values are realistic for the business domain
+- **Two-tier architecture** — use a powerful cloud model (GPT-4o) for deep schema analysis and a fast local model (Llama 3) for high-throughput data generation, combining quality with speed
+- **Any-language locale support** — generate data in any language without pre-built locale packs; the AI adapts names, addresses, and values to the target culture automatically
+- **Per-table generation notes** — schema analysis produces expert-level guidance for each table that is passed to the generation model, resulting in higher-quality data even from smaller local models
+
+The module also works **without AI** using 10 built-in generators (PersonName, Address, Email, Phone, Date, Number, Company, Identifier, Financial, Text) and pattern-based column classification. The provider architecture is extensible to additional database engines (PostgreSQL, MySQL, Oracle, and others).
 
 ## How It Works
 
 The module follows a **5-step pipeline**. Each step builds on the previous one:
 
 ```
-Connect → Discover → Analyze → Plan → Generate
+Connect → Discover → Analyze (AI) → Plan (AI) → Generate (AI)
 ```
 
 1. **Connect** — open a connection to your database (`Connect-SldgDatabase`)
 2. **Discover** — read tables, columns, foreign keys, constraints (`Get-SldgDatabaseSchema`)
-3. **Analyze** — classify each column semantically: is it a name? email? money? (`Get-SldgColumnAnalysis`)
-4. **Plan** — decide how many rows per table and which generator to use for each column (`New-SldgGenerationPlan`)
-5. **Generate** — produce the data and insert it (`Invoke-SldgDataGeneration`)
+3. **Analyze** — classify each column semantically using AI or pattern matching (`Get-SldgColumnAnalysis`)
+4. **Plan** — AI analyzes sample data and relationships, produces per-table generation notes (`New-SldgGenerationPlan`)
+5. **Generate** — AI produces contextually-consistent rows respecting all constraints (`Invoke-SldgDataGeneration`)
 
 The pipeline is designed so that you can run it with a single command chain, or stop at any step to inspect and customize.
 

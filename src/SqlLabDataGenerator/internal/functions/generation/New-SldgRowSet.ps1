@@ -218,6 +218,38 @@
 	$generatedValues = @{}
 	$aiBatchIndex = 0
 
+	# Sequential date counter for unique date columns (avoids random collision on date-only values)
+	$dateSequenceCounters = @{}
+	foreach ($col in $activeColumns) {
+		if ($uniqueTracker.ContainsKey($col.ColumnName) -and $col.DataType -match '^(date|datetime|datetime2|smalldatetime)$') {
+			$dateSequenceCounters[$col.ColumnName] = 0
+		}
+	}
+
+	# Pre-compute composite PK combination pool size for FK-based PKs
+	$compositePKPoolSize = [long]::MaxValue
+	if ($hasCompositePK) {
+		$allPKsAreFk = $true
+		$poolSize = [long]1
+		foreach ($pkCol in $pkColumns) {
+			if ($pkCol.ForeignKey -and $ForeignKeyValues) {
+				$refKey = "$($pkCol.ForeignKey.ReferencedSchema).$($pkCol.ForeignKey.ReferencedTable).$($pkCol.ForeignKey.ReferencedColumn)"
+				$vals = $ForeignKeyValues[$refKey]
+				if ($vals) { $poolSize *= $vals.Count }
+				else { $allPKsAreFk = $false; break }
+			} elseif ($pkAutoIncrements.ContainsKey($pkCol.ColumnName)) {
+				continue
+			} else { $allPKsAreFk = $false; break }
+		}
+		if ($allPKsAreFk -and $poolSize -lt [long]::MaxValue) {
+			$compositePKPoolSize = $poolSize
+			if ($RowCount -gt $compositePKPoolSize) {
+				Write-PSFMessage -Level Warning -Message "Requested $RowCount rows for '$($TableInfo.FullName)' but only $compositePKPoolSize unique FK combinations exist. Capping to $compositePKPoolSize."
+				$RowCount = [int]$compositePKPoolSize
+			}
+		}
+	}
+
 	# Suppress DataTable index/constraint checks during bulk population for better performance
 	$dataTable.BeginLoadData()
 	try {
@@ -250,6 +282,33 @@
 					if ($aiRow.ContainsKey($col.ColumnName) -and $aiRow[$col.ColumnName] -isnot [DBNull]) {
 						$value = $aiRow[$col.ColumnName]
 					}
+				}
+
+				# Smart FK unique selection: for columns that are FK + unique tracked,
+				# pick directly from unused parent values to avoid wasteful retries
+				if ($null -eq $value -and $col.ForeignKey -and $ForeignKeyValues -and $uniqueTracker.ContainsKey($col.ColumnName)) {
+					$refKey = "$($col.ForeignKey.ReferencedSchema).$($col.ForeignKey.ReferencedTable).$($col.ForeignKey.ReferencedColumn)"
+					$parentValues = $ForeignKeyValues[$refKey]
+					if ($parentValues -and $parentValues.Count -gt 0) {
+						$available = @($parentValues | Where-Object { -not $uniqueTracker[$col.ColumnName].Contains([string]$_) })
+						if ($available.Count -gt 0) {
+							$value = $available | Get-Random
+						} else {
+							Write-PSFMessage -Level Warning -Message "All FK values exhausted for unique column '$($col.ColumnName)' in '$($TableInfo.FullName)'. Cannot generate more unique rows."
+							$retryCount = $maxUniqueRetries
+							$rowValid = $false
+							break
+						}
+					}
+				}
+
+				# Sequential date generation for unique date columns
+				if ($null -eq $value -and $dateSequenceCounters.ContainsKey($col.ColumnName)) {
+					$baseDate = [datetime]'2020-01-01'
+					do {
+						$dateSequenceCounters[$col.ColumnName]++
+						$value = $baseDate.AddDays($dateSequenceCounters[$col.ColumnName])
+					} while ($uniqueTracker[$col.ColumnName].Contains([string]$value) -and $dateSequenceCounters[$col.ColumnName] -lt 36500)
 				}
 
 				# Fall back to standard generator
@@ -315,6 +374,10 @@
 				if ($uniqueTracker['__CompositePK__'].Contains($compositeKey)) {
 					$rowValid = $false
 					$retryCount++
+					# Bail out early if FK combination pool is exhausted
+					if ($uniqueTracker['__CompositePK__'].Count -ge $compositePKPoolSize) {
+						$retryCount = $maxUniqueRetries
+					}
 				}
 			}
 

@@ -65,8 +65,8 @@
 	}
 
 	# Handle nullable columns (configurable chance of NULL for nullable non-FK columns)
-	# Exempt PII columns — they must always have values for realistic masking/generation
-	if ($Column.IsNullable -and -not $Column.ForeignKey -and -not $Column.IsPrimaryKey -and -not ($Column.Classification -and $Column.Classification.IsPII)) {
+	# Exempt PII columns and unique columns — they must always have values
+	if ($Column.IsNullable -and -not $Column.ForeignKey -and -not $Column.IsPrimaryKey -and -not $Column.IsUnique -and -not ($Column.Classification -and $Column.Classification.IsPII)) {
 		$nullProb = if ($NullProbability -ge 0) { $NullProbability } else { Get-PSFConfigValue -FullName 'SqlLabDataGenerator.Generation.NullProbability' }
 		if ((Get-Random -Minimum 0 -Maximum 100) -lt $nullProb) { return [DBNull]::Value }
 	}

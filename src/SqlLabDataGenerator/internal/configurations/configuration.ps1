@@ -79,7 +79,7 @@ Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'Generation.NullProbability' -
 Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'Generation.Mode' -Value 'Synthetic' -Initialize -Validation 'SqlLabDataGenerator.GenerationMode' -Description "Default generation mode: Synthetic, Masking, or Scenario"
 
 # Magic-number extraction — centralised thresholds and limits
-Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'Generation.MaxUniqueRetries' -Value 10 -Initialize -Validation 'integerpositive' -Description "Maximum retry attempts when generating a unique value before giving up."
+Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'Generation.MaxUniqueRetries' -Value 100 -Initialize -Validation 'integerpositive' -Description "Maximum retry attempts when generating a unique value before giving up."
 Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'AI.ConfidenceThreshold' -Value 0.6 -Initialize -Validation 'double' -Description "Minimum confidence score for AI semantic classification to be accepted."
 
 # AI prompt template settings
