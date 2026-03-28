@@ -16,8 +16,10 @@ try {
 	$azureRepoUrl = ('https://{0}@dev.azure.com/{1}/{2}/_git/{3}' -f $encodedAzureDevOpsPAT, $AzureDevOpsOrganizationName, $AzureDevOpsProjectName, $AzureDevOpsRepositoryName)
 	$gitHubRepoUrl = ('https://{0}:{1}@github.com/{2}/{3}' -f $GitHubUsername, $encodedGitHubToken, $GitHubUsername, $GitHubRepositoryName)
 
-	# Configure Git to use credentials for Azure DevOps
+	# Configure Git credential helper so credential approve actually stores credentials
 	Write-PSFMessage -Level Host -Message "Configuring Git credentials for Azure DevOps..."
+	git config --global credential.helper store
+
 	$credentialAzureDevOpsContent = @"
 protocol=https
 host=dev.azure.com
