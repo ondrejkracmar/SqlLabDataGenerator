@@ -12,21 +12,12 @@ param (
 $ErrorActionPreference = 'Stop'
 
 try {
-	# Debug: show git config and GIT_ env vars to understand credential setup
-	Write-Host "=== DEBUG: GIT_ environment variables ==="
-	Get-ChildItem env: | Where-Object { $_.Name -match '^GIT_' } | ForEach-Object { Write-Host "$($_.Name) = $($_.Value)" }
-	Write-Host "=== DEBUG: git config credential/http entries ==="
-	git config --list --show-origin 2>&1 | Select-String -Pattern 'credential|extraheader|helper' | ForEach-Object { Write-Host $_ }
-	Write-Host "=== DEBUG: parameters ==="
-	Write-Host "Org=$AzureDevOpsOrganizationName Project=$AzureDevOpsProjectName Repo=$AzureDevOpsRepositoryName User=$AzureDevOpsUsername TokenLength=$($AzureDevOpsToken.Length)"
-	Write-Host "GitHubUser=$GitHubUsername GitHubRepo=$GitHubRepositoryName GitHubTokenLength=$($GitHubToken.Length)"
-	Write-Host "=== END DEBUG ==="
-
-	# Exact same approach as PSMicrosoftEntraID
-	$encodedAzureDevOpsPAT = [System.Web.HttpUtility]::UrlEncode($AzureDevOpsToken)
-	$encodedGitHubToken = [System.Web.HttpUtility]::UrlEncode($GitHubToken)
-	$azureRepoUrl = ('https://{0}@dev.azure.com/{1}/{2}/_git/{3}' -f $encodedAzureDevOpsPAT, $AzureDevOpsOrganizationName, $AzureDevOpsProjectName, $AzureDevOpsRepositoryName)
-	$gitHubRepoUrl = ('https://{0}:{1}@github.com/{2}/{3}' -f $GitHubUsername, $encodedGitHubToken, $GitHubUsername, $GitHubRepositoryName)
+	# Azure DevOps clone: use org name as username to match the extraheader URL from persistCredentials
+	# persistCredentials sets: http.https://ORG@dev.azure.com/ORG/PROJECT/_git/REPO.extraheader=AUTHORIZATION: bearer <token>
+	# Our clone URL must match this pattern exactly for the bearer token to be applied
+	$azureRepoUrl = "https://${AzureDevOpsOrganizationName}@dev.azure.com/${AzureDevOpsOrganizationName}/${AzureDevOpsProjectName}/_git/${AzureDevOpsRepositoryName}"
+	# GitHub: PAT in URL (no persistCredentials for github.com)
+	$gitHubRepoUrl = "https://${GitHubUsername}:${GitHubToken}@github.com/${GitHubUsername}/${GitHubRepositoryName}"
 
 	Write-Host "Cloning $AzureDevOpsRepositoryName from Azure DevOps..."
 	git clone --mirror $azureRepoUrl repo.git 2>&1
@@ -36,7 +27,6 @@ try {
 
 	Write-Host "Adding GitHub remote..."
 	git remote add github $gitHubRepoUrl
-	git remote -v
 
 	Write-Host "Pushing to GitHub..."
 	git push --mirror github 2>&1
