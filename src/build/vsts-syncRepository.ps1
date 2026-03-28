@@ -12,12 +12,13 @@ param (
 $ErrorActionPreference = 'Stop'
 
 try {
-	# Azure DevOps clone: use org name as username to match the extraheader URL from persistCredentials
-	# persistCredentials sets: http.https://ORG@dev.azure.com/ORG/PROJECT/_git/REPO.extraheader=AUTHORIZATION: bearer <token>
-	# Our clone URL must match this pattern exactly for the bearer token to be applied
-	$azureRepoUrl = "https://${AzureDevOpsOrganizationName}@dev.azure.com/${AzureDevOpsOrganizationName}/${AzureDevOpsProjectName}/_git/${AzureDevOpsRepositoryName}"
-	# GitHub: PAT in URL (no persistCredentials for github.com)
-	$gitHubRepoUrl = "https://${GitHubUsername}:${GitHubToken}@github.com/${GitHubUsername}/${GitHubRepositoryName}"
+	# Azure DevOps: PAT goes as password (not username!) in basic auth
+	# [uri]::EscapeDataString is available everywhere (.NET Core), unlike [System.Web.HttpUtility]
+	$encodedPAT = [uri]::EscapeDataString($AzureDevOpsToken)
+	$encodedGitHubToken = [uri]::EscapeDataString($GitHubToken)
+
+	$azureRepoUrl = "https://${AzureDevOpsUsername}:${encodedPAT}@dev.azure.com/${AzureDevOpsOrganizationName}/${AzureDevOpsProjectName}/_git/${AzureDevOpsRepositoryName}"
+	$gitHubRepoUrl = "https://${GitHubUsername}:${encodedGitHubToken}@github.com/${GitHubUsername}/${GitHubRepositoryName}"
 
 	Write-Host "Cloning $AzureDevOpsRepositoryName from Azure DevOps..."
 	git clone --mirror $azureRepoUrl repo.git 2>&1
