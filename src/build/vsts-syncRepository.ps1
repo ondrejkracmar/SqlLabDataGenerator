@@ -10,10 +10,11 @@ param (
 )
 
 try {
-	# Construct the Azure DevOps and GitHub repository URLs
-	$encodedAzureDevOpsPAT = [System.Web.HttpUtility]::UrlEncode($AzureDevOpsToken)
+	# Construct repository URLs
+	# Azure DevOps: NO credentials in URL - they come from credential store (set up below)
+	# If credentials are in URL, git uses that username and ignores credential store
+	$azureRepoUrl = ('https://dev.azure.com/{0}/{1}/_git/{2}' -f $AzureDevOpsOrganizationName, $AzureDevOpsProjectName, $AzureDevOpsRepositoryName)
 	$encodedGitHubToken = [System.Web.HttpUtility]::UrlEncode($GitHubToken)
-	$azureRepoUrl = ('https://{0}@dev.azure.com/{1}/{2}/_git/{3}' -f $encodedAzureDevOpsPAT, $AzureDevOpsOrganizationName, $AzureDevOpsProjectName, $AzureDevOpsRepositoryName)
 	$gitHubRepoUrl = ('https://{0}:{1}@github.com/{2}/{3}' -f $GitHubUsername, $encodedGitHubToken, $GitHubUsername, $GitHubRepositoryName)
 
 	# Configure Git credential helper so credential approve actually stores credentials
