@@ -9,33 +9,50 @@ param (
 	[string]$GitHubToken
 )
 
-$ErrorActionPreference = 'Stop'
-
 try {
-	# Azure DevOps: PAT goes as password (not username!) in basic auth
-	# [uri]::EscapeDataString is available everywhere (.NET Core), unlike [System.Web.HttpUtility]
-	$encodedPAT = [uri]::EscapeDataString($AzureDevOpsToken)
-	$encodedGitHubToken = [uri]::EscapeDataString($GitHubToken)
+	# Construct the Azure DevOps and GitHub repository URLs
+	$encodedAzureDevOpsPAT = [System.Web.HttpUtility]::UrlEncode($AzureDevOpsToken)
+	$encodedGitHubToken = [System.Web.HttpUtility]::UrlEncode($GitHubToken)
+	$azureRepoUrl = ('https://{0}@dev.azure.com/{1}/{2}/_git/{3}' -f $encodedAzureDevOpsPAT, $AzureDevOpsOrganizationName, $AzureDevOpsProjectName, $AzureDevOpsRepositoryName)
+	$gitHubRepoUrl = ('https://{0}:{1}@github.com/{2}/{3}' -f $GitHubUsername, $encodedGitHubToken, $GitHubUsername, $GitHubRepositoryName)
 
-	$azureRepoUrl = "https://${AzureDevOpsUsername}:${encodedPAT}@dev.azure.com/${AzureDevOpsOrganizationName}/${AzureDevOpsProjectName}/_git/${AzureDevOpsRepositoryName}"
-	$gitHubRepoUrl = "https://${GitHubUsername}:${encodedGitHubToken}@github.com/${GitHubUsername}/${GitHubRepositoryName}"
+	# Configure Git to use credentials for Azure DevOps
+	Write-PSFMessage -Level Host -Message "Configuring Git credentials for Azure DevOps..."
+	$credentialAzureDevOpsContent = @"
+protocol=https
+host=dev.azure.com
+username=$AzureDevOpsUsername
+password=$AzureDevOpsToken
+"@
 
-	Write-Host "Cloning $AzureDevOpsRepositoryName from Azure DevOps..."
-	git clone --mirror $azureRepoUrl repo.git 2>&1
-	if ($LASTEXITCODE -ne 0) { throw "git clone failed with exit code $LASTEXITCODE" }
+	$tempCredentialFile = New-TemporaryFile
+	$credentialAzureDevOpsContent | Set-Content -Path $tempCredentialFile.FullName
 
+	# Pipe credentials to Git credential helper
+	Get-Content $tempCredentialFile.FullName | git credential approve
+
+	# Remove temporary credential file
+	Remove-Item $tempCredentialFile.FullName
+
+	# Clone the Azure DevOps repository in mirror mode
+	Write-PSFMessage -Level Host -Message "Cloning Azure DevOps repository..."
+	git clone --mirror $azureRepoUrl repo.git
+
+	# Navigate into the cloned repository
 	Set-Location repo.git
 
-	Write-Host "Adding GitHub remote..."
+	# Add GitHub as a remote repository
+	Write-PSFMessage -Level Host -Message "Adding GitHub remote repository..."
 	git remote add github $gitHubRepoUrl
+	git remote -v
 
-	Write-Host "Pushing to GitHub..."
-	git push --mirror github 2>&1
-	if ($LASTEXITCODE -ne 0) { throw "git push failed with exit code $LASTEXITCODE" }
+	# Push to GitHub
+	Write-PSFMessage -Level Host -Message "Pushing to GitHub..."
+	git push --mirror github
 
+	# Return to the original directory
 	Set-Location -Path ..
-	Write-Host "Synchronization completed successfully."
+	Write-PSFMessage -Level Important -Message "Synchronization completed successfully."
 } catch {
-	Write-Error "An error occurred: $_"
-	exit 1
+	Stop-PSFFunction -Message "An error occurred" -EnableException $true -ErrorRecord $_
 }
