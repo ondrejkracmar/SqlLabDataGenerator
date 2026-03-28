@@ -40,8 +40,9 @@ $gitHubRepoUrl = "https://${GitHubUsername}:${encodedGitHubToken}@github.com/${G
 $tempDir = Join-Path ([System.IO.Path]::GetTempPath()) "repo-sync-$([Guid]::NewGuid().ToString('N').Substring(0,8))"
 
 try {
+	# Disable any credential helper set by 'persistCredentials: true' in the pipeline checkout step
 	Write-Host "Cloning $AzureDevOpsRepositoryName from Azure DevOps"
-	git clone --mirror $azureRepoUrl $tempDir 2>&1
+	git -c credential.helper= clone --mirror $azureRepoUrl $tempDir 2>&1
 	if ($LASTEXITCODE -ne 0) { throw "Failed to clone from Azure DevOps (exit code $LASTEXITCODE)" }
 
 	Push-Location $tempDir
@@ -50,7 +51,7 @@ try {
 		git remote add github $gitHubRepoUrl 2>&1
 
 		Write-Host "Pushing to GitHub mirror: $GitHubRepositoryName"
-		git push --mirror github 2>&1
+		git -c credential.helper= push --mirror github 2>&1
 		if ($LASTEXITCODE -ne 0) { throw "Failed to push to GitHub (exit code $LASTEXITCODE)" }
 
 		Write-Host "Repository synchronized successfully"
