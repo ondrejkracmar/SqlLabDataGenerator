@@ -42,14 +42,20 @@ $tempDir = Join-Path ([System.IO.Path]::GetTempPath()) "repo-sync-$([Guid]::NewG
 
 try {
 	Write-Host "Cloning $AzureDevOpsRepositoryName from Azure DevOps"
-	git -c "http.extraheader=Authorization: Basic $azureAuthHeader" clone --mirror $sourceUrl $tempDir 2>&1 | Out-Null
-	if ($LASTEXITCODE -ne 0) { throw "Failed to clone from Azure DevOps" }
+	$output = git -c "http.extraheader=Authorization: Basic $azureAuthHeader" clone --mirror $sourceUrl $tempDir 2>&1
+	if ($LASTEXITCODE -ne 0) {
+		$errorLines = $output | Where-Object { $_ -is [System.Management.Automation.ErrorRecord] } | ForEach-Object { $_.ToString() }
+		throw "Failed to clone from Azure DevOps (exit code $LASTEXITCODE): $($errorLines -join '; ')"
+	}
 
 	Push-Location $tempDir
 	try {
 		Write-Host "Pushing to GitHub mirror: $GitHubRepositoryName"
-		git -c "http.extraheader=Authorization: Basic $githubAuthHeader" push --mirror $targetUrl 2>&1 | Out-Null
-		if ($LASTEXITCODE -ne 0) { throw "Failed to push to GitHub" }
+		$output = git -c "http.extraheader=Authorization: Basic $githubAuthHeader" push --mirror $targetUrl 2>&1
+		if ($LASTEXITCODE -ne 0) {
+			$errorLines = $output | Where-Object { $_ -is [System.Management.Automation.ErrorRecord] } | ForEach-Object { $_.ToString() }
+			throw "Failed to push to GitHub (exit code $LASTEXITCODE): $($errorLines -join '; ')"
+		}
 
 		Write-Host "Repository synchronized successfully"
 	}
