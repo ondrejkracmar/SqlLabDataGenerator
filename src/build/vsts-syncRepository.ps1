@@ -10,19 +10,19 @@ param (
 )
 
 try {
-	# Azure DevOps: use basic auth via http.extraheader (same mechanism as persistCredentials uses for bearer)
-	# This bypasses all credential helper/store issues
+	# Write Azure DevOps credentials directly to git-credentials file
+	# and force credential.helper=store via -c (highest precedence, overrides any helper from persistCredentials)
 	$azureRepoUrl = ('https://dev.azure.com/{0}/{1}/_git/{2}' -f $AzureDevOpsOrganizationName, $AzureDevOpsProjectName, $AzureDevOpsRepositoryName)
-	$pair = '{0}:{1}' -f $AzureDevOpsUsername, $AzureDevOpsToken
-	$base64 = [System.Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($pair))
-	$azureAuthHeader = "AUTHORIZATION: basic $base64"
-
 	$encodedGitHubToken = [System.Web.HttpUtility]::UrlEncode($GitHubToken)
 	$gitHubRepoUrl = ('https://{0}:{1}@github.com/{2}/{3}' -f $GitHubUsername, $encodedGitHubToken, $GitHubUsername, $GitHubRepositoryName)
 
+	$credentialUrl = 'https://{0}:{1}@dev.azure.com' -f [uri]::EscapeDataString($AzureDevOpsUsername), [uri]::EscapeDataString($AzureDevOpsToken)
+	Set-Content -Path "$HOME/.git-credentials" -Value $credentialUrl -Force
+
 	# Clone the Azure DevOps repository in mirror mode
+	# -c credential.helper=store forces reading from ~/.git-credentials, bypassing any other credential config
 	Write-PSFMessage -Level Host -Message "Cloning Azure DevOps repository..."
-	git -c "http.extraheader=$azureAuthHeader" clone --mirror $azureRepoUrl repo.git
+	git -c credential.helper=store clone --mirror $azureRepoUrl repo.git
 
 	# Navigate into the cloned repository
 	Set-Location repo.git
