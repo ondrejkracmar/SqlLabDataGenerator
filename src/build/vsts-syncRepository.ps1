@@ -41,17 +41,17 @@ $githubAuthHeader = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes(":
 $tempDir = Join-Path ([System.IO.Path]::GetTempPath()) "repo-sync-$([Guid]::NewGuid().ToString('N').Substring(0,8))"
 
 try {
-	Write-PSFMessage -Level Important -Message "Cloning $AzureDevOpsRepositoryName from Azure DevOps"
+	Write-Host "Cloning $AzureDevOpsRepositoryName from Azure DevOps"
 	git -c "http.extraheader=Authorization: Basic $azureAuthHeader" clone --mirror $sourceUrl $tempDir 2>&1 | Out-Null
 	if ($LASTEXITCODE -ne 0) { throw "Failed to clone from Azure DevOps" }
 
 	Push-Location $tempDir
 	try {
-		Write-PSFMessage -Level Important -Message "Pushing to GitHub mirror: $GitHubRepositoryName"
+		Write-Host "Pushing to GitHub mirror: $GitHubRepositoryName"
 		git -c "http.extraheader=Authorization: Basic $githubAuthHeader" push --mirror $targetUrl 2>&1 | Out-Null
 		if ($LASTEXITCODE -ne 0) { throw "Failed to push to GitHub" }
 
-		Write-PSFMessage -Level Important -Message "Repository synchronized successfully"
+		Write-Host "Repository synchronized successfully"
 	}
 	finally {
 		Pop-Location
