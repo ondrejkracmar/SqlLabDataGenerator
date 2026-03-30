@@ -24,11 +24,6 @@ Export-SldgGenerationProfile [-Plan] <Object> [-Path] <string> [-IncludeSemantic
  [<CommonParameters>]
 ```
 
-## ALIASES
-
-This cmdlet has the following aliases,
-  {{Insert list of aliases}}
-
 ## DESCRIPTION
 
 Saves the generation plan configuration including table row counts,

@@ -23,6 +23,12 @@ New-MarkdownCommandHelp -ModuleInfo $mod -OutputFolder ./docs/commands -Force -W
 - [Connect-SldgDatabase](Connect-SldgDatabase.md)
 - [Disconnect-SldgDatabase](Disconnect-SldgDatabase.md)
 
+## Session
+
+- [Get-SldgSession](Get-SldgSession.md)
+- [Reset-SldgSession](Reset-SldgSession.md)
+- [Clear-SldgCache](Clear-SldgCache.md)
+
 ## AI
 
 - [Set-SldgAIProvider](Set-SldgAIProvider.md)
@@ -51,6 +57,10 @@ New-MarkdownCommandHelp -ModuleInfo $mod -OutputFolder ./docs/commands -Force -W
 
 - [Export-SldgGenerationProfile](Export-SldgGenerationProfile.md)
 - [Import-SldgGenerationProfile](Import-SldgGenerationProfile.md)
+
+## Utility
+
+- [Get-SldgHealth](Get-SldgHealth.md)
 
 ## Locale
 

@@ -20,14 +20,21 @@
 	.PARAMETER IncludeSemanticAnalysis
 		If specified, includes the full semantic analysis (types, PII flags) in the export.
 
+	.PARAMETER WhatIf
+		Shows what the command would do without actually exporting the profile.
+
+	.PARAMETER Confirm
+		Prompts for confirmation before exporting the profile.
+
 	.EXAMPLE
 		PS C:\> Export-SldgGenerationProfile -Plan $plan -Path 'C:\profiles\mydb.json'
 
 		Exports the plan to a JSON file.
 	#>
-	[CmdletBinding()]
+	[OutputType([void])]
+	[CmdletBinding(SupportsShouldProcess)]
 	param (
-		[Parameter(Mandatory)]
+		[Parameter(Mandatory, ValueFromPipeline)]
 		$Plan,
 
 		[Parameter(Mandatory)]
@@ -36,12 +43,15 @@
 		[switch]$IncludeSemanticAnalysis
 	)
 
+	process {
 	# Resolve and normalize path — reject path traversal attempts that escape working directory
 	if ($Path -match '(?:^|[\\/])\.\.(?:[\\/]|$)') {
 		Stop-PSFFunction -String 'Profile.ExportPathInvalid' -StringValues $Path -EnableException $true
 	}
 	$resolvedPath = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Path)
 	$Path = [System.IO.Path]::GetFullPath($resolvedPath)
+
+	if (-not $PSCmdlet.ShouldProcess($Path, 'Export generation profile')) { return }
 
 	Write-PSFMessage -Level Host -Message ($script:strings.'Profile.Exporting' -f $Path)
 
@@ -106,4 +116,5 @@
 	$export | ConvertTo-Json -Depth 10 | Set-Content -Path $Path -Encoding UTF8
 
 	Write-PSFMessage -Level Host -String 'Profile.Exported' -StringValues $Path
+	}
 }

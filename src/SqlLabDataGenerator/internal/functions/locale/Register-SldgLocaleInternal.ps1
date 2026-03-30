@@ -20,10 +20,10 @@
 		}
 		$val = $Data[$key]
 		if ($null -eq $val) {
-			Stop-PSFFunction -Message "Locale '$Name': key '$key' has a `$null value. Each required key must contain a non-empty array or string." -EnableException $true
+			Stop-PSFFunction -String 'Locale.KeyNullValue' -StringValues $Name, $key -EnableException $true
 		}
 		if ($val -is [System.Array] -and $val.Count -eq 0) {
-			Stop-PSFFunction -Message "Locale '$Name': key '$key' is an empty array. At least one value is required." -EnableException $true
+			Stop-PSFFunction -String 'Locale.KeyEmptyArray' -StringValues $Name, $key -EnableException $true
 		}
 	}
 

@@ -109,7 +109,7 @@
 	$maxCacheEntries = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.Cache.MaxEntries'
 	$cacheTTL = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.Cache.TTLMinutes'
 	foreach ($cacheName in @('AIValueCache', 'AILocaleCache', 'AILocaleCategoryCache')) {
-		$cache = $script:SldgState[$cacheName]
+		$cache = $script:SldgState.$cacheName
 		if ($cache.Count -gt $maxCacheEntries) {
 			# Evict entries older than TTL; if still over limit, remove oldest half
 			$cutoff = [datetime]::UtcNow.AddMinutes(-$cacheTTL)

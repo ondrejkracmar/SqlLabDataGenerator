@@ -38,11 +38,6 @@ Set-SldgPromptTemplate [-InputObject] <Object> [[-Variant] <string>]
  [[-Description] <string>] [-Force] [-WhatIf] [-Confirm] [<CommonParameters>]
 ```
 
-## ALIASES
-
-This cmdlet has the following aliases,
-  {{Insert list of aliases}}
-
 ## DESCRIPTION
 
 Writes a custom .prompt file to the configured AI.PromptPath directory.

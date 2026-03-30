@@ -23,11 +23,6 @@ Lists available data transformers.
 Get-SldgTransformer [[-Name] <string>] [<CommonParameters>]
 ```
 
-## ALIASES
-
-This cmdlet has the following aliases,
-  {{Insert list of aliases}}
-
 ## DESCRIPTION
 
 Returns information about registered data transformers that can be used

@@ -255,4 +255,76 @@
 
 	# Column Analysis
 	'Semantic.PromptResolveFailed'           = 'Failed to resolve column-analysis prompt template.'
+
+	# Cache Management
+	'Cache.Cleared'                          = 'Cleared {0} entries from {1}.'
+	'Cache.ClearedAll'                       = 'Cleared {0} entries from all AI caches.'
+
+	# Session Management
+	'Session.ClosingConnection'              = 'Closing active connection to {0}/{1}'
+	'Session.ResetComplete'                  = 'Session reset: closed connection, cleared {0} providers, {1} locales, {2} cached items.'
+
+	# Generation (hardcoded fixes)
+	'Generation.ParallelRollbackFailed'      = 'Parallel rollback failed: {0}'
+	'Generation.MaxPKQueryFailed'            = 'Could not query MAX PK for {0}: {1}'
+	'Generation.PostInsertPKCollected'       = 'Post-insert PK collection: {0} = {1} values'
+	'Generation.PostInsertPKFailed'          = 'Could not collect post-insert PK for {0}: {1}'
+	'Generation.FKReenableRollbackFailed'    = 'FK re-enable rollback failed: {0}'
+	'Generation.FKReenableCritical'          = 'CRITICAL: FK constraints could not be re-enabled on: {0}. Manual intervention required.'
+
+	# Profile Import (hardcoded fixes)
+	'Profile.FileTooLarge'                   = "Profile file '{0}' is {1} MB, exceeding the {2} MB limit."
+	'Profile.InvalidRowCount'               = "Profile: Invalid rowCount '{0}' for table '{1}' — skipping override."
+
+	# Generation Rule
+	'GenerationRule.FKValueListWarning'      = "Column '{0}' in '{1}' has a foreign key to '{2}.{3}'. ValueList values may cause FK violations if they don't exist in the parent table."
+
+	# AI Provider Validation
+	'AI.EndpointCredentialsForbidden'        = 'Endpoint URI must not contain embedded credentials. Use -ApiKey or -Credential instead.'
+	'AI.EndpointHttpsForbidden'              = 'Endpoint for {0} must use HTTPS. Got: {1}://{2}'
+	'AI.EndpointInvalidUri'                  = 'Invalid endpoint URI for {0}.'
+
+	# Locale (hardcoded fixes)
+	'Locale.AIGenerationFailed'              = "AI locale generation failed for '{0}': {1}. Falling back to en-US."
+	'Locale.AICategoryMixFailed'             = "AI locale category '{0}' generation failed for '{1}': {2}. Keeping base locale data for this category."
+	'Locale.MixMissingKeys'                  = "Mixed locale '{0}' is missing required keys: {1}. Generation may fail for some semantic types."
+
+	# Internal: RowSet Generation
+	'RowSet.CircularDependency'              = "Circular cross-column dependency detected for column '{0}' in '{1}'. Dependency chain will be broken."
+	'RowSet.CompositePKCapped'               = "Requested {0} rows for '{1}' but only {2} unique FK combinations exist. Capping to {2}."
+	'RowSet.FKExhausted'                     = "All FK values exhausted for unique column '{0}' in '{1}'. Cannot generate more unique rows."
+	'RowSet.ValueTruncated'                  = "Truncating value for column '{0}' from {1} to {2} characters."
+	'RowSet.UniqueRetriesExhausted'          = "Row {0} for '{1}' skipped: could not generate unique values after {2} retries."
+
+	# Internal: FK Context-Aware Batch
+	'FKContext.ParentCountExceedsLimit'      = "FK parent count ({0}) exceeds limit ({1}) for '{2}'. Using flat batch."
+	'FKContext.GroupingRows'                 = "FK-context-aware generation for '{0}': grouping {1} rows by '{2}' ({3} parent values)"
+
+	# Internal: AI Batch Generation
+	'AI.BatchMissingColumns'                 = "AI response for '{0}' missing columns: {1}. Using NULL for missing values."
+	'AI.BatchRowCountMismatch'               = "AI batch for '{0}': received {1} of {2} requested rows. AI may have hit output limit."
+
+	# Internal: Generated Value
+	'Generation.FKParentValuesNotFound'      = "No parent values found for FK column '{0}' referencing '{1}'. Parent table may not have been populated."
+
+	# Internal: Existing Unique Values
+	'Generation.UniqueQueryFailed'           = "Could not query existing unique values for {0}: {1}"
+
+	# Internal: Schema Analysis
+	'AI.SchemaAnalysisSampleFailed'          = "Could not query sample data for {0}: {1}"
+
+	# Internal: Parallel Generation
+	'Generation.ParallelMaxPKQueryFailed'    = 'Could not query MAX PK for {0}: {1}'
+
+	# Internal: Schema Conversion
+	'Schema.ViewRegexTimeout'                = "Regex timeout while parsing view definition for table '{0}'. View hints skipped for this view."
+
+	# Internal: Write Providers
+	'Write.BulkCopyDisposeFailed'            = 'BulkCopy dispose failed: {0}'
+	'Write.IdentityInsertOffFailed'          = 'IDENTITY_INSERT OFF failed after fallback: {0}'
+	'Write.SQLiteConstraintViolations'       = "SQLite INSERT: {0} of {1} rows ignored due to constraint violations in table '{2}'."
+
+	# Internal: Locale Registration
+	'Locale.KeyNullValue'                    = "Locale '{0}': key '{1}' has a `$null value. Each required key must contain a non-empty array or string."
+	'Locale.KeyEmptyArray'                   = "Locale '{0}': key '{1}' is an empty array. At least one value is required."
 }

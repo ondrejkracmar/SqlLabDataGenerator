@@ -23,11 +23,6 @@ Disconnects from the active database connection.
 Disconnect-SldgDatabase [<CommonParameters>]
 ```
 
-## ALIASES
-
-This cmdlet has the following aliases,
-  {{Insert list of aliases}}
-
 ## DESCRIPTION
 
 Closes and disposes the active database connection established by Connect-SldgDatabase.

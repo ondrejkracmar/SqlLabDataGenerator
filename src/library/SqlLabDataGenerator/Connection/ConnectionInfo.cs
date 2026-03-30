@@ -26,6 +26,21 @@ namespace SqlLabDataGenerator
         /// <summary>Initializes a new instance of the <see cref="Connection"/> class.</summary>
         public Connection() { }
 
+        /// <summary>
+        /// Validates that the connection has the minimum required state.
+        /// Returns true if DbConnection and Provider are set.
+        /// </summary>
+        public bool IsValid =>
+            DbConnection != null &&
+            !string.IsNullOrWhiteSpace(Provider) &&
+            !string.IsNullOrWhiteSpace(Database);
+
+        /// <summary>Whether the underlying connection is currently open.</summary>
+        public bool IsOpen =>
+            DbConnection != null &&
+            !_disposed &&
+            DbConnection.State == System.Data.ConnectionState.Open;
+
         private bool _disposed;
 
         /// <summary>Disposes the underlying database connection.</summary>

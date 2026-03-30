@@ -65,6 +65,14 @@ stages:
                  -WorkingDirectory '$(sourceDirectory)'
               pwsh: true
 
+          - task: DotNetCoreCLI@2
+            displayName: 'Run C# Unit Tests'
+            inputs:
+              command: test
+              projects: '$(sourceDirectory)/library/SqlLabDataGenerator.Tests/SqlLabDataGenerator.Tests.csproj'
+              arguments: '--configuration Release --verbosity normal'
+            condition: and(succeeded(), eq(variables['Agent.OS'], 'Linux'))
+
           - task: PowerShell@2
             displayName: Validation/Test Powershell Module
             inputs:
@@ -84,6 +92,37 @@ stages:
               summaryFileLocation: '$(sourceDirectory)/TestResults/coverage.xml'
               pathToSources: '$(sourceDirectory)/SqlLabDataGenerator'
             condition: always()
+
+          - task: PowerShell@2
+            displayName: 'Enforce Minimum Code Coverage'
+            inputs:
+              targetType: inline
+              pwsh: true
+              script: |
+                $coverageFile = '$(sourceDirectory)/TestResults/coverage.xml'
+                if (-not (Test-Path $coverageFile)) {
+                    Write-Warning "Coverage file not found at $coverageFile — skipping coverage gate."
+                    exit 0
+                }
+                [xml]$coverage = Get-Content $coverageFile
+                $minCoverage = 35
+                # JaCoCo format
+                $counter = $coverage.report.counter | Where-Object { $_.type -eq 'LINE' }
+                if ($counter) {
+                    $missed = [int]$counter.missed
+                    $covered = [int]$counter.covered
+                    $total = $missed + $covered
+                    $pct = if ($total -gt 0) { [math]::Round(($covered / $total) * 100, 2) } else { 0 }
+                    Write-Host "Code coverage: $pct% ($covered of $total lines)"
+                    if ($pct -lt $minCoverage) {
+                        Write-Error "Code coverage $pct% is below minimum threshold of $minCoverage%."
+                        exit 1
+                    }
+                    Write-Host "Coverage gate passed ($pct% >= $minCoverage%)."
+                } else {
+                    Write-Warning "Could not parse coverage counters — skipping gate."
+                }
+            condition: succeeded()
 
           - task: PowerShell@2
             displayName: Build Nuget Package For Powerhell Module
@@ -152,7 +191,7 @@ stages:
                  -GitHubRepositoryName "SqlLabDataGenerator"
                  -GitHubUsername '$(gitHubUsername)'
                  -GitHubToken '$(gitHubPAT)'
-            condition: and(succeeded(), or(eq(variables['Build.SourceBranch'], 'refs/heads/main'), startsWith(variables['Build.SourceBranch'], 'refs/tags/v')))
+            condition: succeeded()
 
   - stage: Publish
     displayName: 'Publish Package'

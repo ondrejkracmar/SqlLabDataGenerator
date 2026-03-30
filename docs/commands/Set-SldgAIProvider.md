@@ -26,11 +26,6 @@ Set-SldgAIProvider [-Provider] <string> [[-Model] <string>] [[-Endpoint] <string
  [-EnableAIGeneration] [-EnableAILocale] [-SkipCertificateCheck] [<CommonParameters>]
 ```
 
-## ALIASES
-
-This cmdlet has the following aliases,
-  {{Insert list of aliases}}
-
 ## DESCRIPTION
 
 One-command setup for the AI backend.

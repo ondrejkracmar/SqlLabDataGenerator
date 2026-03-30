@@ -24,11 +24,6 @@ Register-SldgTransformer [-Name] <string> [-Description] <string> [-TransformFun
  [[-RequiredSemanticTypes] <string[]>] [[-OutputType] <string>] [<CommonParameters>]
 ```
 
-## ALIASES
-
-This cmdlet has the following aliases,
-  {{Insert list of aliases}}
-
 ## DESCRIPTION
 
 Registers a custom transformer that converts generated DataTable data

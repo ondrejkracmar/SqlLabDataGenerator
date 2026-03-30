@@ -68,7 +68,7 @@
 	catch {
 		# Ensure bulk copy resources are released on failure
 		if ($bulkCopy) {
-			try { $bulkCopy.Dispose() } catch { Write-PSFMessage -Level Verbose -Message "BulkCopy dispose failed: $_" }
+			try { $bulkCopy.Dispose() } catch { Write-PSFMessage -Level Verbose -String 'Write.BulkCopyDisposeFailed' -StringValues $_ }
 			$bulkCopy = $null
 		}
 
@@ -120,7 +120,7 @@
 				$cmd.CommandText = "SET IDENTITY_INSERT $qualifiedName OFF"
 				[void]$cmd.ExecuteNonQuery()
 			}
-			catch { Write-PSFMessage -Level Verbose -Message "IDENTITY_INSERT OFF failed after fallback: $_" }
+			catch { Write-PSFMessage -Level Verbose -String 'Write.IdentityInsertOffFailed' -StringValues $_ }
 			finally { if ($cmd) { try { $cmd.Dispose() } catch { $null = $_ } } }
 		}
 

@@ -144,13 +144,13 @@
 				try {
 					$parsedUri = [System.Uri]::new($Endpoint)
 					if ($parsedUri.UserInfo) {
-						Stop-PSFFunction -Message "Endpoint URI must not contain embedded credentials. Use -ApiKey or -Credential instead." -EnableException $true
+						Stop-PSFFunction -String 'AI.EndpointCredentialsForbidden' -EnableException $true
 					}
 					if ($parsedUri.Scheme -ne 'https') {
-						Stop-PSFFunction -Message "Endpoint for $Provider must use HTTPS. Got: $($parsedUri.Scheme)://$($parsedUri.Host)" -EnableException $true
+						Stop-PSFFunction -String 'AI.EndpointHttpsForbidden' -StringValues $Provider, $parsedUri.Scheme, $parsedUri.Host -EnableException $true
 					}
 				} catch [System.UriFormatException] {
-					Stop-PSFFunction -Message "Invalid endpoint URI for ${Provider}." -EnableException $true
+					Stop-PSFFunction -String 'AI.EndpointInvalidUri' -StringValues $Provider -EnableException $true
 				}
 			}
 			$override['Endpoint'] = $Endpoint
@@ -197,13 +197,13 @@
 			try {
 				$parsedUri = [System.Uri]::new($Endpoint)
 				if ($parsedUri.UserInfo) {
-					Stop-PSFFunction -Message "Endpoint URI must not contain embedded credentials. Use -ApiKey or -Credential instead." -EnableException $true
+					Stop-PSFFunction -String 'AI.EndpointCredentialsForbidden' -EnableException $true
 				}
 				if ($parsedUri.Scheme -ne 'https') {
-					Stop-PSFFunction -Message "Endpoint for $Provider must use HTTPS. Got: $($parsedUri.Scheme)://$($parsedUri.Host)" -EnableException $true
+					Stop-PSFFunction -String 'AI.EndpointHttpsForbidden' -StringValues $Provider, $parsedUri.Scheme, $parsedUri.Host -EnableException $true
 				}
 			} catch [System.UriFormatException] {
-				Stop-PSFFunction -Message "Invalid endpoint URI for ${Provider}." -EnableException $true
+				Stop-PSFFunction -String 'AI.EndpointInvalidUri' -StringValues $Provider -EnableException $true
 			}
 		}
 		Set-PSFConfig -FullName 'SqlLabDataGenerator.AI.Endpoint' -Value $Endpoint
@@ -256,10 +256,7 @@
 	}
 
 	# Clear caches when provider changes
-	$script:SldgState.AIValueCache = [System.Collections.Concurrent.ConcurrentDictionary[string,object]]::new()
-	$script:SldgState.AILocaleCache = [System.Collections.Concurrent.ConcurrentDictionary[string,object]]::new()
-	$script:SldgState.AILocaleCategoryCache = [System.Collections.Concurrent.ConcurrentDictionary[string,object]]::new()
-	$script:SldgState.CacheTimestamps = [System.Collections.Concurrent.ConcurrentDictionary[string,datetime]]::new()
+	$script:SldgState.ClearCaches()
 
 	# Display summary
 	$config = Get-SldgAIProvider

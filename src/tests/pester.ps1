@@ -36,8 +36,9 @@ $config = [PesterConfiguration]::Default
 $config.TestResult.Enabled = $true
 
 # Code coverage will run in a single aggregated pass at the end
-$coveragePaths = @("$PSScriptRoot\..\SqlLabDataGenerator\functions", "$PSScriptRoot\..\SqlLabDataGenerator\internal\functions")
-$coverageOutputPath = Join-Path "$PSScriptRoot\..\TestResults" "coverage.xml"
+$coveragePaths = @("$PSScriptRoot\..\SqlLabDataGenerator\functions", "$PSScriptRoot\..\SqlLabDataGenerator\internal\functions") |
+	Resolve-Path | ForEach-Object { $_.Path }
+$coverageOutputPath = Join-Path (Resolve-Path "$PSScriptRoot\..\TestResults").Path "coverage.xml"
 $allTestFiles = [System.Collections.Generic.List[string]]::new()
 
 #region Run General Tests
@@ -113,6 +114,12 @@ if ($TestFunctions)
 #region Aggregated Code Coverage
 if ($allTestFiles.Count -gt 0) {
 	Write-PSFMessage -Level Important -Message "Running aggregated code coverage pass ($($allTestFiles.Count) test files)"
+
+	# Force dot-sourcing so Pester breakpoints can track executed lines back to source files.
+	# Without this, Import-ModuleFile uses ScriptBlock.Create(ReadAllText()) which severs the
+	# file-path association and Pester reports 0% coverage.
+	Set-PSFConfig -FullName 'SqlLabDataGenerator.Import.DoDotSource' -Value $true
+
 	$ccConfig = [PesterConfiguration]::Default
 	$ccConfig.Run.Path = $allTestFiles.ToArray()
 	$ccConfig.Run.PassThru = $false
@@ -123,6 +130,10 @@ if ($allTestFiles.Count -gt 0) {
 	$ccConfig.CodeCoverage.OutputPath = $coverageOutputPath
 	$ccConfig.CodeCoverage.OutputFormat = 'JaCoCo'
 	$null = Invoke-Pester -Configuration $ccConfig
+
+	# Restore default for subsequent module loads
+	Set-PSFConfig -FullName 'SqlLabDataGenerator.Import.DoDotSource' -Value $false
+
 	Write-PSFMessage -Level Important -Message "Code coverage report written to $coverageOutputPath"
 }
 #endregion Aggregated Code Coverage

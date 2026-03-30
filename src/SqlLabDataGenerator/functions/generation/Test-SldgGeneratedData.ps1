@@ -29,12 +29,13 @@
 	[OutputType([SqlLabDataGenerator.ValidationResult])]
 	[CmdletBinding()]
 	param (
-		[Parameter(Mandatory)]
+		[Parameter(Mandatory, ValueFromPipeline)]
 		$Schema,
 
 		$ConnectionInfo
 	)
 
+	process {
 	if (-not $ConnectionInfo) { $ConnectionInfo = $script:SldgState.ActiveConnection }
 	if (-not $ConnectionInfo) {
 		Stop-PSFFunction -String 'Connect.NoActiveConnection' -EnableException $true
@@ -68,4 +69,5 @@
 	Write-PSFMessage -Level Host -Message ($script:strings.'Validation.Complete' -f $passed, $warnings, $errors)
 
 	$allResults
+	}
 }

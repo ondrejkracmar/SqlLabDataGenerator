@@ -47,7 +47,7 @@
 	[OutputType([SqlLabDataGenerator.SchemaModel])]
 	[CmdletBinding()]
 	param (
-		[Parameter(Mandatory)]
+		[Parameter(Mandatory, ValueFromPipeline)]
 		$Schema,
 
 		[switch]$UseAI,
@@ -58,6 +58,7 @@
 		[string]$Locale
 	)
 
+	process {
 	$totalColumns = ($Schema.Tables | Measure-Object -Property ColumnCount -Sum).Sum
 	Write-PSFMessage -Level Host -Message ($script:strings.'Semantic.Analyzing' -f $totalColumns, $Schema.TableCount)
 
@@ -136,4 +137,5 @@
 	$Schema | Add-Member -NotePropertyName ColumnClassifications -NotePropertyValue $classifications.ToArray() -Force
 	$Schema.PSObject.TypeNames.Insert(0, 'SqlLabDataGenerator.AnalyzedSchema')
 	$Schema
+	}
 }

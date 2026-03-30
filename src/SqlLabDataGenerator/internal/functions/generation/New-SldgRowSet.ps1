@@ -164,7 +164,7 @@
 		$cursor = $depGraph[$colName]
 		while ($cursor -and $depGraph.ContainsKey($cursor)) {
 			if ($cursor -eq $colName) {
-				Write-PSFMessage -Level Warning -Message "Circular cross-column dependency detected for column '$colName' in '$($TableInfo.FullName)'. Dependency chain will be broken."
+				Write-PSFMessage -Level Warning -String 'RowSet.CircularDependency' -StringValues $colName, $TableInfo.FullName
 				$depGraph.Remove($colName)
 				$dependentCols = @($dependentCols | Where-Object { $_.ColumnName -ne $colName })
 				$independentCols += ($activeColumns | Where-Object { $_.ColumnName -eq $colName })
@@ -190,9 +190,11 @@
 
 	# Determine which columns are FK-bound (AI shouldn't generate these)
 	$nonFkColumns = @($activeColumns | Where-Object { (-not $_.ForeignKey -or -not $ForeignKeyValues) -and -not $pkAutoIncrements.ContainsKey($_.ColumnName) })
+	$fkColumns = @($activeColumns | Where-Object { $_.ForeignKey -and $ForeignKeyValues -and -not $pkAutoIncrements.ContainsKey($_.ColumnName) })
 
 	# Try AI batch generation for non-FK columns
 	$aiBatch = $null
+	$fkPreAssignments = $null
 
 	if ($useAIGen -and $aiProvider -ne 'None' -and $nonFkColumns.Count -gt 0) {
 		# Filter to columns without custom rules (those are handled manually)
@@ -202,15 +204,29 @@
 
 		if ($aiCandidates.Count -gt 0) {
 			$maxAIBatch = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.Generation.MaxAIBatchSize'
-			$aiParams = @{
-				Columns   = $aiCandidates
-				TableName = $TableInfo.FullName
-				BatchSize = [math]::Min($RowCount, $maxAIBatch)
-				Locale    = $locale
+
+			# Try FK-context-aware generation for semantic consistency
+			# (e.g., city names matching their assigned country)
+			if ($fkColumns.Count -gt 0) {
+				$fkContextResult = New-SldgFKContextAwareBatch -AIColumns $aiCandidates -FKColumns $fkColumns -ForeignKeyValues $ForeignKeyValues -TableName $TableInfo.FullName -RowCount ([math]::Min($RowCount, $maxAIBatch)) -Locale $locale -ExistingUniqueValues $ExistingUniqueValues -TableNotes $TableNotes
+				if ($fkContextResult) {
+					$aiBatch = $fkContextResult.AIBatch
+					$fkPreAssignments = $fkContextResult.FKAssignments
+				}
 			}
-			if ($ExistingUniqueValues) { $aiParams['ExistingUniqueValues'] = $ExistingUniqueValues }
-			if ($TableNotes) { $aiParams['TableNotes'] = $TableNotes }
-			$aiBatch = New-SldgAIGeneratedBatch @aiParams
+
+			# Fall back to flat batch generation (no FK context)
+			if (-not $aiBatch) {
+				$aiParams = @{
+					Columns   = $aiCandidates
+					TableName = $TableInfo.FullName
+					BatchSize = [math]::Min($RowCount, $maxAIBatch)
+					Locale    = $locale
+				}
+				if ($ExistingUniqueValues) { $aiParams['ExistingUniqueValues'] = $ExistingUniqueValues }
+				if ($TableNotes) { $aiParams['TableNotes'] = $TableNotes }
+				$aiBatch = New-SldgAIGeneratedBatch @aiParams
+			}
 		}
 	}
 
@@ -244,7 +260,7 @@
 		if ($allPKsAreFk -and $poolSize -lt [long]::MaxValue) {
 			$compositePKPoolSize = $poolSize
 			if ($RowCount -gt $compositePKPoolSize) {
-				Write-PSFMessage -Level Warning -Message "Requested $RowCount rows for '$($TableInfo.FullName)' but only $compositePKPoolSize unique FK combinations exist. Capping to $compositePKPoolSize."
+				Write-PSFMessage -Level Warning -String 'RowSet.CompositePKCapped' -StringValues $RowCount, $TableInfo.FullName, $compositePKPoolSize
 				$RowCount = [int]$compositePKPoolSize
 			}
 		}
@@ -276,6 +292,11 @@
 					$value = $pkAutoIncrements[$col.ColumnName]
 				}
 
+				# Use pre-assigned FK value from FK-context-aware generation (semantic consistency)
+				elseif ($fkPreAssignments -and $col.ForeignKey -and $ForeignKeyValues -and $aiBatchIndex -lt $fkPreAssignments.Count -and $fkPreAssignments[$aiBatchIndex].ContainsKey($col.ColumnName)) {
+					$value = $fkPreAssignments[$aiBatchIndex][$col.ColumnName]
+				}
+
 				# Try AI-generated value first (for non-FK, non-custom-rule columns)
 				elseif ($aiBatch -and -not $customRule -and (-not $col.ForeignKey -or -not $ForeignKeyValues) -and $aiBatchIndex -lt $aiBatch.Count) {
 					$aiRow = $aiBatch[$aiBatchIndex]
@@ -294,7 +315,7 @@
 						if ($available.Count -gt 0) {
 							$value = $available | Get-Random
 						} else {
-							Write-PSFMessage -Level Warning -Message "All FK values exhausted for unique column '$($col.ColumnName)' in '$($TableInfo.FullName)'. Cannot generate more unique rows."
+							Write-PSFMessage -Level Warning -String 'RowSet.FKExhausted' -StringValues $col.ColumnName, $TableInfo.FullName
 							$retryCount = $maxUniqueRetries
 							$rowValid = $false
 							break
@@ -335,7 +356,7 @@
 					}
 					# Truncate strings exceeding MaxLength
 					if ($col.MaxLength -and $col.MaxLength -gt 0 -and $value -is [string] -and $value.Length -gt $col.MaxLength) {
-						Write-PSFMessage -Level Warning -Message "Truncating value for column '$($col.ColumnName)' from $($value.Length) to $($col.MaxLength) characters."
+						Write-PSFMessage -Level Warning -String 'RowSet.ValueTruncated' -StringValues $col.ColumnName, $value.Length, $col.MaxLength
 						$value = $value.Substring(0, $col.MaxLength)
 					}
 				}
@@ -398,7 +419,7 @@
 
 		# Skip row if uniqueness retries were exhausted
 		if (-not $rowValid) {
-			Write-PSFMessage -Level Warning -Message "Row $rowIdx for '$($TableInfo.FullName)' skipped: could not generate unique values after $maxUniqueRetries retries."
+			Write-PSFMessage -Level Warning -String 'RowSet.UniqueRetriesExhausted' -StringValues $rowIdx, $TableInfo.FullName, $maxUniqueRetries
 			continue
 		}
 
@@ -440,6 +461,27 @@
 				if ($row[$col.ColumnName] -isnot [DBNull]) {
 					$valuesList.Add($row[$col.ColumnName])
 				}
+			}
+			$generatedValues[$key] = $valuesList.ToArray()
+		}
+	}
+
+	# Store descriptive text columns as parallel context arrays for FK-context-aware generation
+	# These enable child tables to see parent row details (e.g., CompanyName, FirstName, CountryCode)
+	# for semantically consistent AI generation, even when these columns are not PK/unique.
+	$contextCandidates = @($activeColumns | Where-Object {
+		-not $_.IsPrimaryKey -and -not $_.IsUnique -and    # already stored above
+		-not $_.ForeignKey -and -not $_.IsIdentity -and -not $_.IsComputed -and
+		$_.DataType -match '^(n?varchar|n?char|n?text|text)$'
+	})
+	if ($contextCandidates.Count -gt 0 -and $dataTable.Rows.Count -gt 0) {
+		foreach ($col in $contextCandidates) {
+			$key = "$($TableInfo.SchemaName).$($TableInfo.TableName).$($col.ColumnName)"
+			if ($generatedValues.ContainsKey($key)) { continue } # already stored as PK/unique
+			$valuesList = [System.Collections.Generic.List[object]]::new($dataTable.Rows.Count)
+			foreach ($row in $dataTable.Rows) {
+				$val = $row[$col.ColumnName]
+				$valuesList.Add($(if ($val -isnot [DBNull]) { $val } else { $null }))
 			}
 			$generatedValues[$key] = $valuesList.ToArray()
 		}
