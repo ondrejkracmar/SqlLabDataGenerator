@@ -234,6 +234,22 @@
 			continue
 		}
 
+		# Skip tables whose FK parent tables have failed — child will inevitably fail without FK values
+		if ($failedTables.Count -gt 0 -and $tablePlan.ForeignKeys -and $tablePlan.ForeignKeys.Count -gt 0) {
+			$failedParents = @($tablePlan.ForeignKeys | ForEach-Object { "$($_.ReferencedSchema).$($_.ReferencedTable)" } | Where-Object { $failedTables.Contains($_) } | Select-Object -Unique)
+			if ($failedParents.Count -gt 0) {
+				Write-PSFMessage -Level Warning -String 'Generation.SkippedDueToParent' -StringValues $tablePlan.FullName, ($failedParents -join ', ')
+				[void]$failedTables.Add($tablePlan.FullName)
+				$tableResults.Add([SqlLabDataGenerator.TableResult]@{
+						TableName  = $tablePlan.FullName
+						RowCount   = 0
+						Success    = $false
+						Error      = "Skipped: parent table(s) failed: $($failedParents -join ', ')"
+					})
+				continue
+			}
+		}
+
 		Write-PSFMessage -Level Host -Message ($script:strings.'Generation.Table' -f $tablePlan.RowCount, $tablePlan.SchemaName, $tablePlan.TableName)
 
 		# FK DB fallback: batch-load missing FK parent values grouped by parent table

@@ -266,6 +266,23 @@
 		}
 	}
 
+	# Identify self-referencing FK columns (e.g., Customer.BillToCustomerId → Customer.CustomerId)
+	# These won't have values in $ForeignKeyValues — build a local pool from earlier rows instead
+	$selfRefFKs = @{}
+	$selfRefPKValues = @{}
+	foreach ($col in $activeColumns) {
+		if ($col.ForeignKey) {
+			$refFull = "$($col.ForeignKey.ReferencedSchema).$($col.ForeignKey.ReferencedTable)"
+			if ($refFull -eq $TableInfo.FullName) {
+				$refPKCol = $col.ForeignKey.ReferencedColumn
+				$selfRefFKs[$col.ColumnName] = $refPKCol
+				if (-not $selfRefPKValues.ContainsKey($refPKCol)) {
+					$selfRefPKValues[$refPKCol] = [System.Collections.Generic.List[object]]::new()
+				}
+			}
+		}
+	}
+
 	# Suppress DataTable index/constraint checks during bulk population for better performance
 	$dataTable.BeginLoadData()
 	try {
@@ -293,8 +310,19 @@
 				}
 
 				# Use pre-assigned FK value from FK-context-aware generation (semantic consistency)
-				elseif ($fkPreAssignments -and $col.ForeignKey -and $ForeignKeyValues -and $aiBatchIndex -lt $fkPreAssignments.Count -and $fkPreAssignments[$aiBatchIndex].ContainsKey($col.ColumnName)) {
+				# Skip on retry ($retryCount > 0) to avoid reusing same colliding composite PK values
+				elseif ($retryCount -eq 0 -and $fkPreAssignments -and $col.ForeignKey -and $ForeignKeyValues -and $aiBatchIndex -lt $fkPreAssignments.Count -and $fkPreAssignments[$aiBatchIndex].ContainsKey($col.ColumnName)) {
 					$value = $fkPreAssignments[$aiBatchIndex][$col.ColumnName]
+				}
+
+				# Self-referencing FK: use values from earlier rows in the same table, or NULL for nullable
+				elseif ($selfRefFKs.ContainsKey($col.ColumnName)) {
+					$refPKCol = $selfRefFKs[$col.ColumnName]
+					if ($selfRefPKValues[$refPKCol].Count -gt 0) {
+						$value = $selfRefPKValues[$refPKCol] | Get-Random
+					} elseif ($col.IsNullable) {
+						$value = [DBNull]::Value
+					}
 				}
 
 				# Try AI-generated value first (for non-FK, non-custom-rule columns)
@@ -377,6 +405,9 @@
 				if ($value -is [DBNull]) {
 					$row[$col.ColumnName] = [DBNull]::Value
 				}
+				elseif ($col.DataType -eq 'bit') {
+					$row[$col.ColumnName] = [bool]$value
+				}
 				elseif ($col.DataType -eq 'uniqueidentifier' -and $value -is [string]) {
 					$row[$col.ColumnName] = [guid]$value
 				}
@@ -414,6 +445,13 @@
 					[void]$uniqueTracker['__CompositePK__'].Add($compositeKey)
 				}
 				$aiBatchIndex++
+
+				# Accumulate PK values for self-referencing FK columns
+				foreach ($refPKCol in $selfRefPKValues.Keys) {
+					if ($row[$refPKCol] -isnot [DBNull]) {
+						$selfRefPKValues[$refPKCol].Add($row[$refPKCol])
+					}
+				}
 			}
 		}
 

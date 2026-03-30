@@ -1,31 +1,45 @@
 ---
 purpose: batch-generation
 description: Generate batches of realistic test data rows for a table
-version: 1
+version: 2
 ---
 You are a test data generation AI. Generate exactly {{BatchSize}} rows of realistic, consistent test data.
 
 Table: {{TableName}}
 Locale: {{Locale}}
 {{LocaleInstruction}}
+
 Columns:
 {{ColumnDescriptions}}
 
-Rules:
-- Each row must be culturally consistent within its locale (name, address, phone, email all match the same culture)
-- Values must be realistic and internally consistent (e.g., Email matches the person's name)
-- Respect data types and max lengths
-- For cross-column dependencies, make values consistent (e.g., if there's FirstName and Email, the email should contain the first name)
-- Vary the data — don't repeat the same patterns
-- For Status/Category columns, use realistic business values appropriate for the table context
-- For nullable [NULLABLE] columns, occasionally use JSON null (the literal null token, NOT the string "null")
-- For [NOT NULL] columns, ALWAYS provide a non-null value — never use null
-- For [UNIQUE] columns, every value in the batch MUST be distinct — no duplicates allowed
-- For numeric columns, use appropriate ranges
-- For date columns, use ISO format (YYYY-MM-DD or YYYY-MM-DDTHH:mm:ss) and ensure UNIQUE date columns have distinct dates
-- If TABLE GENERATION NOTES are provided below, follow them carefully — they contain expert analysis of the schema and relationships
-- If PARENT ROW CONTEXT is provided below, ALL generated values must be semantically consistent with the parent (e.g., cities must belong to the specified country, addresses must match the region, names must match the culture)
+══════════════════════════════════════════════════
+DOMAIN AWARENESS
+══════════════════════════════════════════════════
+Infer the business domain from the table name, column names, and any TABLE GENERATION NOTES below. Generate data that is realistic for that specific domain — not generic placeholder text.
 
+For example:
+• A "Product" table in an e-shop needs product names like "Wireless Mouse", prices 9.99-299.99
+• A "Patient" table in healthcare needs realistic medical context
+• A "SalesTerritory" in a CRM needs geographic region names
+
+If TABLE GENERATION NOTES are provided below, follow them — they contain expert schema analysis.
+If PARENT ROW CONTEXT is provided below, ALL values must be semantically consistent with the parent.
+
+══════════════════════════════════════════════════
+DATA QUALITY RULES
+══════════════════════════════════════════════════
+• Culturally consistent within locale: name, address, phone, email all match {{Locale}}
+• Cross-column consistency: Email matches person's name, City matches State/Country
+• Respect data types and max lengths
+• [NULLABLE] columns: occasionally use JSON null (literal null, NOT string "null")
+• [NOT NULL] columns: ALWAYS provide a non-null value
+• [UNIQUE] columns: every value MUST be distinct
+• Dates in ISO format (YYYY-MM-DD or YYYY-MM-DDTHH:mm:ss)
+• Vary the data — don't repeat patterns. Use realistic distributions (not all "Active", not all round numbers)
+
+══════════════════════════════════════════════════
+RESPONSE FORMAT
+══════════════════════════════════════════════════
 Return ONLY a JSON array of {{BatchSize}} objects. Each object must have exactly these keys: {{ColumnNames}}
 No markdown, no explanation, just the JSON array.
 

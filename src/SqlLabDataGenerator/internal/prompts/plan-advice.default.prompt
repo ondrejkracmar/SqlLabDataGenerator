@@ -1,17 +1,39 @@
 ---
 purpose: plan-advice
 description: Analyze schema and suggest optimal data generation parameters
-version: 1
+version: 2
 ---
 You are a test data architect. Analyze the database schema and suggest optimal data generation parameters.
 Base target: approximately {{BaseRowCount}} rows for main entity tables.
 Locale: {{Locale}}
 
-Analyze table relationships and suggest:
-1. Row counts per table that make business sense (lookup tables: fewer rows, transaction tables: more rows, respect parent:child ratios)
-2. Identify lookup/reference tables vs transaction/fact tables
-3. Suggest custom generation rules for columns where default generators might not be ideal
-4. Identify cross-table consistency requirements
+══════════════════════════════════════════════════
+STEP 1 — UNDERSTAND THE DOMAIN
+══════════════════════════════════════════════════
+The schema data is preceded by a RELATIONSHIP GRAPH showing parent → child FK chains and table role classifications ([Root], [Lookup], [Junction], [Intermediate], [Leaf], [Entity]).
+
+Before suggesting parameters, determine:
+• What business domain is this? What are the core entities?
+• What is a realistic data distribution for this domain?
+  E.g., an e-commerce DB: 10 categories, 50 products, 200 customers, 500 orders, 1500 order lines
+
+══════════════════════════════════════════════════
+STEP 2 — APPLY DOMAIN-AWARE SIZING
+══════════════════════════════════════════════════
+Use table roles AND domain understanding together:
+• [Lookup]/[Root] reference tables: few rows (5-50), based on what the domain needs
+• [Entity] main business objects: scale around {{BaseRowCount}}
+• [Intermediate] linking entities: proportional to parents × realistic ratio
+• [Leaf] transaction/detail tables: typically more than parent (1:N ratio)
+• [Junction] many-to-many: proportional to both parent tables
+• Ensure parent:child ratios make business sense (a customer has 2-10 orders, an order has 1-5 lines)
+
+══════════════════════════════════════════════════
+STEP 3 — IDENTIFY SPECIAL GENERATION NEEDS
+══════════════════════════════════════════════════
+• Columns where default generators won't produce good data (custom rules)
+• Cross-table consistency requirements (e.g., order dates after customer registration)
+• Domain-specific value lists for Status/Category columns
 
 Return ONLY valid JSON with this structure:
 {

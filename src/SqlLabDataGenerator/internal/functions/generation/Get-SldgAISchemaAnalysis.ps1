@@ -95,6 +95,8 @@
 	}
 	$schemaText = $schemaSummary -join "`n`n"
 
+	$relationshipGraph = Build-SldgRelationshipGraph -SchemaModel $SchemaModel
+
 	$systemPrompt = Resolve-SldgPromptTemplate -Purpose 'schema-analysis' -Variables @{
 		BaseRowCount = $BaseRowCount
 		Locale       = $Locale
@@ -105,7 +107,7 @@
 		return $null
 	}
 
-	$userMessage = "Analyze this schema with sample data and produce per-table generation notes:`n`n$schemaText"
+	$userMessage = "Analyze this schema with sample data and produce per-table generation notes:`n`n$relationshipGraph`n`n$schemaText"
 
 	Write-PSFMessage -Level Verbose -Message ($script:strings.'AI.SchemaAnalysisRequesting' -f $SchemaModel.TableCount)
 

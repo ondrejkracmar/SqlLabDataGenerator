@@ -5,6 +5,9 @@
 	.DESCRIPTION
 		Matches column names against known patterns to determine what real-world concept
 		the column represents. More specific patterns are checked first.
+
+		Uses table name context for disambiguation — e.g., "Name" in a Product table
+		is classified as Text (product name), not FullName (person name).
 		Falls back to data-type-based inference if no pattern matches.
 	#>
 	[CmdletBinding()]
@@ -17,6 +20,39 @@
 
 	$name = $Column.ColumnName.ToLower()
 	$dataType = $Column.DataType.ToLower()
+
+	# ── FK columns: classify based on referenced table, not column name ──
+	# FK values are supplied by the generation engine from parent tables — classification
+	# should reflect the parent relationship, not guess from the column name
+	if ($Column.ForeignKey) {
+		$refTable = $Column.ForeignKey.ReferencedTable
+		$refCol = $Column.ForeignKey.ReferencedColumn
+		$semanticType = switch -Regex ($dataType) {
+			'^(uniqueidentifier)$' { 'Guid' }
+			'^(int|bigint|smallint|tinyint)$' { 'Integer' }
+			default { 'Integer' }
+		}
+		return [SqlLabDataGenerator.ColumnClassification]@{
+			ColumnName   = $Column.ColumnName
+			TableName    = $TableName
+			SemanticType = $semanticType
+			IsPII        = $false
+			Confidence   = 0.95
+			Source       = 'ForeignKey'
+			MatchedRule  = "FK -> $refTable.$refCol"
+		}
+	}
+
+	# Extract just the table name (strip schema prefix like "dbo." or "Application.")
+	$shortTable = if ($TableName -match '\.([^.]+)$') { $Matches[1].ToLower() } else { $TableName.ToLower() }
+
+	# ── Table context categories (used for disambiguation of ambiguous column names) ──
+	$isPersonTable = $shortTable -match '(person|user|employee|customer|contact|patient|student|member|staff|identity|account|applicant|candidate|author|owner|tenant|resident|worker|driver|agent)'
+	$isCompanyTable = $shortTable -match '(company|organization|vendor|supplier|manufacturer|partner|client|business|firm|agency|corp|enterprise)'
+	$isProductTable = $shortTable -match '(product|item|service|goods|merchandise|sku|article|inventory|catalog|material|component|part|resource)'
+	$isCategoryTable = $shortTable -match '(category|tag|label|type|group|classification|tier|kind|class|genre|topic|segment|department|division|unit|team|role|permission|status|state|phase|priority|severity|level)'
+	$isLocationTable = $shortTable -match '(location|address|site|office|branch|facility|warehouse|store|shop|place|region|area|zone|territory|country|city|state|province)'
+	$isDocumentTable = $shortTable -match '(document|file|report|template|form|attachment|invoice|order|contract|project|campaign|event|course|schedule|task|ticket|issue|request|case|log|audit|notification)'
 
 	# Pattern matching rules (most specific first)
 	$patterns = @(
@@ -64,7 +100,7 @@
 		@{ Pattern = '(invoice[\s_]?(number|no|num|id)|order[\s_]?(number|no|num)|po[\s_]?(number|no))'; Type = 'BusinessNumber'; IsPII = $false }
 		@{ Pattern = '(company|organization|employer|vendor|supplier|manufacturer)[\s_]?(name)?'; Type = 'CompanyName'; IsPII = $false }
 		@{ Pattern = '(department|division|unit)[\s_]?(name)?'; Type = 'Department'; IsPII = $false }
-		@{ Pattern = '(title|position|role|job[\s_]?title)'; Type = 'JobTitle'; IsPII = $false }
+		@{ Pattern = '(position|role|job[\s_]?title)'; Type = 'JobTitle'; IsPII = $false }
 
 		# Web/Tech
 		@{ Pattern = '(url|uri|website|web[\s_]?address|homepage)'; Type = 'Url'; IsPII = $false }
@@ -89,9 +125,6 @@
 		# Quantity
 		@{ Pattern = '(quantity|qty|count|number[\s_]?of|num[\s_]?of|pocet)'; Type = 'Quantity'; IsPII = $false }
 		@{ Pattern = '(percent|pct|ratio|procento)'; Type = 'Percentage'; IsPII = $false }
-
-		# Generic name column (low priority)
-		@{ Pattern = '^name$|^nazev$|^jmeno$'; Type = 'FullName'; IsPII = $true }
 	)
 
 	foreach ($rule in $patterns) {
@@ -105,6 +138,69 @@
 				Source       = 'PatternMatch'
 				MatchedRule  = $rule.Pattern
 			}
+		}
+	}
+
+	# ── Table-context disambiguation for ambiguous column names ──
+	# "Name"/"Title"/"Description" mean different things depending on which table they belong to
+	if ($name -match '^(name|nazev|jmeno|bezeichnung|nombre|nom)$') {
+		$type = 'Text'; $isPII = $false; $confidence = 0.7
+		if ($isPersonTable)   { $type = 'FullName'; $isPII = $true; $confidence = 0.85 }
+		elseif ($isCompanyTable)  { $type = 'CompanyName'; $isPII = $false; $confidence = 0.85 }
+		elseif ($isLocationTable) { $type = 'Text'; $isPII = $false; $confidence = 0.7 }
+		# Product, Category, Document tables — all use generic Text
+		return [SqlLabDataGenerator.ColumnClassification]@{
+			ColumnName   = $Column.ColumnName
+			TableName    = $TableName
+			SemanticType = $type
+			IsPII        = $isPII
+			Confidence   = $confidence
+			Source       = 'TableContext'
+			MatchedRule  = "name+$shortTable"
+		}
+	}
+
+	if ($name -match '^(title|titel|titulo|titre)$') {
+		$type = 'Text'; $isPII = $false; $confidence = 0.7
+		if ($isPersonTable) { $type = 'JobTitle'; $isPII = $false; $confidence = 0.8 }
+		return [SqlLabDataGenerator.ColumnClassification]@{
+			ColumnName   = $Column.ColumnName
+			TableName    = $TableName
+			SemanticType = $type
+			IsPII        = $isPII
+			Confidence   = $confidence
+			Source       = 'TableContext'
+			MatchedRule  = "title+$shortTable"
+		}
+	}
+
+	if ($name -match '^(code|kod|codigo|code)$') {
+		$type = 'Code'; $isPII = $false; $confidence = 0.7
+		if ($isLocationTable) { $type = 'Code'; $confidence = 0.75 }
+		elseif ($isCategoryTable) { $type = 'Code'; $confidence = 0.75 }
+		return [SqlLabDataGenerator.ColumnClassification]@{
+			ColumnName   = $Column.ColumnName
+			TableName    = $TableName
+			SemanticType = $type
+			IsPII        = $isPII
+			Confidence   = $confidence
+			Source       = 'TableContext'
+			MatchedRule  = "code+$shortTable"
+		}
+	}
+
+	if ($name -match '^(number|no|num|cislo|nummer|numero)$') {
+		$type = 'Code'; $isPII = $false; $confidence = 0.65
+		if ($isPersonTable)   { $type = 'Phone'; $isPII = $true; $confidence = 0.6 }
+		elseif ($isDocumentTable) { $type = 'BusinessNumber'; $isPII = $false; $confidence = 0.75 }
+		return [SqlLabDataGenerator.ColumnClassification]@{
+			ColumnName   = $Column.ColumnName
+			TableName    = $TableName
+			SemanticType = $type
+			IsPII        = $isPII
+			Confidence   = $confidence
+			Source       = 'TableContext'
+			MatchedRule  = "number+$shortTable"
 		}
 	}
 

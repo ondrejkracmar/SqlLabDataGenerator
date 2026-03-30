@@ -68,6 +68,8 @@
 		$systemPrompt += "`n`n" + ($script:strings.'AI.IndustryAnalysisContext' -f $IndustryHint)
 	}
 
+	$relationshipGraph = Build-SldgRelationshipGraph -SchemaModel $SchemaModel
+
 	# Split tables into batches to avoid AI output truncation
 	# Target ~100 columns per batch (AI reliably handles this size)
 	$maxColumnsPerBatch = 100
@@ -97,7 +99,7 @@
 			Write-PSFMessage -Level Verbose -Message ($script:strings.'AI.AnalysisBatch' -f $batchIndex, $batches.Count, $batchTables)
 		}
 
-		$userMessage = ($script:strings.'AI.AnalysisUserMessage') + "`n`n$schemaText"
+		$userMessage = ($script:strings.'AI.AnalysisUserMessage') + "`n`n$relationshipGraph`n`n$schemaText"
 
 		$response = Invoke-SldgAIRequest -SystemPrompt $systemPrompt -UserMessage $userMessage -Purpose 'column-analysis'
 

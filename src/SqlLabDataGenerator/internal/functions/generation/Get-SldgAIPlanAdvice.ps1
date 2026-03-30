@@ -48,6 +48,8 @@
 	}
 	$schemaText = $schemaSummary -join "`n`n"
 
+	$relationshipGraph = Build-SldgRelationshipGraph -SchemaModel $SchemaModel
+
 	$systemPrompt = Resolve-SldgPromptTemplate -Purpose 'plan-advice' -Variables @{
 		BaseRowCount = $BaseRowCount
 		Locale       = $Locale
@@ -64,7 +66,7 @@
 		$systemPrompt += "`n`nIndustry: $sanitizedHint. Use domain knowledge for realistic ratios and business patterns."
 	}
 
-	$userMessage = "Analyze this schema and suggest generation parameters:`n`n$schemaText"
+	$userMessage = "Analyze this schema and suggest generation parameters:`n`n$relationshipGraph`n`n$schemaText"
 
 	Write-PSFMessage -Level Verbose -Message ($script:strings.'AI.PlanAdviceRequesting' -f $SchemaModel.TableCount)
 

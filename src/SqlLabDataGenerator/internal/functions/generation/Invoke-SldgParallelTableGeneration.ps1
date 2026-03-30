@@ -46,6 +46,7 @@
 	$tableResults = [System.Collections.Generic.List[object]]::new()
 	$totalInserted = 0
 	$generationFailed = $false
+	$failedTables = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
 	$tableIndex = 0
 	$tableTotal = $Plan.Tables.Count
 
@@ -53,6 +54,33 @@
 		if ($generationFailed) { break }
 
 		$tablePlansInLevel = $level.Tables
+
+		# Filter out tables whose FK parent tables have already failed
+		if ($failedTables.Count -gt 0) {
+			$skippedInLevel = @()
+			$validInLevel = @()
+			foreach ($tp in $tablePlansInLevel) {
+				if ($tp.ForeignKeys -and $tp.ForeignKeys.Count -gt 0) {
+					$failedParents = @($tp.ForeignKeys | ForEach-Object { "$($_.ReferencedSchema).$($_.ReferencedTable)" } | Where-Object { $failedTables.Contains($_) } | Select-Object -Unique)
+					if ($failedParents.Count -gt 0) {
+						[void]$failedTables.Add($tp.FullName)
+						Write-PSFMessage -Level Warning -String 'Generation.SkippedDueToParent' -StringValues $tp.FullName, ($failedParents -join ', ')
+						$tableResults.Add([SqlLabDataGenerator.TableResult]@{
+							TableName  = $tp.FullName
+							RowCount   = 0
+							Success    = $false
+							Error      = "Skipped: parent table(s) failed: $($failedParents -join ', ')"
+						})
+						$tableIndex++
+						$skippedInLevel += $tp
+						continue
+					}
+				}
+				$validInLevel += $tp
+			}
+			$tablePlansInLevel = $validInLevel
+			if ($tablePlansInLevel.Count -eq 0) { continue }
+		}
 
 		if ($tablePlansInLevel.Count -gt 1 -and -not $Transaction) {
 			# Multiple independent tables — generate RowSets in parallel, write sequentially
@@ -104,6 +132,7 @@
 				$tableIndex++
 
 				if ($result.Error) {
+					[void]$failedTables.Add($tablePlan.FullName)
 					Write-PSFMessage -Level Warning -Message ($script:strings.'Generation.Failed' -f $tablePlan.SchemaName, $tablePlan.TableName, $result.Error)
 					$tableResults.Add([SqlLabDataGenerator.TableResult]@{
 						TableName  = $tablePlan.FullName
@@ -132,6 +161,7 @@
 						$insertedCount = & $Provider.FunctionMap.WriteData @writeParams
 					}
 					catch {
+						[void]$failedTables.Add($tablePlan.FullName)
 						Write-PSFMessage -Level Warning -Message ($script:strings.'Generation.Failed' -f $tablePlan.SchemaName, $tablePlan.TableName, $_)
 						$tableResults.Add([SqlLabDataGenerator.TableResult]@{
 							TableName  = $tablePlan.FullName
@@ -290,6 +320,7 @@
 					$tableResults.Add($tableResult)
 				}
 				catch {
+					[void]$failedTables.Add($tablePlan.FullName)
 					Write-PSFMessage -Level Warning -Message ($script:strings.'Generation.Failed' -f $tablePlan.SchemaName, $tablePlan.TableName, $_)
 					$tableResults.Add([SqlLabDataGenerator.TableResult]@{
 						TableName  = $tablePlan.FullName
