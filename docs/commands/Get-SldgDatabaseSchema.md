@@ -24,11 +24,6 @@ Get-SldgDatabaseSchema [[-SchemaFilter] <string[]>] [[-TableFilter] <string[]>]
  [[-ConnectionInfo] <Object>] [<CommonParameters>]
 ```
 
-## ALIASES
-
-This cmdlet has the following aliases,
-  {{Insert list of aliases}}
-
 ## DESCRIPTION
 
 Reads tables, columns, data types, primary keys, foreign keys, unique constraints,

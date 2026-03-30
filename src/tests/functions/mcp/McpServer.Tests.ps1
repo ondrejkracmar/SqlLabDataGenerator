@@ -170,7 +170,7 @@ Describe 'MCP Tool Registration' {
 	Context 'Register-McpTools' {
 		It 'Discovers all exported functions as tools' {
 			$tools = Register-McpTools
-			$tools.Count | Should -BeGreaterOrEqual 21
+			$tools.Count | Should -BeGreaterOrEqual 24
 		}
 
 		It 'Each tool has name, description, and inputSchema' {

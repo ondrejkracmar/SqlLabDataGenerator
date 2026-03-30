@@ -220,7 +220,7 @@
 								$col | Add-Member -NotePropertyName 'PKStartValue' -NotePropertyValue ([long]$maxVal) -Force
 							}
 							catch {
-								Write-PSFMessage -Level Verbose -Message "Could not query MAX PK for $($col.ColumnName): $_"
+								Write-PSFMessage -Level Verbose -String 'Generation.ParallelMaxPKQueryFailed' -StringValues $col.ColumnName, $_
 							}
 						}
 					}

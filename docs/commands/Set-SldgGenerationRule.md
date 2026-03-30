@@ -27,11 +27,6 @@ Set-SldgGenerationRule [-Plan] <Object> [-TableName] <string> [-ColumnName] <str
  [[-ValueExamples] <string[]>] [<CommonParameters>]
 ```
 
-## ALIASES
-
-This cmdlet has the following aliases,
-  {{Insert list of aliases}}
-
 ## DESCRIPTION
 
 Overrides the default generation behavior for specific columns.

@@ -75,6 +75,7 @@
 		Manually registers a Slovak locale data pack.
 	#>
 	[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', 'UseAI', Justification = 'Switch drives parameter set selection')]
+	[OutputType([void])]
 	[CmdletBinding(DefaultParameterSetName = 'Manual')]
 	param (
 		[Parameter(Mandatory)]
@@ -111,7 +112,7 @@
 				$script:SldgState.Locales[$Name] = $aiData
 			}
 			catch {
-				Write-PSFMessage -Level Warning -Message "AI locale generation failed for '$Name': $($_.Exception.Message). Falling back to en-US."
+				Write-PSFMessage -Level Warning -String 'Locale.AIGenerationFailed' -StringValues $Name, $_.Exception.Message
 				if ($script:SldgState.Locales.ContainsKey('en-US')) {
 					$script:SldgState.Locales[$Name] = $script:SldgState.Locales['en-US']
 				}
@@ -193,7 +194,7 @@
 						}
 					}
 					catch {
-						Write-PSFMessage -Level Warning -Message "AI locale category '$category' generation failed for '$lang': $($_.Exception.Message). Keeping base locale data for this category."
+						Write-PSFMessage -Level Warning -String 'Locale.AICategoryMixFailed' -StringValues $category, $lang, $_.Exception.Message
 					}
 				}
 			}
@@ -204,7 +205,7 @@
 			$requiredKeys = @('MaleNames', 'FemaleNames', 'LastNames', 'StreetNames', 'StreetTypes', 'Locations', 'Countries', 'EmailDomains', 'PhoneFormat', 'CompanyPrefixes', 'CompanyCores', 'CompanySuffixes', 'Departments', 'JobTitles', 'Industries')
 			$missingKeys = @($requiredKeys | Where-Object { -not $baseLocale.ContainsKey($_) })
 			if ($missingKeys.Count -gt 0) {
-				Write-PSFMessage -Level Warning -Message "Mixed locale '$Name' is missing required keys: $($missingKeys -join ', '). Generation may fail for some semantic types."
+				Write-PSFMessage -Level Warning -String 'Locale.MixMissingKeys' -StringValues $Name, ($missingKeys -join ', ')
 			}
 		}
 	}

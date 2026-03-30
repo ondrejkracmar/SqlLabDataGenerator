@@ -55,7 +55,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) with [Se
 
 ### Changed
 - `Connection` class property renamed to `DbConnection` (resolves CS0542 member-name-equals-type-name conflict).
-- Module manifest updated: 22 exported functions (added Get/Set/Remove-SldgPromptTemplate), RequiredAssemblies enabled.
+- Module manifest updated: 24 exported functions (added Get/Set/Remove-SldgPromptTemplate, Get-SldgSession, Reset-SldgSession, Clear-SldgCache, Get-SldgHealth), RequiredAssemblies enabled.
+
+### Added — Session Management & Diagnostics
+- **`Get-SldgSession`** — returns current session state summary: connection, AI provider, registered providers/locales/transformers, cache sizes, generation history.
+- **`Get-SldgSession -Full`** — returns the raw SldgSession object with all internal collections.
+- **`Reset-SldgSession`** — resets entire module session to clean state (closes connection, clears all caches, providers, locales, plans). Supports `-Force` and `ShouldProcess`.
+- **`Clear-SldgCache`** — clears AI-generated data caches without affecting connection or registrations. Optional `-CacheName` parameter to clear a specific cache (AIValueCache, AILocaleCache, AILocaleCategoryCache).
+- **`Get-SldgHealth`** — module health check endpoint returning version, providers, AI status, connection info, locales, and transformers.
+- **`SessionInfo`** C# DTO with nested `ConnectionSummary`, `AIProviderSummary`, `CacheSummary`, `GenerationHistoryEntry` types.
+- Format views for SessionInfo, HealthStatus, PromptTemplate, AIProviderInfo, AIProviderTestResult, AIModelOverride.
+- Type extensions for SessionInfo (`ConnectionStatus`, `TotalCacheEntries`), PromptTemplate (`IsBuiltIn`, `PlaceholderCount`), TableResult (`HasError`), TablePlan (`ForeignKeyCount`).
 
 ### Added — Scenario Mode
 - **Scenario mode** (`New-SldgGenerationPlan -Mode Scenario`) — domain-specific data generation using built-in templates.

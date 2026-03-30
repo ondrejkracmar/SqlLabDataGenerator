@@ -11,6 +11,7 @@
 
 		Disconnects from the currently active database.
 	#>
+	[OutputType([void])]
 	[CmdletBinding()]
 	param ()
 

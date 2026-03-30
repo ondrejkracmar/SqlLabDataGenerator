@@ -118,4 +118,52 @@
 			</ScriptProperty>
 		</Members>
 	</Type>
+	<!-- PromptTemplate -->
+	<Type>
+		<Name>SqlLabDataGenerator.PromptTemplate</Name>
+		<Members>
+			<ScriptProperty>
+				<Name>IsBuiltIn</Name>
+				<GetScriptBlock>-not $this.IsCustom</GetScriptBlock>
+			</ScriptProperty>
+			<ScriptProperty>
+				<Name>PlaceholderCount</Name>
+				<GetScriptBlock>if ($this.Placeholders) { $this.Placeholders.Count } else { 0 }</GetScriptBlock>
+			</ScriptProperty>
+		</Members>
+	</Type>
+	<!-- TableResult -->
+	<Type>
+		<Name>SqlLabDataGenerator.TableResult</Name>
+		<Members>
+			<ScriptProperty>
+				<Name>HasError</Name>
+				<GetScriptBlock>-not $this.Success</GetScriptBlock>
+			</ScriptProperty>
+		</Members>
+	</Type>
+	<!-- TablePlan -->
+	<Type>
+		<Name>SqlLabDataGenerator.TablePlan</Name>
+		<Members>
+			<ScriptProperty>
+				<Name>ForeignKeyCount</Name>
+				<GetScriptBlock>if ($this.ForeignKeys) { $this.ForeignKeys.Count } else { 0 }</GetScriptBlock>
+			</ScriptProperty>
+		</Members>
+	</Type>
+	<!-- SessionInfo -->
+	<Type>
+		<Name>SqlLabDataGenerator.SessionInfo</Name>
+		<Members>
+			<ScriptProperty>
+				<Name>ConnectionStatus</Name>
+				<GetScriptBlock>if ($this.Connection) { $this.Connection.State } else { 'Disconnected' }</GetScriptBlock>
+			</ScriptProperty>
+			<ScriptProperty>
+				<Name>TotalCacheEntries</Name>
+				<GetScriptBlock>if ($this.CacheSizes) { $this.CacheSizes.AIValueCache + $this.CacheSizes.AILocaleCache + $this.CacheSizes.AILocaleCategoryCache + $this.CacheSizes.CacheTimestamps } else { 0 }</GetScriptBlock>
+			</ScriptProperty>
+		</Members>
+	</Type>
 </Types>

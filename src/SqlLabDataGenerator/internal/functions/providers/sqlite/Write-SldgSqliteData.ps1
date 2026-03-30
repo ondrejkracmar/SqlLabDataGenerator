@@ -99,7 +99,7 @@
 			# Detect silently ignored rows and warn the user
 			$skippedRows = $currentBatchSize - $affected
 			if ($skippedRows -gt 0) {
-				Write-PSFMessage -Level Warning -Message "SQLite INSERT: $skippedRows of $currentBatchSize rows ignored due to constraint violations in table '$TableName'."
+				Write-PSFMessage -Level Warning -String 'Write.SQLiteConstraintViolations' -StringValues $skippedRows, $currentBatchSize, $TableName
 			}
 			$insertedCount += $affected
 			$rowIndex += $currentBatchSize

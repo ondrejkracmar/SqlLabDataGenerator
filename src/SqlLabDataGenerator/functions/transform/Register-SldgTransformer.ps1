@@ -31,6 +31,7 @@
 
 		Registers a transformer that converts generated data to CSV-ready user objects.
 	#>
+	[OutputType([void])]
 	[CmdletBinding()]
 	param (
 		[Parameter(Mandatory)]

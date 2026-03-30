@@ -24,11 +24,6 @@ Invoke-SldgDataGeneration [-Plan] <Object> [[-ConnectionInfo] <Object>] [-NoInse
  [-WhatIf] [-Confirm] [<CommonParameters>]
 ```
 
-## ALIASES
-
-This cmdlet has the following aliases,
-  {{Insert list of aliases}}
-
 ## DESCRIPTION
 
 Generates synthetic data for all tables in the plan, respecting FK dependencies,

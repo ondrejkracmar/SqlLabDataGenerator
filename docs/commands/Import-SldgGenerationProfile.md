@@ -23,11 +23,6 @@ Imports generation rules from a JSON profile file.
 Import-SldgGenerationProfile [-Path] <string> [-Plan] <Object> [<CommonParameters>]
 ```
 
-## ALIASES
-
-This cmdlet has the following aliases,
-  {{Insert list of aliases}}
-
 ## DESCRIPTION
 
 Loads a previously exported or manually created JSON profile that defines

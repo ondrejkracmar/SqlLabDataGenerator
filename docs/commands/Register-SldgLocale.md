@@ -37,11 +37,6 @@ Register-SldgLocale -Name <string> -MixFrom <hashtable> [-PoolSize <int>]
  [-CustomInstructions <string>] [-Force] [<CommonParameters>]
 ```
 
-## ALIASES
-
-This cmdlet has the following aliases,
-  {{Insert list of aliases}}
-
 ## DESCRIPTION
 
 Registers a new locale with culture-specific data pools for generating

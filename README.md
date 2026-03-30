@@ -281,13 +281,20 @@ $result = Invoke-SldgDataGeneration -Plan $plan -Parallel -ThrottleLimit 4
 
 Streaming is automatic — when a table exceeds the row threshold (default 100 000), the module switches to chunked generation (default 10 000 rows per chunk) to keep memory usage low. No extra configuration needed.
 
-## Exported Commands (21)
+## Exported Commands (24)
 
 ### Connection
 | Command | Description |
 |---|---|
 | `Connect-SldgDatabase` | Connect to SQL Server or SQLite; supports Windows auth, SQL auth, connection string |
 | `Disconnect-SldgDatabase` | Close the active connection |
+
+### Session
+| Command | Description |
+|---|---|
+| `Get-SldgSession` | Show current session state: connection, providers, caches, history |
+| `Reset-SldgSession` | Reset entire session to a clean state (connection, providers, caches) |
+| `Clear-SldgCache` | Clear AI caches without losing connection or registrations |
 
 ### AI Configuration
 | Command | Description |
@@ -334,6 +341,11 @@ Streaming is automatic — when a table exceeds the row threshold (default 100 0
 | `Export-SldgTransformedData` | Transform data to Entra ID users/groups or custom format |
 | `Get-SldgTransformer` | List available transformers |
 | `Register-SldgTransformer` | Register a custom transformer |
+
+### Utility
+| Command | Description |
+|---|---|
+| `Get-SldgHealth` | Module health check: version, providers, AI status, connection |
 
 ## Configuration
 

@@ -26,6 +26,18 @@ Connects to a database for schema discovery and data generation.
 
 Disconnects from the active database connection.
 
+### [Get-SldgSession](Get-SldgSession.md)
+
+Returns the current SqlLabDataGenerator session state.
+
+### [Reset-SldgSession](Reset-SldgSession.md)
+
+Resets the SqlLabDataGenerator session to a clean state.
+
+### [Clear-SldgCache](Clear-SldgCache.md)
+
+Clears AI-generated data caches without affecting connection or registrations.
+
 ### [Export-SldgGenerationProfile](Export-SldgGenerationProfile.md)
 
 Exports the current generation plan and rules to a JSON profile file.
@@ -45,6 +57,10 @@ Performs semantic analysis on database columns.
 ### [Get-SldgDatabaseSchema](Get-SldgDatabaseSchema.md)
 
 Discovers and returns the complete schema of the connected database.
+
+### [Get-SldgHealth](Get-SldgHealth.md)
+
+Returns the health status of the SqlLabDataGenerator module.
 
 ### [Get-SldgTransformer](Get-SldgTransformer.md)
 

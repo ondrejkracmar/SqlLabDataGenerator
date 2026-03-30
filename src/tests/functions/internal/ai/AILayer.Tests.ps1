@@ -63,7 +63,7 @@ Describe "AI Layer Tests" {
 	Context "Invoke-SldgAIRequest - Rate Limiting" {
 		It "Tracks request timestamps in SldgState" {
 			& $module {
-				$script:SldgState.AIRequestTimestamps = [System.Collections.Concurrent.ConcurrentQueue[datetime]]::new()
+				while ($script:SldgState.AIRequestTimestamps.TryDequeue([ref]$null)) { }
 			}
 			$type = & $module { $script:SldgState.AIRequestTimestamps.GetType().Name }
 			$type | Should -Be 'ConcurrentQueue`1'

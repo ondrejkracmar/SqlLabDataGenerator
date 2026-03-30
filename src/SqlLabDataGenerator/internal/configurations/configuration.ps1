@@ -26,25 +26,11 @@ Register-PSFConfigValidation -Name 'SqlLabDataGenerator.NullProbability' -Script
 }
 
 # Module runtime state
-# Note: Parallel generation (-Parallel) is safe because each runspace re-imports
-# the module, creating isolated $script:SldgState per runspace. Synchronized wrapper
-# is a defensive measure for any future multi-threaded access patterns.
-$script:SldgState = [hashtable]::Synchronized(@{
-	Providers              = [System.Collections.Concurrent.ConcurrentDictionary[string,object]]::new()
-	ActiveConnection       = $null
-	ActiveProvider         = $null
-	GenerationPlans        = [System.Collections.Concurrent.ConcurrentDictionary[string,object]]::new()
-	GeneratedData          = [System.Collections.Concurrent.ConcurrentDictionary[string,object]]::new()
-	Locales                = [System.Collections.Concurrent.ConcurrentDictionary[string,object]]::new()
-	Transformers           = [System.Collections.Concurrent.ConcurrentDictionary[string,object]]::new()
-	AILocaleCache          = [System.Collections.Concurrent.ConcurrentDictionary[string,object]]::new()
-	AILocaleCategoryCache  = [System.Collections.Concurrent.ConcurrentDictionary[string,object]]::new()
-	AIValueCache           = [System.Collections.Concurrent.ConcurrentDictionary[string,object]]::new()
-	AIRequestTimestamps    = [System.Collections.Concurrent.ConcurrentQueue[datetime]]::new()
-	AIRateLimitLock        = [object]::new()
-	CacheTimestamps        = [System.Collections.Concurrent.ConcurrentDictionary[string,datetime]]::new()
-	AIModelOverrides       = [System.Collections.Concurrent.ConcurrentDictionary[string,object]]::new()
-})
+# Uses the strongly-typed SldgSession class from the C# library.
+# All collections are ConcurrentDictionary/ConcurrentQueue for thread-safety.
+# Parallel generation (-Parallel) is safe because each runspace re-imports
+# the module, creating isolated $script:SldgState per runspace.
+$script:SldgState = [SqlLabDataGenerator.SldgSession]::new()
 
 # Import behavior
 Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'Import.DoDotSource' -Value $false -Initialize -Validation 'bool' -Description "Whether the module files should be dotsourced on import. By default, the files of this module are read as string value and invoked, which is faster but worse on debugging."

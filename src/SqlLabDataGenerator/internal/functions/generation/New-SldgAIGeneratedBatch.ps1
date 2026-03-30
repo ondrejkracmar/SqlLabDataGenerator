@@ -28,6 +28,8 @@
 
 		[string]$TableNotes,
 
+		[string]$ParentContext,
+
 		[switch]$Force
 	)
 
@@ -53,6 +55,7 @@
 	# Normalize locale order for consistent cache keys ("en-US,cs-CZ" == "cs-CZ,en-US")
 	$canonicalLocale = ($localeList | Sort-Object) -join ','
 	$cacheKey = "$TableName|$($colSignatures -join '|')|$canonicalLocale"
+	if ($ParentContext) { $cacheKey += "|ctx:$ParentContext" }
 
 	if (-not $Force) {
 		$cached = $null
@@ -142,6 +145,13 @@
 			$chunkSystemPrompt += "`n`n" + ($script:strings.'AI.IndustryContext' -f $sanitizedHint)
 		}
 
+		# Inject FK parent context for semantic consistency (e.g., cities matching their country)
+		if ($ParentContext) {
+			$sanitizedContext = $ParentContext -replace '[^\p{L}\p{N}\s\.\-,;:()\[\]_/''\"=<>+#&]', ''
+			if ($sanitizedContext.Length -gt 500) { $sanitizedContext = $sanitizedContext.Substring(0, 500) }
+			$chunkSystemPrompt += "`n`nPARENT ROW CONTEXT (all rows in this batch are children of the same parent row — generate values that are semantically appropriate and consistent with this parent):`n$sanitizedContext"
+		}
+
 		# Add existing UNIQUE values that must be avoided (prevent duplicate key violations)
 		if ($ExistingUniqueValues -and $ExistingUniqueValues.Count -gt 0) {
 			$exclusionLines = foreach ($col in $Columns) {
@@ -205,7 +215,7 @@
 				$rowProps = @($row.psobject.Properties.Name)
 				$missingCols = @($colNames | Where-Object { $_ -notin $rowProps })
 				if ($missingCols.Count -gt 0) {
-					Write-PSFMessage -Level Warning -Message "AI response for '$TableName' missing columns: $($missingCols -join ', '). Using NULL for missing values."
+					Write-PSFMessage -Level Warning -String 'AI.BatchMissingColumns' -StringValues $TableName, ($missingCols -join ', ')
 				}
 				foreach ($colName in $colNames) {
 					$val = $row.$colName
@@ -217,7 +227,7 @@
 			$remaining -= $parsed.Count
 			# If AI returned fewer rows than requested, log a warning and stop looping
 			if ($parsed.Count -lt $chunkSize) {
-				Write-PSFMessage -Level Warning -Message "AI batch for '$TableName': received $($parsed.Count) of $chunkSize requested rows. AI may have hit output limit."
+				Write-PSFMessage -Level Warning -String 'AI.BatchRowCountMismatch' -StringValues $TableName, $parsed.Count, $chunkSize
 				break
 			}
 		}

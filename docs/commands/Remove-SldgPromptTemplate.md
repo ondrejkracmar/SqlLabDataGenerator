@@ -31,11 +31,6 @@ Remove-SldgPromptTemplate [-InputObject] <Object>
  [-WhatIf] [-Confirm] [<CommonParameters>]
 ```
 
-## ALIASES
-
-This cmdlet has the following aliases,
-  {{Insert list of aliases}}
-
 ## DESCRIPTION
 
 Deletes a custom .prompt file from the AI.PromptPath directory.

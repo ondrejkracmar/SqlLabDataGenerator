@@ -61,14 +61,28 @@ if ($env:VSS_NUGET_EXTERNAL_FEED_ENDPOINTS) {
 	dotnet nuget add source $feedUrl --name $sourceName
 }
 else {
-	# Local/manual context: use PAT with environment variable when available,
-	# falling back to --store-password-in-clear-text (required by dotnet nuget on non-Windows or without credential provider)
-	if ($env:NUGET_PAT) {
-		dotnet nuget add source $feedUrl --name $sourceName --username $FeedUsername --password $env:NUGET_PAT --store-password-in-clear-text
+	# Local/manual context: prefer Azure Artifacts Credential Provider if installed,
+	# then NUGET_PAT env var, then PAT parameter (least secure)
+	$credProviderPath = Join-Path $env:USERPROFILE '.nuget' 'plugins'
+	$hasCredProvider = Test-Path (Join-Path $credProviderPath 'netcore') -ErrorAction SilentlyContinue
+
+	if ($hasCredProvider) {
+		Write-Host "Using Azure Artifacts Credential Provider for authentication."
+		$env:VSS_NUGET_EXTERNAL_FEED_ENDPOINTS = @{
+			endpointCredentials = @(@{ endpoint = $feedUrl })
+		} | ConvertTo-Json -Compress
+		dotnet nuget add source $feedUrl --name $sourceName
+	}
+	elseif ($env:NUGET_PAT) {
 		Write-Host "Using NUGET_PAT environment variable for authentication."
+		Write-Warning "Consider installing the Azure Artifacts Credential Provider to avoid storing credentials in config: https://github.com/microsoft/artifacts-credprovider"
+		dotnet nuget add source $feedUrl --name $sourceName --username $FeedUsername --password $env:NUGET_PAT --store-password-in-clear-text
 	}
 	else {
-		Write-Host "WARNING: Storing PAT in clear text. Set NUGET_PAT environment variable to avoid passing credentials on the command line."
+		Write-Warning "Storing PAT in clear text. This is the least secure option."
+		Write-Warning "Preferred alternatives (in order):"
+		Write-Warning "  1. Install Azure Artifacts Credential Provider: https://github.com/microsoft/artifacts-credprovider"
+		Write-Warning "  2. Set NUGET_PAT environment variable with your Personal Access Token"
 		dotnet nuget add source $feedUrl --name $sourceName --username $FeedUsername --password $PersonalAccessToken --store-password-in-clear-text
 	}
 }
