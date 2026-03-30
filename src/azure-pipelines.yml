@@ -184,4 +184,11 @@ stages:
                        -ArtifactRepositoryName '$(artifactRepositoryName)'
                        -ArtifactFeedName '$(artifactFeedName)'
                        -FeedUsername '$(FeedUsername)'
+                       -PersonalAccessToken '$(personalAccessToken)'Build.SourcesDirectory)/src/build/vsts-publishNuGetPackage.ps1"
+                    arguments: >
+                       -OrganizationName '$(organizationName)'
+                       -ArtifactRepositoryName '$(artifactRepositoryName)'
+                       -ArtifactFeedName '$(artifactFeedName)'
+                       -FeedUsername '$(FeedUsername)'
                        -PersonalAccessToken '$(personalAccessToken)'
+                       -NupkgPath '$(Pipeline.Workspace)/NuGetPackage
