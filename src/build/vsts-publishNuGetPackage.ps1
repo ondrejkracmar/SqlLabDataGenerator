@@ -60,43 +60,13 @@ if (-not $NupkgPath -or -not (Test-Path $NupkgPath)) {
 $feedUrl = "https://pkgs.dev.azure.com/$OrganizationName/$ArtifactRepositoryName/_packaging/$ArtifactFeedName/nuget/v3/index.json"
 
 # Add authenticated source for the push
-# Use NuGetAuthenticate@1 task token when available (pipeline), fall back to PAT for local use
 $sourceName = "AzArtifactsPush"
 $null = dotnet nuget remove source $sourceName 2>&1
-if ($env:VSS_NUGET_EXTERNAL_FEED_ENDPOINTS) {
-	# Pipeline context: NuGetAuthenticate@1 has already configured credentials
-	dotnet nuget add source $feedUrl --name $sourceName
-}
-else {
-	# Local/manual context: prefer Azure Artifacts Credential Provider if installed,
-	# then NUGET_PAT env var, then PAT parameter (least secure)
-	$userHome = if ($env:USERPROFILE) { $env:USERPROFILE } elseif ($env:HOME) { $env:HOME } else { '' }
-	$hasCredProvider = $false
-	if ($userHome) {
-		$credProviderPath = Join-Path $userHome '.nuget' 'plugins'
-		$hasCredProvider = Test-Path (Join-Path $credProviderPath 'netcore') -ErrorAction SilentlyContinue
-	}
 
-	if ($hasCredProvider) {
-		Write-Host "Using Azure Artifacts Credential Provider for authentication."
-		$env:VSS_NUGET_EXTERNAL_FEED_ENDPOINTS = @{
-			endpointCredentials = @(@{ endpoint = $feedUrl })
-		} | ConvertTo-Json -Compress
-		dotnet nuget add source $feedUrl --name $sourceName
-	}
-	elseif ($env:NUGET_PAT) {
-		Write-Host "Using NUGET_PAT environment variable for authentication."
-		Write-Warning "Consider installing the Azure Artifacts Credential Provider to avoid storing credentials in config: https://github.com/microsoft/artifacts-credprovider"
-		dotnet nuget add source $feedUrl --name $sourceName --username $FeedUsername --password $env:NUGET_PAT --store-password-in-clear-text
-	}
-	else {
-		Write-Warning "Storing PAT in clear text. This is the least secure option."
-		Write-Warning "Preferred alternatives (in order):"
-		Write-Warning "  1. Install Azure Artifacts Credential Provider: https://github.com/microsoft/artifacts-credprovider"
-		Write-Warning "  2. Set NUGET_PAT environment variable with your Personal Access Token"
-		dotnet nuget add source $feedUrl --name $sourceName --username $FeedUsername --password $PersonalAccessToken --store-password-in-clear-text
-	}
-}
+# Determine token: prefer NUGET_PAT env var, fall back to PAT parameter
+$token = if ($env:NUGET_PAT) { $env:NUGET_PAT } else { $PersonalAccessToken }
+
+dotnet nuget add source $feedUrl --name $sourceName --username $FeedUsername --password $token --store-password-in-clear-text
 
 Write-Host "Publishing $NupkgPath to $ArtifactRepositoryName ($feedUrl)"
 
