@@ -27,10 +27,10 @@ Describe "Disconnect-SldgDatabase" {
 		It "Clears active connection from state" {
 			& $module {
 				$script:SldgState.ActiveConnection = [PSCustomObject]@{
-					Provider   = 'TestProvider'
-					Server     = 'localhost'
-					Database   = 'TestDB'
-					Connection = $null
+					Provider       = 'TestProvider'
+					ServerInstance = 'localhost'
+					Database       = 'TestDB'
+					DbConnection   = $null
 				}
 			}
 			$before = & $module { $script:SldgState.ActiveConnection }

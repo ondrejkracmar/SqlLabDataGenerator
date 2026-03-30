@@ -1,4 +1,4 @@
-function New-SldgFKContextAwareBatch {
+﻿function New-SldgFKContextAwareBatch {
 	<#
 	.SYNOPSIS
 		Generates AI batches grouped by FK parent values for semantic consistency.

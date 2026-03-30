@@ -20,6 +20,12 @@
 	.PARAMETER IncludeSemanticAnalysis
 		If specified, includes the full semantic analysis (types, PII flags) in the export.
 
+	.PARAMETER WhatIf
+		Shows what the command would do without actually exporting the profile.
+
+	.PARAMETER Confirm
+		Prompts for confirmation before exporting the profile.
+
 	.EXAMPLE
 		PS C:\> Export-SldgGenerationProfile -Plan $plan -Path 'C:\profiles\mydb.json'
 

@@ -1,4 +1,4 @@
-function Write-SldgAuditRecord {
+﻿function Write-SldgAuditRecord {
 	<#
 	.SYNOPSIS
 		Writes a JSON-lines audit record for a data generation run.

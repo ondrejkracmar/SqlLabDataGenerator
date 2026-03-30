@@ -1,4 +1,4 @@
-function Get-SldgExistingUniqueValues {
+﻿function Get-SldgExistingUniqueValues {
 	<#
 	.SYNOPSIS
 		Queries existing unique/PK values from a table to prevent duplicate generation.

@@ -1,4 +1,4 @@
-function Reset-SldgSession {
+﻿function Reset-SldgSession {
 	<#
 	.SYNOPSIS
 		Resets the SqlLabDataGenerator session to a clean state.
@@ -16,6 +16,12 @@ function Reset-SldgSession {
 
 	.PARAMETER Force
 		Skips the confirmation prompt.
+
+	.PARAMETER WhatIf
+		Shows what the command would do without actually resetting the session.
+
+	.PARAMETER Confirm
+		Prompts for confirmation before resetting the session.
 
 	.EXAMPLE
 		PS C:\> Reset-SldgSession

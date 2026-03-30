@@ -1,4 +1,4 @@
-function Get-SldgSession {
+﻿function Get-SldgSession {
 	<#
 	.SYNOPSIS
 		Returns the current SqlLabDataGenerator session state.

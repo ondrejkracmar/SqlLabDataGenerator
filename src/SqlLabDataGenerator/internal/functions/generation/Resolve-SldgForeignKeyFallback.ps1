@@ -1,4 +1,4 @@
-function Resolve-SldgForeignKeyFallback {
+﻿function Resolve-SldgForeignKeyFallback {
 	<#
 	.SYNOPSIS
 		Batch-loads missing FK parent values from the database.

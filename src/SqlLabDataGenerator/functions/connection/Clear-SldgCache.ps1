@@ -1,4 +1,4 @@
-function Clear-SldgCache {
+﻿function Clear-SldgCache {
 	<#
 	.SYNOPSIS
 		Clears AI-generated data caches without affecting connection or registrations.

@@ -28,6 +28,12 @@
 	.PARAMETER TransformerParams
 		Optional hashtable of additional parameters to pass to the transformer function.
 
+	.PARAMETER WhatIf
+		Shows what the command would do without actually exporting the transformed data.
+
+	.PARAMETER Confirm
+		Prompts for confirmation before exporting the transformed data.
+
 	.EXAMPLE
 		PS C:\> $result = Invoke-SldgDataGeneration -Plan $plan -NoInsert -PassThru
 		PS C:\> $users = Export-SldgTransformedData -Data $result.Tables[0].DataTable -Transformer 'EntraIdUser' -TransformerParams @{ Domain = 'mycompany.onmicrosoft.com' }
