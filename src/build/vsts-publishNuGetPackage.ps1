@@ -70,8 +70,12 @@ if ($env:VSS_NUGET_EXTERNAL_FEED_ENDPOINTS) {
 else {
 	# Local/manual context: prefer Azure Artifacts Credential Provider if installed,
 	# then NUGET_PAT env var, then PAT parameter (least secure)
-	$credProviderPath = Join-Path $env:USERPROFILE '.nuget' 'plugins'
-	$hasCredProvider = Test-Path (Join-Path $credProviderPath 'netcore') -ErrorAction SilentlyContinue
+	$userHome = if ($env:USERPROFILE) { $env:USERPROFILE } elseif ($env:HOME) { $env:HOME } else { '' }
+	$hasCredProvider = $false
+	if ($userHome) {
+		$credProviderPath = Join-Path $userHome '.nuget' 'plugins'
+		$hasCredProvider = Test-Path (Join-Path $credProviderPath 'netcore') -ErrorAction SilentlyContinue
+	}
 
 	if ($hasCredProvider) {
 		Write-Host "Using Azure Artifacts Credential Provider for authentication."
