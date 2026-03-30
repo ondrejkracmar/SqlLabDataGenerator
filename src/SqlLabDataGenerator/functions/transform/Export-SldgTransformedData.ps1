@@ -28,6 +28,12 @@
 	.PARAMETER TransformerParams
 		Optional hashtable of additional parameters to pass to the transformer function.
 
+	.PARAMETER WhatIf
+		Shows what the command would do without actually exporting the transformed data.
+
+	.PARAMETER Confirm
+		Prompts for confirmation before exporting the transformed data.
+
 	.EXAMPLE
 		PS C:\> $result = Invoke-SldgDataGeneration -Plan $plan -NoInsert -PassThru
 		PS C:\> $users = Export-SldgTransformedData -Data $result.Tables[0].DataTable -Transformer 'EntraIdUser' -TransformerParams @{ Domain = 'mycompany.onmicrosoft.com' }
@@ -46,7 +52,7 @@
 	#>
 	[OutputType([SqlLabDataGenerator.EntraIdUser])]
 	[OutputType([SqlLabDataGenerator.EntraIdGroup])]
-	[CmdletBinding()]
+	[CmdletBinding(SupportsShouldProcess)]
 	param (
 		[Parameter(Mandatory)]
 		[System.Data.DataTable]$Data,
@@ -88,6 +94,7 @@
 	if ($OutputPath) {
 		# Validate path: resolve and ensure it doesn't escape via traversal
 		$resolvedOutputPath = [System.IO.Path]::GetFullPath($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($OutputPath))
+		if ($PSCmdlet.ShouldProcess($resolvedOutputPath, 'Export transformed data')) {
 		$parentDir = Split-Path -Path $resolvedOutputPath -Parent
 		if ($parentDir -and -not (Test-Path $parentDir)) {
 			$null = New-Item -Path $parentDir -ItemType Directory -Force
@@ -106,6 +113,7 @@
 
 		@{ value = @($exportData) } | ConvertTo-Json -Depth 10 | Set-Content -Path $resolvedOutputPath -Encoding UTF8
 		Write-PSFMessage -Level Host -Message ($script:strings.'Transform.Exported' -f $resolvedOutputPath, @($transformed).Count)
+		}
 	}
 
 	$transformed

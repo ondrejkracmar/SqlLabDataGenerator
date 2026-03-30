@@ -24,11 +24,6 @@ Get-SldgPromptTemplate [[-Purpose] <string>] [[-Variant] <string>] [-IncludeCont
  [<CommonParameters>]
 ```
 
-## ALIASES
-
-This cmdlet has the following aliases,
-  {{Insert list of aliases}}
-
 ## DESCRIPTION
 
 Discovers prompt template files (.prompt) from the built-in templates

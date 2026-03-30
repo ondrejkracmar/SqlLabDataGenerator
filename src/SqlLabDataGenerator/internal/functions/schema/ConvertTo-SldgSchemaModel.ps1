@@ -120,7 +120,7 @@
 				}
 			}
 			catch [System.Text.RegularExpressions.RegexMatchTimeoutException] {
-				Write-PSFMessage -Level Warning -Message "Regex timeout while parsing view definition for table '$tableKey'. View hints skipped for this view."
+				Write-PSFMessage -Level Warning -String 'Schema.ViewRegexTimeout' -StringValues $tableKey
 			}
 		}
 	}

@@ -23,11 +23,6 @@ Validates the quality and integrity of generated data.
 Test-SldgGeneratedData [-Schema] <Object> [[-ConnectionInfo] <Object>] [<CommonParameters>]
 ```
 
-## ALIASES
-
-This cmdlet has the following aliases,
-  {{Insert list of aliases}}
-
 ## DESCRIPTION
 
 Runs a suite of validation checks against the generated data in the target database:

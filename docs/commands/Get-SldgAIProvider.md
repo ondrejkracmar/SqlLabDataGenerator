@@ -23,11 +23,6 @@ Returns the current AI provider configuration.
 Get-SldgAIProvider [[-Purpose] <string>] [<CommonParameters>]
 ```
 
-## ALIASES
-
-This cmdlet has the following aliases,
-  {{Insert list of aliases}}
-
 ## DESCRIPTION
 
 Shows which AI provider is configured, model, endpoint, and which AI features are enabled.
@@ -111,7 +106,9 @@ This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable
 
 ### SqlLabDataGenerator.AIProviderInfo
 
-{{ Fill in the Description }}
+The current AI provider configuration including Provider, Model, Endpoint, ApiKeySet,
+MaxTokens, Temperature, AIGeneration, AILocale, Locale, and ModelOverrides.
+When `-Purpose` is specified, returns the effective configuration for that purpose.
 
 ## NOTES
 

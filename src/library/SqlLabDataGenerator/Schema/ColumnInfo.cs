@@ -1,5 +1,3 @@
-using System.Collections.Generic;
-
 namespace SqlLabDataGenerator
 {
     /// <summary>
@@ -59,7 +57,7 @@ namespace SqlLabDataGenerator
         public string SemanticType { get; set; }
 
         /// <summary>Column classification result.</summary>
-        public object Classification { get; set; }
+        public ColumnClassification Classification { get; set; }
 
         /// <summary>Custom generation rule, if set.</summary>
         public object GenerationRule { get; set; }

@@ -1,2 +1,34 @@
 skip_file_paths:
-  -  src/build/vsts-syncRepository.ps1
+  - src/build/vsts-syncRepository.ps1
+
+# Security scanning rules
+rules:
+  # Detect hardcoded credentials and secrets
+  - id: hardcoded-credentials
+    severity: high
+    patterns:
+      - "password\\s*=\\s*['\"][^'\"]+['\"]"
+      - "apikey\\s*=\\s*['\"][^'\"]+['\"]"
+      - "secret\\s*=\\s*['\"][^'\"]+['\"]"
+    exclude_patterns:
+      - "\\$Credential\\.GetNetworkCredential\\(\\)"
+      - "\\[SecureString\\]"
+      - "Get-PSFConfigValue"
+
+  # Detect potential SQL injection
+  - id: sql-injection-risk
+    severity: high
+    patterns:
+      - "CommandText\\s*=.*\\$[^{]"
+    exclude_patterns:
+      - "Get-SldgSafeSqlName"
+      - "INFORMATION_SCHEMA"
+      - "sys\\."
+      - "@p_"
+
+  # Detect cleartext credential storage
+  - id: cleartext-credentials
+    severity: medium
+    patterns:
+      - "store-password-in-clear-text"
+      - "ConvertTo-SecureString.*-AsPlainText"

@@ -12,6 +12,7 @@
 
 		Returns the current module health status.
 	#>
+	[OutputType('SqlLabDataGenerator.HealthStatus')]
 	[CmdletBinding()]
 	param ()
 

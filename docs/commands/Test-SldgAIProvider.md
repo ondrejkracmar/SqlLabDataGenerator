@@ -23,11 +23,6 @@ Tests connectivity to the configured AI provider.
 Test-SldgAIProvider [<CommonParameters>]
 ```
 
-## ALIASES
-
-This cmdlet has the following aliases,
-  {{Insert list of aliases}}
-
 ## DESCRIPTION
 
 Sends a simple test prompt to the currently configured AI provider and reports
@@ -65,7 +60,8 @@ This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable
 
 ### SqlLabDataGenerator.AIProviderTestResult
 
-{{ Fill in the Description }}
+Test result containing Provider, Model, Endpoint, Status, ResponseMs, and Error.
+Status indicates whether the AI provider responded successfully.
 
 ## NOTES
 

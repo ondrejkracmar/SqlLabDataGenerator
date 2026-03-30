@@ -228,6 +228,15 @@
         <member name="M:SqlLabDataGenerator.Connection.#ctor">
             <summary>Initializes a new instance of the <see cref="T:SqlLabDataGenerator.Connection"/> class.</summary>
         </member>
+        <member name="P:SqlLabDataGenerator.Connection.IsValid">
+            <summary>
+            Validates that the connection has the minimum required state.
+            Returns true if DbConnection and Provider are set.
+            </summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.Connection.IsOpen">
+            <summary>Whether the underlying connection is currently open.</summary>
+        </member>
         <member name="M:SqlLabDataGenerator.Connection.Dispose">
             <summary>Disposes the underlying database connection.</summary>
         </member>
@@ -643,6 +652,177 @@
         </member>
         <member name="M:SqlLabDataGenerator.TableInfo.#ctor">
             <summary>Initializes a new instance of the <see cref="T:SqlLabDataGenerator.TableInfo"/> class.</summary>
+        </member>
+        <member name="T:SqlLabDataGenerator.SessionInfo">
+            <summary>
+            Summary snapshot of the current session state returned by Get-SldgSession.
+            </summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.SessionInfo.SessionId">
+            <summary>Unique identifier of the session.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.SessionInfo.CreatedAt">
+            <summary>When the session was created (UTC).</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.SessionInfo.Connection">
+            <summary>Connection summary, or null when disconnected.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.SessionInfo.AIProvider">
+            <summary>AI provider configuration summary.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.SessionInfo.RegisteredProviders">
+            <summary>Names of registered database providers.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.SessionInfo.RegisteredTransformers">
+            <summary>Names of registered data transformers.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.SessionInfo.RegisteredLocales">
+            <summary>Names of registered locale packs.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.SessionInfo.CacheSizes">
+            <summary>Number of entries in each AI cache.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.SessionInfo.GenerationPlans">
+            <summary>Names of active generation plans.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.SessionInfo.GenerationHistory">
+            <summary>Per-database generation history entries.</summary>
+        </member>
+        <member name="T:SqlLabDataGenerator.ConnectionSummary">
+            <summary>
+            Summarises the active database connection.
+            </summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.ConnectionSummary.Provider">
+            <summary>The database provider ('SqlServer' or 'SQLite').</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.ConnectionSummary.ServerInstance">
+            <summary>The server instance or hostname.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.ConnectionSummary.Database">
+            <summary>The database name or file path.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.ConnectionSummary.State">
+            <summary>Current connection state ('Open', 'Closed', 'Disposed').</summary>
+        </member>
+        <member name="T:SqlLabDataGenerator.AIProviderSummary">
+            <summary>
+            Summarises the AI provider configuration.
+            </summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.AIProviderSummary.Provider">
+            <summary>The active AI provider name (e.g. 'AzureOpenAI', 'Ollama', 'None').</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.AIProviderSummary.Model">
+            <summary>The active AI model name.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.AIProviderSummary.Overrides">
+            <summary>Per-purpose model overrides (key = purpose, value = "Provider/Model").</summary>
+        </member>
+        <member name="T:SqlLabDataGenerator.CacheSummary">
+            <summary>
+            Number of cached entries in each AI cache.
+            </summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.CacheSummary.AIValueCache">
+            <summary>AI-generated column value cache size.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.CacheSummary.AILocaleCache">
+            <summary>AI-generated locale data cache size.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.CacheSummary.AILocaleCategoryCache">
+            <summary>AI-generated locale category data cache size.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.CacheSummary.CacheTimestamps">
+            <summary>Total number of cache timestamp entries.</summary>
+        </member>
+        <member name="T:SqlLabDataGenerator.GenerationHistoryEntry">
+            <summary>
+            One entry in the per-database generation history.
+            </summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.GenerationHistoryEntry.Database">
+            <summary>The database name or path.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.GenerationHistoryEntry.Tables">
+            <summary>Number of tables in the generation result.</summary>
+        </member>
+        <member name="T:SqlLabDataGenerator.SldgSession">
+            <summary>
+            Encapsulates all mutable state for a SqlLabDataGenerator session.
+            Thread-safe: uses ConcurrentDictionary/ConcurrentQueue for all collections
+            and explicit locking for compound operations.
+            <para>
+            Replaces the previous <c>$script:SldgState</c> synchronized hashtable
+            with a strongly-typed object that supports multiple parallel sessions
+            without cross-contamination.
+            </para>
+            </summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.SldgSession.SessionId">
+            <summary>Unique identifier for this session.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.SldgSession.CreatedAt">
+            <summary>When the session was created.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.SldgSession.ActiveConnection">
+            <summary>The currently active database connection, or null.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.SldgSession.ActiveProvider">
+            <summary>The name of the active database provider, or null.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.SldgSession.Providers">
+            <summary>Registered database providers keyed by name.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.SldgSession.Transformers">
+            <summary>Registered data transformers keyed by name.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.SldgSession.GenerationPlans">
+            <summary>Active generation plans keyed by database name.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.SldgSession.GeneratedData">
+            <summary>Results of last generation run keyed by database name.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.SldgSession.Locales">
+            <summary>Static locale packs keyed by locale name (e.g. 'en-US', 'cs-CZ').</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.SldgSession.AILocaleCache">
+            <summary>AI-generated locale data cache.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.SldgSession.AILocaleCategoryCache">
+            <summary>AI-generated locale category data cache.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.SldgSession.AIValueCache">
+            <summary>AI-generated column value cache.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.SldgSession.CacheTimestamps">
+            <summary>Timestamps for cache entries (key = "CacheName|Key").</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.SldgSession.AIRequestTimestamps">
+            <summary>Timestamps of recent AI requests for rate limiting.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.SldgSession.AIRateLimitLock">
+            <summary>Lock object for atomic rate-limit check-wait-enqueue operations.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.SldgSession.AIModelOverrides">
+            <summary>Per-purpose AI model overrides keyed by purpose name.</summary>
+        </member>
+        <member name="M:SqlLabDataGenerator.SldgSession.#ctor">
+            <summary>Creates a new session with a unique identifier.</summary>
+        </member>
+        <member name="M:SqlLabDataGenerator.SldgSession.ClearCaches">
+            <summary>
+            Resets all caches without touching providers, locales, or the active connection.
+            </summary>
+        </member>
+        <member name="M:SqlLabDataGenerator.SldgSession.Reset">
+            <summary>
+            Resets the entire session to a clean state: disconnects, clears providers,
+            plans, caches, locales, and transformers.
+            </summary>
+        </member>
+        <member name="M:SqlLabDataGenerator.SldgSession.Dispose">
+            <summary>Disposes the session, closing the active connection.</summary>
         </member>
         <member name="T:SqlLabDataGenerator.EntraIdGroup">
             <summary>

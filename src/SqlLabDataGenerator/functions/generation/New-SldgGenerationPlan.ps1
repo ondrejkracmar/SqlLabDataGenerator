@@ -61,7 +61,7 @@
 	[OutputType([SqlLabDataGenerator.GenerationPlan])]
 	[CmdletBinding()]
 	param (
-		[Parameter(Mandatory)]
+		[Parameter(Mandatory, ValueFromPipeline)]
 		$Schema,
 
 		[int]$RowCount,
@@ -78,6 +78,7 @@
 		[string]$ScenarioName = 'Auto'
 	)
 
+	process {
 	if (-not $RowCount) { $RowCount = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.Generation.DefaultRowCount' }
 	if (-not $Mode) { $Mode = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.Generation.Mode' }
 
@@ -272,4 +273,5 @@
 	$script:SldgState.GenerationPlans[$Schema.Database] = $plan
 
 	$plan
+	}
 }

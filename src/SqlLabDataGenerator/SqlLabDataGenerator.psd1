@@ -41,6 +41,7 @@
 	
 	# Functions to export from this module
 	FunctionsToExport = @(
+		'Clear-SldgCache',
 		'Connect-SldgDatabase',
 		'Disconnect-SldgDatabase',
 		'Export-SldgGenerationProfile',
@@ -50,6 +51,7 @@
 		'Get-SldgDatabaseSchema',
 		'Get-SldgHealth',
 		'Get-SldgPromptTemplate',
+		'Get-SldgSession',
 		'Get-SldgTransformer',
 		'Import-SldgGenerationProfile',
 		'Invoke-SldgDataGeneration',
@@ -57,6 +59,7 @@
 		'Register-SldgLocale',
 		'Register-SldgTransformer',
 		'Remove-SldgPromptTemplate',
+		'Reset-SldgSession',
 		'Set-SldgAIProvider',
 		'Set-SldgGenerationRule',
 		'Set-SldgPromptTemplate',

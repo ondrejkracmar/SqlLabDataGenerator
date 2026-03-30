@@ -43,6 +43,7 @@
 
 		Applies the retail profile to the generation plan.
 	#>
+	[OutputType([void])]
 	[CmdletBinding()]
 	param (
 		[Parameter(Mandatory)]
@@ -59,7 +60,7 @@
 	$maxProfileSizeMB = 10
 	$fileSize = (Get-Item -Path $Path).Length
 	if ($fileSize -gt ($maxProfileSizeMB * 1MB)) {
-		Stop-PSFFunction -Message "Profile file '$Path' is $([math]::Round($fileSize / 1MB, 1)) MB, exceeding the $maxProfileSizeMB MB limit." -EnableException $true
+		Stop-PSFFunction -String 'Profile.FileTooLarge' -StringValues $Path, [math]::Round($fileSize / 1MB, 1), $maxProfileSizeMB -EnableException $true
 	}
 
 	$profileData = Get-Content -Path $Path -Raw | ConvertFrom-Json
@@ -83,7 +84,7 @@
 						$tablePlan.RowCount = [int]$tableProfile.rowCount
 					}
 					catch {
-						Write-PSFMessage -Level Warning -Message "Profile: Invalid rowCount '$($tableProfile.rowCount)' for table '$tableName' — skipping override."
+						Write-PSFMessage -Level Warning -String 'Profile.InvalidRowCount' -StringValues $tableProfile.rowCount, $tableName
 					}
 				}
 			}

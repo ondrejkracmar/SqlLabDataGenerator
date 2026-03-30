@@ -24,6 +24,7 @@ Rules:
 - For numeric columns, use appropriate ranges
 - For date columns, use ISO format (YYYY-MM-DD or YYYY-MM-DDTHH:mm:ss) and ensure UNIQUE date columns have distinct dates
 - If TABLE GENERATION NOTES are provided below, follow them carefully — they contain expert analysis of the schema and relationships
+- If PARENT ROW CONTEXT is provided below, ALL generated values must be semantically consistent with the parent (e.g., cities must belong to the specified country, addresses must match the region, names must match the culture)
 
 Return ONLY a JSON array of {{BatchSize}} objects. Each object must have exactly these keys: {{ColumnNames}}
 No markdown, no explanation, just the JSON array.

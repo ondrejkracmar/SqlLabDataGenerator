@@ -24,11 +24,6 @@ Export-SldgTransformedData [-Data] <DataTable> [-Transformer] <string> [[-Output
  [[-ColumnMapping] <hashtable>] [[-TransformerParams] <hashtable>] [<CommonParameters>]
 ```
 
-## ALIASES
-
-This cmdlet has the following aliases,
-  {{Insert list of aliases}}
-
 ## DESCRIPTION
 
 Takes generated data (DataTable from Invoke-SldgDataGeneration with -PassThru)

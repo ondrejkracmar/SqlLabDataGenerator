@@ -24,11 +24,6 @@ Get-SldgColumnAnalysis [-Schema] <Object> [[-IndustryHint] <string>] [[-Locale] 
  [<CommonParameters>]
 ```
 
-## ALIASES
-
-This cmdlet has the following aliases,
-  {{Insert list of aliases}}
-
 ## DESCRIPTION
 
 Classifies each column in the schema using pattern matching and optionally AI analysis.

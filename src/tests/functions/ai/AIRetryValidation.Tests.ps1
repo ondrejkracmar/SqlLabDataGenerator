@@ -61,7 +61,7 @@ Describe "AI Retry Intelligence and Response Validation" {
 
 		It "Source logs warning for missing columns" {
 			$source = & $module { (Get-Command New-SldgAIGeneratedBatch).ScriptBlock.ToString() }
-			$source | Should -Match 'missing columns'
+			$source | Should -Match 'BatchMissingColumns'
 		}
 	}
 

@@ -24,11 +24,6 @@ New-SldgGenerationPlan [-Schema] <Object> [[-RowCount] <int>] [[-TableRowCounts]
  [[-Mode] <string>] [[-IndustryHint] <string>] [-UseAI] [<CommonParameters>]
 ```
 
-## ALIASES
-
-This cmdlet has the following aliases,
-  {{Insert list of aliases}}
-
 ## DESCRIPTION
 
 Builds an ordered execution plan for data generation.

@@ -86,7 +86,7 @@
 				}
 			}
 			catch {
-				Write-PSFMessage -Level Verbose -Message "Could not query sample data for $($table.FullName): $_"
+				Write-PSFMessage -Level Verbose -String 'AI.SchemaAnalysisSampleFailed' -StringValues $table.FullName, $_
 				$tableText += "`n  Sample data: (query failed)"
 			}
 		}

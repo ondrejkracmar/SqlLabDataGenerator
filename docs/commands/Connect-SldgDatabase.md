@@ -25,11 +25,6 @@ Connect-SldgDatabase [-ServerInstance] <string> [-Database] <string> [[-Provider
  [<CommonParameters>]
 ```
 
-## ALIASES
-
-This cmdlet has the following aliases,
-  {{Insert list of aliases}}
-
 ## DESCRIPTION
 
 Establishes a connection to a database using the specified provider.
