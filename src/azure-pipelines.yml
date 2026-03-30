@@ -191,7 +191,7 @@ stages:
                  -GitHubRepositoryName "SqlLabDataGenerator"
                  -GitHubUsername '$(gitHubUsername)'
                  -GitHubToken '$(gitHubPAT)'
-            condition: and(succeeded(), or(eq(variables['Build.SourceBranch'], 'refs/heads/main'), startsWith(variables['Build.SourceBranch'], 'refs/tags/v')))
+            condition: succeeded()
 
   - stage: Publish
     displayName: 'Publish Package'
