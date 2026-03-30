@@ -217,17 +217,11 @@ stages:
                   displayName: Publish Nuget Package To Repository
                   inputs:
                     targetType: filePath
-                    filePath: "$(sourceDirectory)/build/vsts-publishNuGetPackage.ps1"
-                    arguments: >
-                       -OrganizationName '$(organizationName)'
-                       -ArtifactRepositoryName '$(artifactRepositoryName)'
-                       -ArtifactFeedName '$(artifactFeedName)'
-                       -FeedUsername '$(FeedUsername)'
-                       -PersonalAccessToken '$(personalAccessToken)'Build.SourcesDirectory)/src/build/vsts-publishNuGetPackage.ps1"
+                    filePath: "$(Build.SourcesDirectory)/src/build/vsts-publishNuGetPackage.ps1"
                     arguments: >
                        -OrganizationName '$(organizationName)'
                        -ArtifactRepositoryName '$(artifactRepositoryName)'
                        -ArtifactFeedName '$(artifactFeedName)'
                        -FeedUsername '$(FeedUsername)'
                        -PersonalAccessToken '$(personalAccessToken)'
-                       -NupkgPath '$(Pipeline.Workspace)/NuGetPackage
+                       -NupkgPath '$(Pipeline.Workspace)/NuGetPackage'
