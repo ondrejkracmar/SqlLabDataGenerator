@@ -36,8 +36,9 @@ $config = [PesterConfiguration]::Default
 $config.TestResult.Enabled = $true
 
 # Code coverage will run in a single aggregated pass at the end
-$coveragePaths = @("$PSScriptRoot\..\SqlLabDataGenerator\functions", "$PSScriptRoot\..\SqlLabDataGenerator\internal\functions")
-$coverageOutputPath = Join-Path "$PSScriptRoot\..\TestResults" "coverage.xml"
+$coveragePaths = @("$PSScriptRoot\..\SqlLabDataGenerator\functions", "$PSScriptRoot\..\SqlLabDataGenerator\internal\functions") |
+	Resolve-Path | ForEach-Object { $_.Path }
+$coverageOutputPath = Join-Path (Resolve-Path "$PSScriptRoot\..\TestResults").Path "coverage.xml"
 $allTestFiles = [System.Collections.Generic.List[string]]::new()
 
 #region Run General Tests
