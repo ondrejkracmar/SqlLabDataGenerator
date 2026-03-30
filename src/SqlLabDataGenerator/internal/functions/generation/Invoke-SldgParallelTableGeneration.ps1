@@ -62,7 +62,9 @@
 			$localGenRules = $Plan.GenerationRules
 
 			$tablePlansInLevel | ForEach-Object -Parallel {
-				Import-Module $using:psd1Path
+				# Import only once per runspace — pooled runspaces get reused across iterations
+				$mod = Get-Module SqlLabDataGenerator
+				if (-not $mod) { $mod = Import-Module $using:psd1Path -PassThru }
 				$tp = $_
 				$bag = $using:parallelBag
 
@@ -70,11 +72,14 @@
 				$gr = $using:localGenRules
 				if ($gr.ContainsKey($tp.FullName)) { $trules = $gr[$tp.FullName] }
 
-				$tInfo = ConvertTo-SldgTableInfo -TablePlan $tp
+				$tInfo = & $mod { param($t) ConvertTo-SldgTableInfo -TablePlan $t } $tp
 
 				try {
-					$rs = New-SldgRowSet -TableInfo $tInfo -RowCount $tp.RowCount `
-						-GeneratorMap ($using:localGenMap) -ForeignKeyValues ($using:snapshotFkValues) -TableRules $trules
+					$rs = & $mod {
+						param($ti, $rc, $gm, $fk, $tr)
+						New-SldgRowSet -TableInfo $ti -RowCount $rc `
+							-GeneratorMap $gm -ForeignKeyValues $fk -TableRules $tr
+					} $tInfo $tp.RowCount ($using:localGenMap) ($using:snapshotFkValues) $trules
 
 					$bag.Add(@{
 						FullName        = $tp.FullName
