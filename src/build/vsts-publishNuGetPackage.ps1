@@ -33,6 +33,13 @@ if (-not $WorkingDirectory) {
 }
 
 # Locate the nupkg — either passed explicitly or search common locations
+if ($NupkgPath -and (Test-Path $NupkgPath -PathType Container)) {
+	# A directory was passed — search for nupkg inside it
+	$found = Get-ChildItem -Path $NupkgPath -Filter 'SqlLabDataGenerator*.nupkg' -ErrorAction SilentlyContinue | Select-Object -First 1
+	if ($found) { $NupkgPath = $found.FullName }
+	else { $NupkgPath = $null }
+}
+
 if (-not $NupkgPath) {
 	# Pipeline artifact download location
 	$artifactDir = if ($env:PIPELINE_WORKSPACE) { Join-Path $env:PIPELINE_WORKSPACE 'NuGetPackage' } else { $null }
