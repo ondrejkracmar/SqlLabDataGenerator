@@ -82,17 +82,16 @@ function Invoke-McpToolsCall {
 
 	# Invoke the cmdlet with timeout protection
 	$toolTimeoutSeconds = 300  # 5-minute max execution time per tool call
+	$modBase = (Get-Module SqlLabDataGenerator).ModuleBase
 	try {
 		$job = Start-Job -ScriptBlock {
-			param($tn, $pp)
+			param($tn, $pp, $mb)
 			# Re-import module in job scope
-			$mod = Get-Module SqlLabDataGenerator
-			if (-not $mod) {
-				$modPath = Get-Module SqlLabDataGenerator -ListAvailable | Select-Object -First 1 -ExpandProperty ModuleBase
-				if ($modPath) { Import-Module (Join-Path $modPath 'SqlLabDataGenerator.psd1') }
+			if ($mb) {
+				Import-Module (Join-Path $mb 'SqlLabDataGenerator.psd1') -ErrorAction Stop
 			}
 			& $tn @pp 2>&1
-		} -ArgumentList $toolName, $psParams
+		} -ArgumentList $toolName, $psParams, $modBase
 
 		$completed = $job | Wait-Job -Timeout $toolTimeoutSeconds
 		if (-not $completed) {

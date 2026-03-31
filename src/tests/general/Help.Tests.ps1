@@ -93,7 +93,7 @@ foreach ($command in $commands) {
             
             $parameters = $command.ParameterSets.Parameters | Sort-Object -Property Name -Unique | Where-Object Name -notin $common
             $parameterNames = $parameters.Name
-            $HelpParameterNames = $Help.Parameters.Parameter.Name | Sort-Object -Unique
+            $HelpParameterNames = $Help.Parameters.Parameter.Name | Sort-Object -Unique | Where-Object { $_ -notin $common }
             foreach ($parameter in $parameters) {
                 $parameterName = $parameter.Name
                 $parameterHelp = $Help.parameters.parameter | Where-Object Name -EQ $parameterName

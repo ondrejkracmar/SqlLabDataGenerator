@@ -38,6 +38,18 @@ catch {
 
 # Load SQLite assemblies from the module bin directory
 # Dependencies must be loaded in order: core → provider → batteries → main
+# On Linux/macOS, ensure the native SQLite library directory is in LD_LIBRARY_PATH
+# so that P/Invoke can resolve libe_sqlite3.so during Batteries_V2.Init()
+if ($IsLinux -or $IsMacOS) {
+    $rid = if ($IsLinux) { 'linux-x64' } else { 'osx-x64' }
+    $nativeDir = "$script:ModuleRoot\bin\runtimes\$rid\native"
+    if (Test-Path $nativeDir) {
+        $resolvedNative = (Resolve-Path $nativeDir).Path
+        if (-not $env:LD_LIBRARY_PATH -or $env:LD_LIBRARY_PATH -notlike "*$resolvedNative*") {
+            $env:LD_LIBRARY_PATH = "$resolvedNative$([System.IO.Path]::PathSeparator)$env:LD_LIBRARY_PATH"
+        }
+    }
+}
 try {
     $sqliteDeps = @(
         'SQLitePCLRaw.core.dll',

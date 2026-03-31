@@ -136,19 +136,19 @@
 		# Inject per-table generation notes from schema analysis (two-tier AI)
 		# Sanitize first to prevent prompt injection, then escape braces to avoid format-string injection
 		if ($TableNotes) {
-			$escapedNotes = Remove-SldgUnsafeChars -Text $TableNotes -Mode General -MaxLength 2000
+			$escapedNotes = Remove-SldgUnsafeChar -Text $TableNotes -Mode General -MaxLength 2000
 			$escapedNotes = $escapedNotes -replace '\{', '{{' -replace '\}', '}}'
 			$chunkSystemPrompt += "`n`nTABLE GENERATION NOTES (from schema analysis — follow these instructions carefully):`n$escapedNotes"
 		}
 
 		if ($IndustryHint) {
-			$sanitizedHint = Remove-SldgUnsafeChars -Text $IndustryHint -Mode Strict -MaxLength 200
+			$sanitizedHint = Remove-SldgUnsafeChar -Text $IndustryHint -Mode Strict -MaxLength 200
 			$chunkSystemPrompt += "`n`n" + ($script:strings.'AI.IndustryContext' -f $sanitizedHint)
 		}
 
 		# Inject FK parent context for semantic consistency (e.g., cities matching their country)
 		if ($ParentContext) {
-			$sanitizedContext = Remove-SldgUnsafeChars -Text $ParentContext -Mode General -MaxLength 500
+			$sanitizedContext = Remove-SldgUnsafeChar -Text $ParentContext -Mode General -MaxLength 500
 			$chunkSystemPrompt += "`n`nPARENT ROW CONTEXT (all rows in this batch are children of the same parent row — generate values that are semantically appropriate and consistent with this parent):`n$sanitizedContext"
 		}
 

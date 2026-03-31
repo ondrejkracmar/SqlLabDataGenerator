@@ -61,7 +61,7 @@
 	}
 
 	if ($IndustryHint) {
-		$sanitizedHint = Remove-SldgUnsafeChars -Text $IndustryHint -Mode Strict -MaxLength 200
+		$sanitizedHint = Remove-SldgUnsafeChar -Text $IndustryHint -Mode Strict -MaxLength 200
 		$systemPrompt += "`n`nIndustry: $sanitizedHint. Use domain knowledge for realistic ratios and business patterns."
 	}
 
