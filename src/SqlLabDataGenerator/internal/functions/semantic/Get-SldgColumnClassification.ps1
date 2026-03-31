@@ -147,7 +147,7 @@
 		$type = 'Text'; $isPII = $false; $confidence = 0.7
 		if ($isPersonTable)   { $type = 'FullName'; $isPII = $true; $confidence = 0.85 }
 		elseif ($isCompanyTable)  { $type = 'CompanyName'; $isPII = $false; $confidence = 0.85 }
-		elseif ($isProductTable)  { $type = 'ShortString'; $isPII = $false; $confidence = 0.75 }
+		elseif ($isProductTable)  { $type = 'Text'; $isPII = $false; $confidence = 0.75 }
 		elseif ($isLocationTable) { $type = 'Text'; $isPII = $false; $confidence = 0.7 }
 		return [SqlLabDataGenerator.ColumnClassification]@{
 			ColumnName   = $Column.ColumnName

@@ -1,4 +1,4 @@
-function Assert-SldgConnectionOpen {
+﻿function Assert-SldgConnectionOpen {
 	<#
 	.SYNOPSIS
 		Validates that the database connection is in Open state.

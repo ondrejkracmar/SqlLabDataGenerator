@@ -104,14 +104,23 @@ function Invoke-McpToolsCall {
 			}
 		}
 
-		$output = $job | Receive-Job
+		$jobState = $job.State
+		$output = $job | Receive-Job -ErrorVariable jobErrors -ErrorAction SilentlyContinue
 		$job | Remove-Job -Force
 
-		$errors = @($output | Where-Object { $_ -is [System.Management.Automation.ErrorRecord] })
-		$results = @($output | Where-Object { $_ -isnot [System.Management.Automation.ErrorRecord] })
+		# Collect errors from multiple sources: output stream (2>&1), Receive-Job errors, and deserialized ErrorRecords
+		$errors = @($output | Where-Object { $_ -is [System.Management.Automation.ErrorRecord] -or $_.PSObject.TypeNames -contains 'Deserialized.System.Management.Automation.ErrorRecord' })
+		$results = @($output | Where-Object { $_ -isnot [System.Management.Automation.ErrorRecord] -and $_.PSObject.TypeNames -notcontains 'Deserialized.System.Management.Automation.ErrorRecord' })
 
-		if ($errors.Count -gt 0 -and $results.Count -eq 0) {
-			$errorText = ($errors | ForEach-Object { $_.Exception.Message }) -join "`n"
+		# Terminating errors (e.g. parameter validation) show up in jobErrors, not output
+		if ($jobErrors.Count -gt 0) { $errors += @($jobErrors) }
+
+		if ($jobState -eq 'Failed' -or ($errors.Count -gt 0 -and $results.Count -eq 0)) {
+			$errorText = ($errors | ForEach-Object {
+				if ($_ -is [System.Management.Automation.ErrorRecord]) { $_.Exception.Message }
+				elseif ($_.Exception) { $_.Exception.Message }
+				else { "$_" }
+			}) -join "`n"
 			[ordered]@{
 				content = @([ordered]@{ type = 'text'; text = $errorText })
 				isError = $true

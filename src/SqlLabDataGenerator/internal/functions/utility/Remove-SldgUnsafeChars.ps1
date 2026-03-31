@@ -1,4 +1,4 @@
-function Remove-SldgUnsafeChars {
+﻿function Remove-SldgUnsafeChars {
 	<#
 	.SYNOPSIS
 		Removes characters outside the allowed whitelist from user-controlled text.

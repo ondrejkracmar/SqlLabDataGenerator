@@ -81,7 +81,7 @@ Describe "AI Retry Intelligence and Response Validation" {
 
 		It "Source limits IndustryHint length" {
 			$source = & $module { (Get-Command New-SldgAIGeneratedBatch).ScriptBlock.ToString() }
-			$source | Should -Match 'Substring.*200'
+			$source | Should -Match 'MaxLength.*200'
 		}
 	}
 

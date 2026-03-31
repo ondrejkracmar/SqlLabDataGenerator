@@ -21,13 +21,13 @@
 	)
 
 	if ($SQLite) {
-		# SQLite uses double-quote escaping per SQL standard
+		# SQLite: bracket escaping (same as SQL Server) but strip schema prefix
 		if ($ColumnName -and -not $TableName) {
-			$safeCol = $ColumnName -replace '"', '""'
-			return "`"$safeCol`""
+			$safeCol = $ColumnName -replace '\]', ']]'
+			return "[$safeCol]"
 		}
-		$safeTable = $TableName -replace '"', '""'
-		return "`"$safeTable`""
+		$safeTable = $TableName -replace '\]', ']]'
+		return "[$safeTable]"
 	}
 
 	# SQL Server uses bracket escaping
