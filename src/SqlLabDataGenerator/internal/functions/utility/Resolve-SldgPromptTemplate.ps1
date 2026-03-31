@@ -68,11 +68,11 @@
 	}
 
 	if (-not $resolvedFile) {
-		Write-PSFMessage -Level Warning -String 'Prompt.TemplateNotFound' -StringValues $Purpose, $effectiveVariant, ($candidates -join ', ')
+		Write-PSFMessage -Level Warning -Message ($script:strings.'Prompt.TemplateNotFound' -f $Purpose, $effectiveVariant, ($candidates -join ', '))
 		return $null
 	}
 
-	Write-PSFMessage -Level Verbose -String 'Prompt.TemplateResolved' -StringValues $resolvedFile
+	Write-PSFMessage -Level Verbose -Message ($script:strings.'Prompt.TemplateResolved' -f $resolvedFile)
 
 	$raw = Get-Content -Path $resolvedFile -Raw -Encoding UTF8
 

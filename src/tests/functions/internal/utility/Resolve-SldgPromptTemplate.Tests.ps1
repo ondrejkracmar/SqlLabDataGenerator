@@ -40,7 +40,7 @@ Hello {{Name}}, your count is {{Count}}.
 				Set-PSFConfig -FullName 'SqlLabDataGenerator.AI.PromptPath' -Value $dir
 				Set-PSFConfig -FullName 'SqlLabDataGenerator.AI.PromptVariant' -Value 'default'
 				$r = Resolve-SldgPromptTemplate -Purpose 'test-sub' -Variables @{ Name = 'World'; Count = 42 }
-				Set-PSFConfig -FullName 'SqlLabDataGenerator.AI.PromptPath' -Value ''
+				Set-PSFConfig -FullName 'SqlLabDataGenerator.AI.PromptPath' -Value '__reset__'
 				$r
 			} $tempDir
 
@@ -66,7 +66,7 @@ Body content only.
 				Set-PSFConfig -FullName 'SqlLabDataGenerator.AI.PromptPath' -Value $dir
 				Set-PSFConfig -FullName 'SqlLabDataGenerator.AI.PromptVariant' -Value 'default'
 				$r = Resolve-SldgPromptTemplate -Purpose 'test-fm'
-				Set-PSFConfig -FullName 'SqlLabDataGenerator.AI.PromptPath' -Value ''
+				Set-PSFConfig -FullName 'SqlLabDataGenerator.AI.PromptPath' -Value '__reset__'
 				$r
 			} $tempDir
 
@@ -92,7 +92,7 @@ Data: {{Schema}}
 				Set-PSFConfig -FullName 'SqlLabDataGenerator.AI.PromptPath' -Value $dir
 				Set-PSFConfig -FullName 'SqlLabDataGenerator.AI.PromptVariant' -Value 'default'
 				$r = Resolve-SldgPromptTemplate -Purpose 'test-json' -Variables @{ Schema = @{ Table = 'Users'; Columns = @('Id','Name') } }
-				Set-PSFConfig -FullName 'SqlLabDataGenerator.AI.PromptPath' -Value ''
+				Set-PSFConfig -FullName 'SqlLabDataGenerator.AI.PromptPath' -Value '__reset__'
 				$r
 			} $tempDir
 
@@ -119,7 +119,7 @@ CUSTOM TEMPLATE
 				Set-PSFConfig -FullName 'SqlLabDataGenerator.AI.PromptPath' -Value $dir
 				Set-PSFConfig -FullName 'SqlLabDataGenerator.AI.PromptVariant' -Value 'default'
 				$r = Resolve-SldgPromptTemplate -Purpose 'batch-generation'
-				Set-PSFConfig -FullName 'SqlLabDataGenerator.AI.PromptPath' -Value ''
+				Set-PSFConfig -FullName 'SqlLabDataGenerator.AI.PromptPath' -Value '__reset__'
 				$r
 			} $tempDir
 
