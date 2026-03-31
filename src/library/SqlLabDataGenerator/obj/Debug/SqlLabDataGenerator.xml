@@ -392,6 +392,9 @@
         <member name="M:SqlLabDataGenerator.RowSet.#ctor">
             <summary>Initializes a new instance of the <see cref="T:SqlLabDataGenerator.RowSet"/> class.</summary>
         </member>
+        <member name="M:SqlLabDataGenerator.RowSet.Dispose">
+            <summary>Disposes the contained DataTable.</summary>
+        </member>
         <member name="T:SqlLabDataGenerator.ScenarioTemplate">
             <summary>
             Represents a scenario template for guided data generation.
@@ -475,6 +478,9 @@
         </member>
         <member name="M:SqlLabDataGenerator.TableResult.#ctor">
             <summary>Initializes a new instance of the <see cref="T:SqlLabDataGenerator.TableResult"/> class.</summary>
+        </member>
+        <member name="M:SqlLabDataGenerator.TableResult.Dispose">
+            <summary>Disposes the contained DataTable(s).</summary>
         </member>
         <member name="T:SqlLabDataGenerator.Provider">
             <summary>

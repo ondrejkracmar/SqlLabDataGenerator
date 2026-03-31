@@ -88,9 +88,11 @@
 		$Plan,
 
 		[Parameter(Mandatory)]
+		[ValidateNotNullOrEmpty()]
 		[string]$TableName,
 
 		[Parameter(Mandatory)]
+		[ValidateNotNullOrEmpty()]
 		[string]$ColumnName,
 
 		[string[]]$ValueList,

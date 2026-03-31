@@ -31,6 +31,7 @@ Register-PSFConfigValidation -Name 'SqlLabDataGenerator.NullProbability' -Script
 # Parallel generation (-Parallel) is safe because each runspace re-imports
 # the module, creating isolated $script:SldgState per runspace.
 $script:SldgState = [SqlLabDataGenerator.SldgSession]::new()
+$script:CacheKeySeparator = '|'
 
 # Import behavior
 Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'Import.DoDotSource' -Value $false -Initialize -Validation 'bool' -Description "Whether the module files should be dotsourced on import. By default, the files of this module are read as string value and invoked, which is faster but worse on debugging."
@@ -42,6 +43,7 @@ Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'AI.ApiKey' -Value $null -Init
 Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'AI.Endpoint' -Value '' -Initialize -Validation 'string' -Description "Endpoint URL for AI provider (required for AzureOpenAI, optional for Ollama - defaults to http://localhost:11434)"
 Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'AI.Model' -Value 'gpt-4' -Initialize -Validation 'string' -Description "AI model to use for semantic analysis (e.g., gpt-4, llama3, mistral, codellama)"
 Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'AI.MaxTokens' -Value 4096 -Initialize -Validation 'integer' -Description "Maximum tokens for AI responses"
+Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'AI.AzureApiVersion' -Value '2024-02-01' -Initialize -Validation 'string' -Description "API version for Azure OpenAI deployments (e.g. 2024-02-01, 2024-06-01)."
 
 # AI request resilience
 Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'AI.RetryCount' -Value 3 -Initialize -Validation 'integerpositive' -Description "Number of retry attempts for failed AI requests before giving up."

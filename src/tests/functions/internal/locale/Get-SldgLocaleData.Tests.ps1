@@ -13,19 +13,19 @@
 
 		It "en-US locale has FirstName data" {
 			$result = & $module { Get-SldgLocaleData -Locale 'en-US' }
-			$result.FirstName | Should -Not -BeNullOrEmpty
-			$result.FirstName.Count | Should -BeGreaterThan 0
+			$result.MaleNames | Should -Not -BeNullOrEmpty
+			$result.MaleNames.Count | Should -BeGreaterThan 0
 		}
 
 		It "en-US locale has LastName data" {
 			$result = & $module { Get-SldgLocaleData -Locale 'en-US' }
-			$result.LastName | Should -Not -BeNullOrEmpty
-			$result.LastName.Count | Should -BeGreaterThan 0
+			$result.LastNames | Should -Not -BeNullOrEmpty
+			$result.LastNames.Count | Should -BeGreaterThan 0
 		}
 
 		It "en-US locale has City data" {
 			$result = & $module { Get-SldgLocaleData -Locale 'en-US' }
-			$result.City | Should -Not -BeNullOrEmpty
+			$result.Locations | Should -Not -BeNullOrEmpty
 		}
 
 		It "Uses configured locale when parameter not provided" {
@@ -46,7 +46,7 @@
 			}
 			# Should fall back to en-US
 			$result | Should -Not -BeNullOrEmpty
-			$result.FirstName | Should -Not -BeNullOrEmpty
+			$result.MaleNames | Should -Not -BeNullOrEmpty
 		}
 	}
 
@@ -56,7 +56,7 @@
 			if ($hasCsCz) {
 				$result = & $module { Get-SldgLocaleData -Locale 'cs-CZ' }
 				$result | Should -Not -BeNullOrEmpty
-				$result.FirstName | Should -Not -BeNullOrEmpty
+				$result.MaleNames | Should -Not -BeNullOrEmpty
 			}
 			else {
 				Set-ItResult -Skipped -Because 'cs-CZ locale is not registered in this environment'

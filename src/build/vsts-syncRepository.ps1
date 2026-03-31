@@ -48,3 +48,11 @@ try {
 } catch {
 	Stop-PSFFunction -Message "An error occurred" -EnableException $true -ErrorRecord $_
 }
+finally {
+	# Credential cleanup — remove tokens from global git config to prevent persistence
+	git config --global --unset "http.https://dev.azure.com.extraheader" 2>$null
+	# Remove GitHub remote to avoid leaking token in repo config
+	if (Test-Path repo.git) {
+		try { Push-Location repo.git; git remote remove github 2>$null; Pop-Location } catch { $null }
+	}
+}

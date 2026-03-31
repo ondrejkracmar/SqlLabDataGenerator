@@ -88,10 +88,7 @@
 		Stop-PSFFunction -String 'Connect.NoActiveConnectionOrNoInsert' -EnableException $true
 	}
 
-	# Connection staleness check
-	if ($ConnectionInfo -and $ConnectionInfo.DbConnection -and $ConnectionInfo.DbConnection.State -ne 'Open') {
-		Stop-PSFFunction -Message ($script:strings.'Connect.HealthCheckFailed' -f $ConnectionInfo.Provider, $ConnectionInfo.ServerInstance, $ConnectionInfo.Database) -EnableException $true
-	}
+	if ($ConnectionInfo) { Assert-SldgConnectionOpen -ConnectionInfo $ConnectionInfo }
 
 	$provider = if ($ConnectionInfo) { Get-SldgProviderInternal -Name $ConnectionInfo.Provider } else { $null }
 	$batchSize = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.Generation.BatchSize'
@@ -158,7 +155,7 @@
 			ConnectionInfo = $ConnectionInfo
 		}
 		if ($transaction) { $disableParams['Transaction'] = $transaction }
-		$disabledFKInfo = Disable-SldgCircularFKConstraints @disableParams
+		$disabledFKInfo = Disable-SldgCircularFKConstraint @disableParams
 	}
 
 	# ── Parallel generation path (PS 7+, Synthetic/Scenario only) ──
@@ -336,7 +333,7 @@
 						CommandTimeout = $dbCommandTimeout
 					}
 					if ($transaction) { $uqParams['Transaction'] = $transaction }
-					$existingUnique = Get-SldgExistingUniqueValues @uqParams
+					$existingUnique = Get-SldgExistingUniqueValue @uqParams
 				}
 
 				$rowSetParams = @{
@@ -471,7 +468,7 @@
 			ConnectionInfo = $ConnectionInfo
 		}
 		if ($transaction) { $reenableParams['Transaction'] = $transaction }
-		$fkReenableFailures = Enable-SldgCircularFKConstraints @reenableParams
+		$fkReenableFailures = Enable-SldgCircularFKConstraint @reenableParams
 	}
 	if ($fkReenableFailures.Count -gt 0) {
 		$generationFailed = $true

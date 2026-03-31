@@ -3,8 +3,9 @@
 		Remove-Module SqlLabDataGenerator -ErrorAction Ignore
 
 		# Ensure native SQLite DLL is in PATH before module import
-		$nativePath = Join-Path $PSScriptRoot '..\..\..\..\SqlLabDataGenerator\bin\runtimes\win-x64\native'
-		if (Test-Path $nativePath) { $env:PATH = "$nativePath;$env:PATH" }
+		$runtimeId = if ($IsLinux) { 'linux-x64' } elseif ($IsMacOS) { 'osx-x64' } else { 'win-x64' }
+		$nativePath = Join-Path $PSScriptRoot "..\..\..\..\SqlLabDataGenerator\bin\runtimes\$runtimeId\native"
+		if (Test-Path $nativePath) { $env:PATH = "$nativePath$([System.IO.Path]::PathSeparator)$env:PATH" }
 
 		Import-Module "$PSScriptRoot\..\..\..\..\SqlLabDataGenerator\SqlLabDataGenerator.psd1" -Force
 		$module = Get-Module SqlLabDataGenerator
@@ -72,11 +73,11 @@
 		}
 	}
 
-	Context "Disable-SldgCircularFKConstraints (SQLite)" {
+	Context "Disable-SldgCircularFKConstraint (SQLite)" {
 		It "Disables FK constraints for SQLite" {
 			$result = & $module {
 				param($tables, $ci)
-				Disable-SldgCircularFKConstraints -CircularTables $tables -ConnectionInfo $ci
+				Disable-SldgCircularFKConstraint -CircularTables $tables -ConnectionInfo $ci
 			} $script:circularTables $script:connectionInfo
 
 			$result | Should -Not -BeNullOrEmpty
@@ -86,7 +87,7 @@
 		It "Returns a result with DisabledTables and DisabledConstraintNames" {
 			$result = & $module {
 				param($tables, $ci)
-				Disable-SldgCircularFKConstraints -CircularTables $tables -ConnectionInfo $ci
+				Disable-SldgCircularFKConstraint -CircularTables $tables -ConnectionInfo $ci
 			} $script:circularTables $script:connectionInfo
 
 			$result.PSObject.Properties.Name | Should -Contain 'DisabledTables'
@@ -94,16 +95,16 @@
 		}
 	}
 
-	Context "Enable-SldgCircularFKConstraints (SQLite)" {
+	Context "Enable-SldgCircularFKConstraint (SQLite)" {
 		It "Re-enables FK constraints for SQLite" {
 			$disabledInfo = & $module {
 				param($tables, $ci)
-				Disable-SldgCircularFKConstraints -CircularTables $tables -ConnectionInfo $ci
+				Disable-SldgCircularFKConstraint -CircularTables $tables -ConnectionInfo $ci
 			} $script:circularTables $script:connectionInfo
 
 			$failures = & $module {
 				param($di, $ci)
-				Enable-SldgCircularFKConstraints -DisabledInfo $di -ConnectionInfo $ci
+				Enable-SldgCircularFKConstraint -DisabledInfo $di -ConnectionInfo $ci
 			} $disabledInfo $script:connectionInfo
 
 			$failures.Count | Should -Be 0
@@ -117,7 +118,7 @@
 
 			$failures = & $module {
 				param($di, $ci)
-				Enable-SldgCircularFKConstraints -DisabledInfo $di -ConnectionInfo $ci
+				Enable-SldgCircularFKConstraint -DisabledInfo $di -ConnectionInfo $ci
 			} $emptyInfo $script:connectionInfo
 
 			$failures.Count | Should -Be 0
@@ -134,7 +135,7 @@
 
 			$disabledInfo = & $module {
 				param($tables, $ci)
-				Disable-SldgCircularFKConstraints -CircularTables $tables -ConnectionInfo $ci
+				Disable-SldgCircularFKConstraint -CircularTables $tables -ConnectionInfo $ci
 			} $script:circularTables $script:connectionInfo
 
 			# FK should be off now
@@ -146,7 +147,7 @@
 
 			$null = & $module {
 				param($di, $ci)
-				Enable-SldgCircularFKConstraints -DisabledInfo $di -ConnectionInfo $ci
+				Enable-SldgCircularFKConstraint -DisabledInfo $di -ConnectionInfo $ci
 			} $disabledInfo $script:connectionInfo
 
 			# FK should be back on

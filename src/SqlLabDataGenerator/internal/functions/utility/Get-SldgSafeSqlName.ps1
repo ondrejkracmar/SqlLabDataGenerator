@@ -1,12 +1,13 @@
 ﻿function Get-SldgSafeSqlName {
 	<#
 	.SYNOPSIS
-		Returns a bracket-escaped SQL identifier.
+		Returns a safely-escaped SQL identifier.
 	.DESCRIPTION
-		Escapes closing brackets in schema, table, and column names and returns
-		a bracket-escaped identifier safe for SQL commands.
-		Use -ColumnName alone for a single [column] identifier.
-		Use -SchemaName/-TableName for [schema].[table] or [table] (SQLite).
+		Escapes identifiers for use in SQL commands.
+		- SQL Server: bracket-escaped [name] (escapes ] as ]])
+		- SQLite (-SQLite switch): double-quote escaped "name" (escapes " as "")
+		Use -ColumnName alone for a single identifier.
+		Use -SchemaName/-TableName for [schema].[table] or [table] / "table".
 	#>
 	[CmdletBinding()]
 	param (
@@ -19,13 +20,24 @@
 		[switch]$SQLite
 	)
 
+	if ($SQLite) {
+		# SQLite uses double-quote escaping per SQL standard
+		if ($ColumnName -and -not $TableName) {
+			$safeCol = $ColumnName -replace '"', '""'
+			return "`"$safeCol`""
+		}
+		$safeTable = $TableName -replace '"', '""'
+		return "`"$safeTable`""
+	}
+
+	# SQL Server uses bracket escaping
 	if ($ColumnName -and -not $TableName) {
 		$safeCol = $ColumnName -replace '\]', ']]'
 		return "[$safeCol]"
 	}
 
 	$safeTable = $TableName -replace '\]', ']]'
-	if ($SQLite -or -not $SchemaName) {
+	if (-not $SchemaName) {
 		return "[$safeTable]"
 	}
 	$safeSchema = $SchemaName -replace '\]', ']]'

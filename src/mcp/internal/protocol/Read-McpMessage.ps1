@@ -17,11 +17,18 @@ function Read-McpMessage {
 		[string]$Body
 	)
 
+	$maxMessageBytes = 10MB
+
 	$raw = if ($Stdio) {
-		[Console]::In.ReadLine()
+		$line = [Console]::In.ReadLine()
+		# Guard against unbounded stdin input
+		if ($line -and $line.Length -gt $maxMessageBytes) {
+			$line = $null
+		}
+		$line
 	}
 	else {
-		$Body
+		if ($Body.Length -gt $maxMessageBytes) { $null } else { $Body }
 	}
 
 	if ([string]::IsNullOrWhiteSpace($raw)) { return $null }

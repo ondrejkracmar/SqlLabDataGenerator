@@ -52,7 +52,27 @@
 		}
 		try
 		{
-			$parameterObject.Parameters = $serializedData | ConvertFrom-PSFClixml
+			$deserialized = $serializedData | ConvertFrom-PSFClixml
+
+			# Type allowlist: only permit safe parameter types from deserialized input
+			$allowedTypes = @(
+				[string], [int], [long], [double], [decimal], [bool], [datetime],
+				[guid], [timespan], [char], [byte],
+				[string[]], [int[]], [long[]], [double[]], [bool[]], [datetime[]], [byte[]],
+				[hashtable], [System.Collections.Specialized.OrderedDictionary],
+				[pscredential], [securestring], [switch],
+				[System.Management.Automation.SwitchParameter]
+			)
+			if ($deserialized -is [hashtable]) {
+				foreach ($key in @($deserialized.Keys)) {
+					$val = $deserialized[$key]
+					if ($null -ne $val -and $val.GetType() -notin $allowedTypes) {
+						throw "Deserialized parameter '$key' has disallowed type '$($val.GetType().FullName)'."
+					}
+				}
+			}
+
+			$parameterObject.Parameters = $deserialized
 		}
 		catch
 		{

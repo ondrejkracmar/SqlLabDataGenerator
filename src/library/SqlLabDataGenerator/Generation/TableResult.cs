@@ -1,3 +1,4 @@
+using System;
 using System.Data;
 
 namespace SqlLabDataGenerator
@@ -5,7 +6,7 @@ namespace SqlLabDataGenerator
     /// <summary>
     /// Represents the result of data generation for a single table.
     /// </summary>
-    public class TableResult
+    public class TableResult : IDisposable
     {
         /// <summary>Fully qualified table name.</summary>
         public string TableName { get; set; }
@@ -30,5 +31,18 @@ namespace SqlLabDataGenerator
 
         /// <summary>Initializes a new instance of the <see cref="TableResult"/> class.</summary>
         public TableResult() { }
+
+        /// <summary>Disposes the contained DataTable(s).</summary>
+        public void Dispose()
+        {
+            DataTable?.Dispose();
+            DataTable = null;
+            if (DataTables != null)
+            {
+                foreach (var dt in DataTables) dt?.Dispose();
+                DataTables = null;
+            }
+            GC.SuppressFinalize(this);
+        }
     }
 }

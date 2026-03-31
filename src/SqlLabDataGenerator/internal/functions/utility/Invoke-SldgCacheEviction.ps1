@@ -22,15 +22,16 @@
 	$timestampCache = $script:SldgState.CacheTimestamps
 	if ($timestampCache -and $ttlMinutes -gt 0) {
 		$now = [datetime]::UtcNow
+		$sep = $script:CacheKeySeparator
 		$expiredKeys = @(foreach ($key in @($Cache.Keys)) {
-			$tsKey = "$CacheName|$key"
+			$tsKey = "${CacheName}${sep}${key}"
 			if ($timestampCache.ContainsKey($tsKey) -and ($now - $timestampCache[$tsKey]).TotalMinutes -gt $ttlMinutes) {
 				$key
 			}
 		})
 		foreach ($key in $expiredKeys) {
 			$Cache.Remove($key)
-			$timestampCache.Remove("$CacheName|$key")
+			$timestampCache.Remove("${CacheName}${sep}${key}")
 		}
 		if ($expiredKeys.Count -gt 0) {
 			Write-PSFMessage -Level Verbose -String 'Cache.TTLEvicted' -StringValues $CacheName, $expiredKeys.Count
@@ -42,13 +43,14 @@
 
 	$toRemove = $Cache.Count - $maxEntries
 	# Sort by insertion timestamp so we evict truly oldest entries, not random hashtable order
+	$sep = $script:CacheKeySeparator
 	$sortedKeys = @($Cache.Keys) | Sort-Object {
-		$tsKey = "$CacheName|$_"
+		$tsKey = "${CacheName}${sep}$_"
 		if ($timestampCache -and $timestampCache.ContainsKey($tsKey)) { $timestampCache[$tsKey] } else { [datetime]::MinValue }
 	}
 	for ($i = 0; $i -lt $toRemove; $i++) {
 		$Cache.Remove($sortedKeys[$i])
-		if ($timestampCache) { $timestampCache.Remove("$CacheName|$($sortedKeys[$i])") }
+		if ($timestampCache) { $timestampCache.Remove("${CacheName}${sep}$($sortedKeys[$i])") }
 	}
 
 	Write-PSFMessage -Level Verbose -String 'Cache.SizeEvicted' -StringValues $CacheName, $toRemove, $maxEntries

@@ -19,82 +19,125 @@
 	# SQLite stores schema in sqlite_master
 	$tables = @()
 	$cmd = $conn.CreateCommand()
-	$cmd.CommandText = "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
-	$reader = $cmd.ExecuteReader()
-	while ($reader.Read()) {
-		$tables += $reader['name']
+	try {
+		$cmd.CommandText = "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
+		$reader = $cmd.ExecuteReader()
+		try {
+			while ($reader.Read()) {
+				$tables += $reader['name']
+			}
+		}
+		finally {
+			$reader.Close()
+			$reader.Dispose()
+		}
 	}
-	$reader.Close()
-	$reader.Dispose()
-	$cmd.Dispose()
+	finally {
+		$cmd.Dispose()
+	}
 
 	if ($TableFilter) {
 		$tables = $tables | Where-Object { $_ -in $TableFilter }
 	}
 
 	$tableInfos = foreach ($tableName in $tables) {
+		$safeTableName = $tableName -replace '"', '""'
+
 		# Get column info via PRAGMA
 		$columns = @()
 		$cmd = $conn.CreateCommand()
-		$cmd.CommandText = "PRAGMA table_info([$tableName])"
-		$reader = $cmd.ExecuteReader()
-		while ($reader.Read()) {
-			$columns += [PSCustomObject]@{
-				cid       = $reader['cid']
-				name      = $reader['name']
-				type      = $reader['type']
-				notnull   = $reader['notnull']
-				dflt      = $reader['dflt_value']
-				pk        = $reader['pk']
+		try {
+			$cmd.CommandText = "PRAGMA table_info(`"$safeTableName`")"
+			$reader = $cmd.ExecuteReader()
+			try {
+				while ($reader.Read()) {
+					$columns += [PSCustomObject]@{
+						cid       = $reader['cid']
+						name      = $reader['name']
+						type      = $reader['type']
+						notnull   = $reader['notnull']
+						dflt      = $reader['dflt_value']
+						pk        = $reader['pk']
+					}
+				}
+			}
+			finally {
+				$reader.Close()
+				$reader.Dispose()
 			}
 		}
-		$reader.Close()
-		$reader.Dispose()
-		$cmd.Dispose()
+		finally {
+			$cmd.Dispose()
+		}
 
 		# Get foreign keys via PRAGMA
 		$fks = @()
 		$cmd = $conn.CreateCommand()
-		$cmd.CommandText = "PRAGMA foreign_key_list([$tableName])"
-		$reader = $cmd.ExecuteReader()
-		while ($reader.Read()) {
-			$fks += [PSCustomObject]@{
-				id     = $reader['id']
-				seq    = $reader['seq']
-				table  = $reader['table']
-				from   = $reader['from']
-				to     = $reader['to']
+		try {
+			$cmd.CommandText = "PRAGMA foreign_key_list(`"$safeTableName`")"
+			$reader = $cmd.ExecuteReader()
+			try {
+				while ($reader.Read()) {
+					$fks += [PSCustomObject]@{
+						id     = $reader['id']
+						seq    = $reader['seq']
+						table  = $reader['table']
+						from   = $reader['from']
+						to     = $reader['to']
+					}
+				}
+			}
+			finally {
+				$reader.Close()
+				$reader.Dispose()
 			}
 		}
-		$reader.Close()
-		$reader.Dispose()
-		$cmd.Dispose()
+		finally {
+			$cmd.Dispose()
+		}
 
 		# Get unique indexes via PRAGMA
 		$uniqueColumns = @{}
 		$cmd = $conn.CreateCommand()
-		$cmd.CommandText = "PRAGMA index_list([$tableName])"
-		$reader = $cmd.ExecuteReader()
-		$uniqueIndexes = @()
-		while ($reader.Read()) {
-			if ($reader['unique'] -eq 1) {
-				$uniqueIndexes += [string]$reader['name']
+		try {
+			$cmd.CommandText = "PRAGMA index_list(`"$safeTableName`")"
+			$reader = $cmd.ExecuteReader()
+			$uniqueIndexes = @()
+			try {
+				while ($reader.Read()) {
+					if ($reader['unique'] -eq 1) {
+						$uniqueIndexes += [string]$reader['name']
+					}
+				}
+			}
+			finally {
+				$reader.Close()
+				$reader.Dispose()
 			}
 		}
-		$reader.Close()
-		$reader.Dispose()
-		$cmd.Dispose()
+		finally {
+			$cmd.Dispose()
+		}
 
 		foreach ($idxName in $uniqueIndexes) {
+			$safeIdxName = $idxName -replace '"', '""'
 			$cmd = $conn.CreateCommand()
-			$cmd.CommandText = "PRAGMA index_info([$idxName])"
-			$reader = $cmd.ExecuteReader()
-			while ($reader.Read()) {
-				$uniqueColumns[[string]$reader['name']] = $true
+			try {
+				$cmd.CommandText = "PRAGMA index_info(`"$safeIdxName`")"
+				$reader = $cmd.ExecuteReader()
+				try {
+					while ($reader.Read()) {
+						$uniqueColumns[[string]$reader['name']] = $true
+					}
+				}
+				finally {
+					$reader.Close()
+					$reader.Dispose()
+				}
 			}
-			$reader.Close()
-			$reader.Dispose()
-			$cmd.Dispose()
+			finally {
+				$cmd.Dispose()
+			}
 		}
 
 		# Check for autoincrement (rowid alias with INTEGER PRIMARY KEY)

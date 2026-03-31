@@ -22,11 +22,12 @@
 
 	$conn = $ConnectionInfo.DbConnection
 
+	$safeTable = Get-SldgSafeSqlName -TableName $TableName -SQLite
 	$colExpr = if ($ColumnFilter) {
-		($ColumnFilter | ForEach-Object { "[$($_ -replace '\]', ']]')]" }) -join ', '
+		($ColumnFilter | ForEach-Object { Get-SldgSafeSqlName -ColumnName $_ -SQLite }) -join ', '
 	} else { '*' }
 
-	$sql = "SELECT $colExpr FROM [$TableName]"
+	$sql = "SELECT $colExpr FROM $safeTable"
 	if ($TopN -gt 0) { $sql += " LIMIT $TopN" }
 
 	$cmd = $conn.CreateCommand()

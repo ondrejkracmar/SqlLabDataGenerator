@@ -58,6 +58,7 @@
 		[System.Data.DataTable]$Data,
 
 		[Parameter(Mandatory)]
+		[ValidateNotNullOrEmpty()]
 		[string]$Transformer,
 
 		[string]$OutputPath,

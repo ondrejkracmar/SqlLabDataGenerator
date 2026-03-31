@@ -72,8 +72,7 @@
 							else {
 								# Sanitize sample values to prevent prompt injection from DB content
 								$sanitized = "$v" -replace '[\r\n]+', ' '
-								$sanitized = $sanitized -replace '[^\p{L}\p{N}\s\.\-,;:()\[\]_/''"=<>+#&@]', ''
-								if ($sanitized.Length -gt 100) { $sanitized = $sanitized.Substring(0, 100) + '...' }
+								$sanitized = Remove-SldgUnsafeChars -Text $sanitized -Mode General -MaxLength 100
 								"$($dtCol.ColumnName)=$sanitized"
 							}
 						}

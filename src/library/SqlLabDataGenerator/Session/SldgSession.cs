@@ -135,13 +135,12 @@ namespace SqlLabDataGenerator
             while (AIRequestTimestamps.TryDequeue(out _)) { }
         }
 
-        private bool _disposed;
+        private int _disposed;
 
         /// <summary>Disposes the session, closing the active connection.</summary>
         public void Dispose()
         {
-            if (_disposed) return;
-            _disposed = true;
+            if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
 
             lock (_connectionLock)
             {

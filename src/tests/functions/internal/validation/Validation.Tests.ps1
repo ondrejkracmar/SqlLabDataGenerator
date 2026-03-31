@@ -3,8 +3,9 @@
 		Remove-Module SqlLabDataGenerator -ErrorAction Ignore
 
 		# Ensure native SQLite DLL is in PATH before module import
-		$nativePath = Join-Path $PSScriptRoot '..\..\..\..\SqlLabDataGenerator\bin\runtimes\win-x64\native'
-		if (Test-Path $nativePath) { $env:PATH = "$nativePath;$env:PATH" }
+		$runtimeId = if ($IsLinux) { 'linux-x64' } elseif ($IsMacOS) { 'osx-x64' } else { 'win-x64' }
+		$nativePath = Join-Path $PSScriptRoot "..\..\..\..\SqlLabDataGenerator\bin\runtimes\$runtimeId\native"
+		if (Test-Path $nativePath) { $env:PATH = "$nativePath$([System.IO.Path]::PathSeparator)$env:PATH" }
 
 		Import-Module "$PSScriptRoot\..\..\..\..\SqlLabDataGenerator\SqlLabDataGenerator.psd1" -Force
 		$module = Get-Module SqlLabDataGenerator

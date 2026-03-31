@@ -20,7 +20,7 @@
 	$ttlMinutes = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.Cache.TTLMinutes'
 	if ($ttlMinutes -le 0) { return $false }
 
-	$tsKey = "$CacheName|$Key"
+	$tsKey = "${CacheName}$($script:CacheKeySeparator)${Key}"
 	if (-not $script:SldgState.CacheTimestamps.ContainsKey($tsKey)) { return $false }
 
 	([datetime]::UtcNow - $script:SldgState.CacheTimestamps[$tsKey]).TotalMinutes -gt $ttlMinutes

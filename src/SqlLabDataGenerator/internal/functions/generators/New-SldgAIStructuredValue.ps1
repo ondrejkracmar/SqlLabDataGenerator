@@ -41,8 +41,7 @@
 	$aiHintText = if ($AIGenerationHint) { "`nGeneration context: $AIGenerationHint" } else { '' }
 	$contextText = if ($ContextColumn -and $ContextValue) {
 		# Sanitize ContextValue to mitigate prompt injection from DB data
-		$safeContextValue = ($ContextValue -replace '[^\p{L}\p{N}\s\.\-,;:()\[\]_/''"=<>+#&]', '')
-		if ($safeContextValue.Length -gt 500) { $safeContextValue = $safeContextValue.Substring(0, 500) }
+		$safeContextValue = Remove-SldgUnsafeChars -Text $ContextValue -Mode General -MaxLength 500
 		"`nContext: The column '$ContextColumn' for this row has the value '$safeContextValue'. Generate $format content that is appropriate for this specific $ContextColumn value. The structure and fields should reflect what '$safeContextValue' means in business terms."
 	} else { '' }
 	$examplesText = if ($ValueExamples -and $ValueExamples.Count -gt 0) {
@@ -86,8 +85,8 @@
 		$systemPrompt += $aiHintText + $contextText + $examplesText
 	}
 
-	$safeTableName = ($TableName -replace '[^\p{L}\p{N}\s\.\-_\[\]]', '')
-	$safeColumnName = ($ColumnName -replace '[^\p{L}\p{N}\s\.\-_\[\]]', '')
+	$safeTableName = Remove-SldgUnsafeChars -Text $TableName -Mode Identifier
+	$safeColumnName = Remove-SldgUnsafeChars -Text $ColumnName -Mode Identifier
 	$contextLabel = if ($ContextValue) { " (context: $ContextColumn=$ContextValue)" } else { '' }
 	$userMessage = "Generate 10 realistic $format values for column '$safeColumnName' in table '$safeTableName'$contextLabel."
 
@@ -119,7 +118,7 @@
 				# Cache for reuse (keyed by context for variant caching)
 				Invoke-SldgCacheEviction -Cache $script:SldgState.AIValueCache -CacheName 'AIValueCache'
 				$script:SldgState.AIValueCache[$cacheKey] = $valid
-				$script:SldgState.CacheTimestamps["AIValueCache|$cacheKey"] = [datetime]::UtcNow
+				$script:SldgState.CacheTimestamps["AIValueCache$($script:CacheKeySeparator)$cacheKey"] = [datetime]::UtcNow
 				Write-PSFMessage -Level Verbose -Message ($script:strings.'StructuredData.AIGenerated' -f $Type, $valid.Count, $TableName, $ColumnName)
 				return ($valid | Get-Random)
 			}

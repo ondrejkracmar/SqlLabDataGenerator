@@ -33,7 +33,7 @@
 				return $cachedValue
 			}
 			[void]$script:SldgState.AILocaleCategoryCache.TryRemove($cacheKey, [ref]$null)
-			[void]$script:SldgState.CacheTimestamps.TryRemove("AILocaleCategoryCache|$cacheKey", [ref]$null)
+			[void]$script:SldgState.CacheTimestamps.TryRemove("AILocaleCategoryCache$($script:CacheKeySeparator)$cacheKey", [ref]$null)
 		}
 	}
 
@@ -200,7 +200,7 @@
 	# Cache
 	Invoke-SldgCacheEviction -Cache $script:SldgState.AILocaleCategoryCache -CacheName 'AILocaleCategoryCache'
 	$script:SldgState.AILocaleCategoryCache[$cacheKey] = $result
-	$script:SldgState.CacheTimestamps["AILocaleCategoryCache|$cacheKey"] = [datetime]::UtcNow
+	$script:SldgState.CacheTimestamps["AILocaleCategoryCache$($script:CacheKeySeparator)$cacheKey"] = [datetime]::UtcNow
 	Write-PSFMessage -Level Verbose -Message ($script:strings.'Locale.AICategoryGenerated' -f $Category, $Language)
 
 	$result

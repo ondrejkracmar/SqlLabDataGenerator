@@ -38,6 +38,7 @@
 		$Plan,
 
 		[Parameter(Mandatory)]
+		[ValidateNotNullOrEmpty()]
 		[string]$Path,
 
 		[switch]$IncludeSemanticAnalysis

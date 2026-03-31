@@ -31,6 +31,7 @@
 		$builder['User ID'] = $Credential.UserName
 		$builder['Password'] = $Credential.GetNetworkCredential().Password
 		$builder['Persist Security Info'] = $false
+		Write-PSFMessage -Level Verbose -String 'Connect.SqlServer.CredentialWarning'
 	}
 	else {
 		$builder['Integrated Security'] = $true

@@ -27,7 +27,7 @@
 		}
 		# Expired — remove and regenerate
 		$script:SldgState.AILocaleCache.Remove($Locale)
-		$script:SldgState.CacheTimestamps.Remove("AILocaleCache|$Locale")
+		$script:SldgState.CacheTimestamps.Remove("AILocaleCache$($script:CacheKeySeparator)$Locale")
 	}
 
 	$aiProvider = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.AI.Provider'
@@ -91,6 +91,14 @@
 		else {
 			Write-PSFMessage -Level Warning -Message ($script:strings.'Locale.AIMissingKey' -f $Locale, $key)
 			$localeData[$key] = @()
+		}
+	}
+
+	# Validate critical arrays are not empty — downstream Get-Random will crash on @()
+	$requiredArrays = @('MaleNames', 'FemaleNames', 'LastNames', 'Locations')
+	foreach ($key in $requiredArrays) {
+		if ($localeData[$key].Count -eq 0) {
+			Stop-PSFFunction -Message ($script:strings.'Locale.AIParseFailed' -f $Locale, "AI returned empty array for required key '$key'") -EnableException $true
 		}
 	}
 
@@ -170,7 +178,7 @@
 	# Cache the generated locale
 	Invoke-SldgCacheEviction -Cache $script:SldgState.AILocaleCache -CacheName 'AILocaleCache'
 	$script:SldgState.AILocaleCache[$Locale] = $localeData
-	$script:SldgState.CacheTimestamps["AILocaleCache|$Locale"] = [datetime]::UtcNow
+	$script:SldgState.CacheTimestamps["AILocaleCache$($script:CacheKeySeparator)$Locale"] = [datetime]::UtcNow
 	Write-PSFMessage -Level Verbose -Message ($script:strings.'Locale.AIGenerated' -f $Locale)
 
 	$localeData

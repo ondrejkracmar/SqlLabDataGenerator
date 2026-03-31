@@ -144,12 +144,15 @@
 			$body = $Matches[1]
 		}
 
-		# Build YAML front matter
+		# Build YAML front matter — escape values to prevent YAML injection
 		$descText = if ($Description) { $Description } else { "Custom override for $Purpose" }
+		# Escape YAML special characters: wrap in single quotes, double any internal single quotes
+		$safePurpose = "'" + ($Purpose -replace "'", "''") + "'"
+		$safeDesc = "'" + ($descText -replace "'", "''") + "'"
 		$header = @"
 ---
-purpose: $Purpose
-description: $descText
+purpose: $safePurpose
+description: $safeDesc
 version: 1
 ---
 "@

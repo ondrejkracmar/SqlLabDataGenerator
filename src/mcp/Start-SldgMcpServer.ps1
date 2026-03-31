@@ -113,6 +113,11 @@ switch ($Transport) {
 		Start-McpStdioTransport
 	}
 	'sse' {
-		Start-McpSseTransport -Port $Port -LogPath $LogPath
+		# Generate a one-time auth token for SSE transport security
+		$script:McpAuthToken = [guid]::NewGuid().ToString('N')
+		Write-Host "MCP Auth Token: $($script:McpAuthToken)" -ForegroundColor Magenta
+		Write-Host 'Clients must send this token in the Authorization header: Bearer <token>' -ForegroundColor DarkGray
+
+		Start-McpSseTransport -Port $Port -LogPath $LogPath -AuthToken $script:McpAuthToken
 	}
 }

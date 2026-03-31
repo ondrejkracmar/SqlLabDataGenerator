@@ -49,9 +49,11 @@
 	[CmdletBinding(DefaultParameterSetName = 'Server')]
 	param (
 		[Parameter(Mandatory, ParameterSetName = 'Server')]
+		[ValidateNotNullOrEmpty()]
 		[string]$ServerInstance,
 
 		[Parameter(Mandatory)]
+		[ValidateNotNullOrEmpty()]
 		[string]$Database,
 
 		[string]$Provider = 'SqlServer',

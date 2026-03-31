@@ -29,7 +29,7 @@
 		Clears only the AI batch value cache (keeps locale caches).
 	#>
 	[OutputType([void])]
-	[CmdletBinding()]
+	[CmdletBinding(SupportsShouldProcess)]
 	param (
 		[ValidateSet('AIValueCache', 'AILocaleCache', 'AILocaleCategoryCache')]
 		[string]$CacheName
@@ -38,11 +38,13 @@
 	$session = $script:SldgState
 
 	if ($CacheName) {
+		if (-not $PSCmdlet.ShouldProcess($CacheName, 'Clear cache')) { return }
+
 		$count = $session.$CacheName.Count
 		$session.$CacheName.Clear()
 
 		# Clear related timestamps
-		$timestampPrefix = "$CacheName|"
+		$timestampPrefix = "${CacheName}$($script:CacheKeySeparator)"
 		$keysToRemove = @($session.CacheTimestamps.Keys | Where-Object { $_.StartsWith($timestampPrefix) })
 		foreach ($key in $keysToRemove) {
 			[void]$session.CacheTimestamps.TryRemove($key, [ref]$null)
@@ -51,6 +53,8 @@
 		Write-PSFMessage -Level Host -String 'Cache.Cleared' -StringValues $count, $CacheName
 	}
 	else {
+		if (-not $PSCmdlet.ShouldProcess('All AI caches', 'Clear cache')) { return }
+
 		$totalCount = $session.AIValueCache.Count + $session.AILocaleCache.Count + $session.AILocaleCategoryCache.Count
 
 		$session.ClearCaches()

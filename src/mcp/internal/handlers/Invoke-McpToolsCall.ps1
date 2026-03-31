@@ -80,9 +80,33 @@ function Invoke-McpToolsCall {
 		$psParams = $argObject
 	}
 
-	# Invoke the cmdlet
+	# Invoke the cmdlet with timeout protection
+	$toolTimeoutSeconds = 300  # 5-minute max execution time per tool call
 	try {
-		$output = & $toolName @psParams 2>&1
+		$job = Start-Job -ScriptBlock {
+			param($tn, $pp)
+			# Re-import module in job scope
+			$mod = Get-Module SqlLabDataGenerator
+			if (-not $mod) {
+				$modPath = Get-Module SqlLabDataGenerator -ListAvailable | Select-Object -First 1 -ExpandProperty ModuleBase
+				if ($modPath) { Import-Module (Join-Path $modPath 'SqlLabDataGenerator.psd1') }
+			}
+			& $tn @pp 2>&1
+		} -ArgumentList $toolName, $psParams
+
+		$completed = $job | Wait-Job -Timeout $toolTimeoutSeconds
+		if (-not $completed) {
+			$job | Stop-Job
+			$job | Remove-Job -Force
+			return [ordered]@{
+				content = @([ordered]@{ type = 'text'; text = "Tool execution timed out after $toolTimeoutSeconds seconds." })
+				isError = $true
+			}
+		}
+
+		$output = $job | Receive-Job
+		$job | Remove-Job -Force
+
 		$errors = @($output | Where-Object { $_ -is [System.Management.Automation.ErrorRecord] })
 		$results = @($output | Where-Object { $_ -isnot [System.Management.Automation.ErrorRecord] })
 

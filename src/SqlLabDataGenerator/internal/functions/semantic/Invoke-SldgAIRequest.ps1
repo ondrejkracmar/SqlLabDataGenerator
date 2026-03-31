@@ -108,21 +108,22 @@
 	# Periodic cache maintenance: trim caches only when they exceed max entries
 	$maxCacheEntries = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.Cache.MaxEntries'
 	$cacheTTL = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.Cache.TTLMinutes'
+	$sep = $script:CacheKeySeparator
 	foreach ($cacheName in @('AIValueCache', 'AILocaleCache', 'AILocaleCategoryCache')) {
 		$cache = $script:SldgState.$cacheName
 		if ($cache.Count -gt $maxCacheEntries) {
 			# Evict entries older than TTL; if still over limit, remove oldest half
 			$cutoff = [datetime]::UtcNow.AddMinutes(-$cacheTTL)
 			$timestamps = $script:SldgState.CacheTimestamps
-			$expiredKeys = @($cache.Keys | Where-Object { $timestamps.ContainsKey("${cacheName}|$_") -and $timestamps["${cacheName}|$_"] -lt $cutoff })
+			$expiredKeys = @($cache.Keys | Where-Object { $timestamps.ContainsKey("${cacheName}${sep}$_") -and $timestamps["${cacheName}${sep}$_"] -lt $cutoff })
 			foreach ($key in $expiredKeys) {
 				$cache.Remove($key)
-				$timestamps.Remove("${cacheName}|$key")
+				$timestamps.Remove("${cacheName}${sep}$key")
 			}
 			# If still over limit after TTL eviction, remove oldest half by timestamp
 			if ($cache.Count -gt $maxCacheEntries) {
-				$toRemove = @($cache.Keys | Sort-Object { if ($timestamps.ContainsKey("${cacheName}|$_")) { $timestamps["${cacheName}|$_"] } else { [datetime]::MinValue } } | Select-Object -First ([math]::Floor($cache.Count / 2)))
-				foreach ($key in $toRemove) { $cache.Remove($key); $timestamps.Remove("${cacheName}|$key") }
+				$toRemove = @($cache.Keys | Sort-Object { if ($timestamps.ContainsKey("${cacheName}${sep}$_")) { $timestamps["${cacheName}${sep}$_"] } else { [datetime]::MinValue } } | Select-Object -First ([math]::Floor($cache.Count / 2)))
+				foreach ($key in $toRemove) { $cache.Remove($key); $timestamps.Remove("${cacheName}${sep}$key") }
 			}
 		}
 	}
@@ -156,7 +157,8 @@
 		}
 		'AzureOpenAI' {
 			$headers['api-key'] = $apiKey
-			"$endpoint/openai/deployments/$model/chat/completions?api-version=2024-02-01"
+			$azureApiVersion = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.AI.AzureApiVersion'
+			"$endpoint/openai/deployments/$model/chat/completions?api-version=$azureApiVersion"
 		}
 		'Ollama' {
 			$ollamaEndpoint = if ($endpoint) { $endpoint.TrimEnd('/') } else { 'http://localhost:11434' }

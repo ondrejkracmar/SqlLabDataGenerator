@@ -42,10 +42,7 @@
 		Stop-PSFFunction -String 'Connect.NoActiveConnection' -EnableException $true
 	}
 
-	# Connection staleness check
-	if ($ConnectionInfo.DbConnection -and $ConnectionInfo.DbConnection.State -ne 'Open') {
-		Stop-PSFFunction -Message ($script:strings.'Connect.HealthCheckFailed' -f $ConnectionInfo.Provider, $ConnectionInfo.ServerInstance, $ConnectionInfo.Database) -EnableException $true
-	}
+	Assert-SldgConnectionOpen -ConnectionInfo $ConnectionInfo
 
 	$provider = Get-SldgProviderInternal -Name $ConnectionInfo.Provider
 

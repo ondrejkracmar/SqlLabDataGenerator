@@ -63,7 +63,13 @@
 		Stop-PSFFunction -String 'Profile.FileTooLarge' -StringValues $Path, [math]::Round($fileSize / 1MB, 1), $maxProfileSizeMB -EnableException $true
 	}
 
-	$profileData = Get-Content -Path $Path -Raw | ConvertFrom-Json
+	$rawJson = Get-Content -Path $Path -Raw
+	try {
+		$profileData = $rawJson | ConvertFrom-Json -ErrorAction Stop
+	}
+	catch {
+		Stop-PSFFunction -String 'Profile.InvalidJson' -StringValues $Path, $_.Exception.Message -EnableException $true
+	}
 
 	# Build known generator whitelist from the generator map
 	$knownGenerators = @((Get-SldgGeneratorMap).Keys)

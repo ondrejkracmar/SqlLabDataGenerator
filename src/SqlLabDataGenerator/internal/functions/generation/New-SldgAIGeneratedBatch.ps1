@@ -66,7 +66,7 @@
 				}
 			} else {
 				[void]$script:SldgState.AIValueCache.TryRemove($cacheKey, [ref]$null)
-				[void]$script:SldgState.CacheTimestamps.TryRemove("AIValueCache|$cacheKey", [ref]$null)
+				[void]$script:SldgState.CacheTimestamps.TryRemove("AIValueCache$($script:CacheKeySeparator)$cacheKey", [ref]$null)
 			}
 		}
 	}
@@ -112,8 +112,11 @@
 
 	$allResults = [System.Collections.Generic.List[hashtable]]::new()
 	$remaining = $BatchSize
+	$maxIterations = 50
+	$iteration = 0
 
-	while ($remaining -gt 0) {
+	while ($remaining -gt 0 -and $iteration -lt $maxIterations) {
+		$iteration++
 		$chunkSize = [Math]::Min($remaining, $maxAIBatch)
 
 		$chunkSystemPrompt = Resolve-SldgPromptTemplate -Purpose 'batch-generation' -Variables @{
@@ -133,22 +136,19 @@
 		# Inject per-table generation notes from schema analysis (two-tier AI)
 		# Sanitize first to prevent prompt injection, then escape braces to avoid format-string injection
 		if ($TableNotes) {
-			$escapedNotes = $TableNotes -replace '[^\p{L}\p{N}\s\.\-,;:()\[\]_/''\"=<>+#&]', ''
+			$escapedNotes = Remove-SldgUnsafeChars -Text $TableNotes -Mode General -MaxLength 2000
 			$escapedNotes = $escapedNotes -replace '\{', '{{' -replace '\}', '}}'
-			if ($escapedNotes.Length -gt 2000) { $escapedNotes = $escapedNotes.Substring(0, 2000) }
 			$chunkSystemPrompt += "`n`nTABLE GENERATION NOTES (from schema analysis — follow these instructions carefully):`n$escapedNotes"
 		}
 
 		if ($IndustryHint) {
-			$sanitizedHint = ($IndustryHint -replace '[^\p{L}\p{N}\s\.,()\[\]]', '')
-			if ($sanitizedHint.Length -gt 200) { $sanitizedHint = $sanitizedHint.Substring(0, 200) }
+			$sanitizedHint = Remove-SldgUnsafeChars -Text $IndustryHint -Mode Strict -MaxLength 200
 			$chunkSystemPrompt += "`n`n" + ($script:strings.'AI.IndustryContext' -f $sanitizedHint)
 		}
 
 		# Inject FK parent context for semantic consistency (e.g., cities matching their country)
 		if ($ParentContext) {
-			$sanitizedContext = $ParentContext -replace '[^\p{L}\p{N}\s\.\-,;:()\[\]_/''\"=<>+#&]', ''
-			if ($sanitizedContext.Length -gt 500) { $sanitizedContext = $sanitizedContext.Substring(0, 500) }
+			$sanitizedContext = Remove-SldgUnsafeChars -Text $ParentContext -Mode General -MaxLength 500
 			$chunkSystemPrompt += "`n`nPARENT ROW CONTEXT (all rows in this batch are children of the same parent row — generate values that are semantically appropriate and consistent with this parent):`n$sanitizedContext"
 		}
 
@@ -237,6 +237,10 @@
 		}
 	}
 
+	if ($iteration -ge $maxIterations -and $remaining -gt 0) {
+		Write-PSFMessage -Level Warning -String 'AI.BatchMaxIterations' -StringValues $TableName, $maxIterations, $remaining
+	}
+
 	if ($allResults.Count -eq 0) {
 		return $null
 	}
@@ -246,7 +250,7 @@
 	# Cache the result
 	Invoke-SldgCacheEviction -Cache $script:SldgState.AIValueCache -CacheName 'AIValueCache'
 	$script:SldgState.AIValueCache[$cacheKey] = $result
-	$script:SldgState.CacheTimestamps["AIValueCache|$cacheKey"] = [datetime]::UtcNow
+	$script:SldgState.CacheTimestamps["AIValueCache$($script:CacheKeySeparator)$cacheKey"] = [datetime]::UtcNow
 	Write-PSFMessage -Level Verbose -Message ($script:strings.'AI.BatchGenerated' -f $TableName, $result.Count)
 
 	return $result

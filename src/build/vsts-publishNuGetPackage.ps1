@@ -66,14 +66,20 @@ $null = dotnet nuget remove source $sourceName 2>&1
 # Determine token: prefer NUGET_PAT env var, fall back to PAT parameter
 $token = if ($env:NUGET_PAT) { $env:NUGET_PAT } else { $PersonalAccessToken }
 
-dotnet nuget add source $feedUrl --name $sourceName --username $FeedUsername --password $token --store-password-in-clear-text
+try {
+	dotnet nuget add source $feedUrl --name $sourceName --username $FeedUsername --password $token --store-password-in-clear-text
 
-Write-Host "Publishing $NupkgPath to $ArtifactRepositoryName ($feedUrl)"
+	Write-Host "Publishing $NupkgPath to $ArtifactRepositoryName ($feedUrl)"
 
-dotnet nuget push $NupkgPath --source $sourceName --api-key "az" --skip-duplicate
+	dotnet nuget push $NupkgPath --source $sourceName --api-key "az" --skip-duplicate
 
-if ($LASTEXITCODE -ne 0) {
-	throw "Failed to push NuGet package. Exit code: $LASTEXITCODE"
+	if ($LASTEXITCODE -ne 0) {
+		throw "Failed to push NuGet package. Exit code: $LASTEXITCODE"
+	}
+
+	Write-Host "Successfully published $(Split-Path $NupkgPath -Leaf)"
 }
-
-Write-Host "Successfully published $(Split-Path $NupkgPath -Leaf)"
+finally {
+	# Credential cleanup — remove the authenticated source to prevent token persistence
+	$null = dotnet nuget remove source $sourceName 2>&1
+}

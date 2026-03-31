@@ -14,7 +14,9 @@ function Start-McpSseTransport {
 	param (
 		[int]$Port = 8080,
 
-		[string]$LogPath
+		[string]$LogPath,
+
+		[string]$AuthToken
 	)
 
 	$prefix = "http://localhost:$Port/"
@@ -26,6 +28,19 @@ function Start-McpSseTransport {
 	$rateLimitPerSession = 100  # max requests per session per second
 	$maxQueueDepth = 1000       # max pending SSE messages per session
 	$sessionRateLimits = [System.Collections.Concurrent.ConcurrentDictionary[string, System.Collections.Generic.List[datetime]]]::new()
+
+	# Auth token validation helper
+	$validateAuth = {
+		param ($req, $resp)
+		if (-not $AuthToken) { return $true }
+		$authHeader = $req.Headers['Authorization']
+		if ($authHeader -and $authHeader -eq "Bearer $AuthToken") { return $true }
+		$resp.StatusCode = 401
+		$body = [System.Text.Encoding]::UTF8.GetBytes('{"error": "Unauthorized — provide Authorization: Bearer <token>"}')
+		$resp.OutputStream.Write($body, 0, $body.Length)
+		$resp.Close()
+		return $false
+	}
 
 	try {
 		$listener.Start()
@@ -46,8 +61,11 @@ function Start-McpSseTransport {
 			$request = $context.Request
 			$response = $context.Response
 
+			# Validate auth token on all requests (except OPTIONS for CORS preflight)
 			$path = $request.Url.AbsolutePath.TrimEnd('/')
 			$method = $request.HttpMethod
+
+			if ($method -ne 'OPTIONS' -and -not (& $validateAuth $request $response)) { continue }
 
 			if ($method -eq 'GET' -and $path -eq '/sse') {
 				# SSE connection — assign session ID
@@ -55,15 +73,13 @@ function Start-McpSseTransport {
 				$queue = [System.Collections.Concurrent.BlockingCollection[string]]::new()
 				$sessions[$sessionId] = $queue
 
-				# Restrict CORS to localhost origins only (exact match to prevent subdomain bypass)
+				# Restrict CORS to localhost/loopback origins only
 				$origin = $request.Headers['Origin']
-				$allowedOrigins = @("http://localhost:$Port", "https://localhost:$Port", "http://localhost", "https://localhost")
-				# Also allow localhost with any port
 				$isAllowed = $false
 				if ($origin) {
 					try {
 						$originUri = [System.Uri]::new($origin)
-						$isAllowed = $originUri.Host -eq 'localhost' -and $originUri.Scheme -in @('http', 'https')
+						$isAllowed = $originUri.Host -in @('localhost', '127.0.0.1', '[::1]') -and $originUri.Scheme -in @('http', 'https')
 					} catch { $isAllowed = $false }
 				}
 				$allowedOrigin = if ($isAllowed) { $origin } else { "http://localhost:$Port" }
@@ -171,19 +187,19 @@ function Start-McpSseTransport {
 				$response.Close()
 			}
 			elseif ($method -eq 'OPTIONS') {
-				# CORS preflight — restrict to localhost origins (consistent with GET /sse handler)
+				# CORS preflight — restrict to localhost/loopback origins (consistent with GET /sse handler)
 				$origin = $request.Headers['Origin']
 				$isAllowedOrigin = $false
 				if ($origin) {
 					try {
 						$originUri = [System.Uri]::new($origin)
-						$isAllowedOrigin = $originUri.Host -eq 'localhost' -and $originUri.Scheme -in @('http', 'https')
+						$isAllowedOrigin = $originUri.Host -in @('localhost', '127.0.0.1', '[::1]') -and $originUri.Scheme -in @('http', 'https')
 					} catch { $isAllowedOrigin = $false }
 				}
 				$allowedOrigin = if ($isAllowedOrigin) { $origin } else { "http://localhost:$Port" }
 				$response.Headers.Add('Access-Control-Allow-Origin', $allowedOrigin)
 				$response.Headers.Add('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-				$response.Headers.Add('Access-Control-Allow-Headers', 'Content-Type')
+				$response.Headers.Add('Access-Control-Allow-Headers', 'Content-Type, Authorization')
 				$response.StatusCode = 204
 				$response.Close()
 			}

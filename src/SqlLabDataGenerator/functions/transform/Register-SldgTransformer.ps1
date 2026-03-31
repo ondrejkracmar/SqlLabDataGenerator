@@ -35,12 +35,15 @@
 	[CmdletBinding()]
 	param (
 		[Parameter(Mandatory)]
+		[ValidateNotNullOrEmpty()]
 		[string]$Name,
 
 		[Parameter(Mandatory)]
+		[ValidateNotNullOrEmpty()]
 		[string]$Description,
 
 		[Parameter(Mandatory)]
+		[ValidateNotNullOrEmpty()]
 		[string]$TransformFunction,
 
 		[string[]]$RequiredSemanticTypes,

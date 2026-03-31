@@ -327,4 +327,13 @@
 	# Internal: Locale Registration
 	'Locale.KeyNullValue'                    = "Locale '{0}': key '{1}' has a `$null value. Each required key must contain a non-empty array or string."
 	'Locale.KeyEmptyArray'                   = "Locale '{0}': key '{1}' is an empty array. At least one value is required."
+
+	# Internal: AI Batch Max Iterations
+	'AI.BatchMaxIterations'                  = "AI batch generation for '{0}' stopped after {1} iterations with {2} rows still remaining."
+
+	# Profile: Invalid JSON
+	'Profile.InvalidJson'                    = "Profile '{0}' contains invalid JSON: {1}"
+
+	# Connect: SQL Server credential warning
+	'Connect.SqlServer.CredentialWarning'    = 'SQL authentication extracts password to plaintext for connection string. Consider using Integrated Security where possible.'
 }

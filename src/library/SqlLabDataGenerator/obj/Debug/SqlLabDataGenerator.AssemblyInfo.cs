@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("SqlLabDataGenerator")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+80e1fa2cb314a2adfdff19b4aeaa7625b662f1c9")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+b05e79dc0d1e32d2428b11747dcb8dde53c62553")]
 [assembly: System.Reflection.AssemblyProductAttribute("SqlLabDataGenerator")]
 [assembly: System.Reflection.AssemblyTitleAttribute("SqlLabDataGenerator")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

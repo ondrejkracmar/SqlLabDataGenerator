@@ -212,18 +212,26 @@
 								$safeRef = Get-SldgSafeSqlName -SchemaName $fk.ReferencedSchema -TableName $fk.ReferencedTable
 								$safeCol = Get-SldgSafeSqlName -ColumnName $fk.ReferencedColumn
 								$cmd = $ConnectionInfo.DbConnection.CreateCommand()
-								if ($Transaction) { $cmd.Transaction = $Transaction }
-								$cmd.CommandText = "SELECT DISTINCT TOP ($fkQueryLimit) $safeCol FROM $safeRef"
-								$cmd.CommandTimeout = $dbCommandTimeout
-								$reader = $cmd.ExecuteReader()
-								$vals = [System.Collections.Generic.List[object]]::new()
-								while ($reader.Read()) {
-									$v = $reader.GetValue(0)
-									if ($v -isnot [DBNull]) { $vals.Add($v) }
+								try {
+									if ($Transaction) { $cmd.Transaction = $Transaction }
+									$cmd.CommandText = "SELECT DISTINCT TOP ($fkQueryLimit) $safeCol FROM $safeRef"
+									$cmd.CommandTimeout = $dbCommandTimeout
+									$reader = $cmd.ExecuteReader()
+									try {
+										$vals = [System.Collections.Generic.List[object]]::new()
+										while ($reader.Read()) {
+											$v = $reader.GetValue(0)
+											if ($v -isnot [DBNull]) { $vals.Add($v) }
+										}
+									}
+									finally {
+										$reader.Close()
+										$reader.Dispose()
+									}
 								}
-								$reader.Close()
-								$reader.Dispose()
-								$cmd.Dispose()
+								finally {
+									$cmd.Dispose()
+								}
 								if ($vals.Count -gt 0) {
 									$FkValues[$refKey] = $vals.ToArray()
 									Write-PSFMessage -Level Verbose -Message ($script:strings.'Generation.FKFallbackLoaded' -f $refKey, $vals.Count)
@@ -247,12 +255,16 @@
 								$safeTbl = Get-SldgSafeSqlName -SchemaName $tablePlan.SchemaName -TableName $tablePlan.TableName
 								$safeCol = Get-SldgSafeSqlName -ColumnName $col.ColumnName
 								$cmd = $ConnectionInfo.DbConnection.CreateCommand()
-								if ($Transaction) { $cmd.Transaction = $Transaction }
-								$cmd.CommandText = "SELECT ISNULL(MAX($safeCol), 0) FROM $safeTbl"
-								$cmd.CommandTimeout = $dbCommandTimeout
-								$maxVal = $cmd.ExecuteScalar()
-								$cmd.Dispose()
-								$col | Add-Member -NotePropertyName 'PKStartValue' -NotePropertyValue ([long]$maxVal) -Force
+								try {
+									if ($Transaction) { $cmd.Transaction = $Transaction }
+									$cmd.CommandText = "SELECT ISNULL(MAX($safeCol), 0) FROM $safeTbl"
+									$cmd.CommandTimeout = $dbCommandTimeout
+									$maxVal = $cmd.ExecuteScalar()
+									$col | Add-Member -NotePropertyName 'PKStartValue' -NotePropertyValue ([long]$maxVal) -Force
+								}
+								finally {
+									$cmd.Dispose()
+								}
 							}
 							catch {
 								Write-PSFMessage -Level Verbose -String 'Generation.ParallelMaxPKQueryFailed' -StringValues $col.ColumnName, $_
