@@ -1,4 +1,4 @@
-function Enable-SldgCircularFKConstraint {
+﻿function Enable-SldgCircularFKConstraint {
 	<#
 	.SYNOPSIS
 		Re-enables FK constraints that were disabled for circular dependencies.

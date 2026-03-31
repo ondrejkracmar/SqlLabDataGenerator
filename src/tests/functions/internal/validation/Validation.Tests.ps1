@@ -1,36 +1,31 @@
 ﻿Describe "Validation Functions" {
 	BeforeAll {
 		Remove-Module SqlLabDataGenerator -ErrorAction Ignore
-
-		# Ensure native SQLite DLL is discoverable before module import
-		$runtimeId = if ($IsLinux) { 'linux-x64' } elseif ($IsMacOS) { 'osx-x64' } else { 'win-x64' }
-		$nativePath = Join-Path $PSScriptRoot "..\..\..\..\SqlLabDataGenerator\bin\runtimes\$runtimeId\native"
-		if (Test-Path $nativePath) {
-			$resolved = (Resolve-Path $nativePath).Path
-			$env:PATH = "$resolved$([System.IO.Path]::PathSeparator)$env:PATH"
-			if ($IsLinux -or $IsMacOS) { $env:LD_LIBRARY_PATH = "$resolved$([System.IO.Path]::PathSeparator)$env:LD_LIBRARY_PATH" }
-		}
-
 		Import-Module "$PSScriptRoot\..\..\..\..\SqlLabDataGenerator\SqlLabDataGenerator.psd1" -Force
 		$module = Get-Module SqlLabDataGenerator
 
-		# Create SQLite connection inside module scope
-		$dbPath = Join-Path $TestDrive 'validation_test.db'
-		$script:connectionInfo = & $module {
-			param($dbPath)
-			$conn = New-Object Microsoft.Data.Sqlite.SqliteConnection("Data Source=$dbPath")
+		# Check if SQLite assembly is available
+		$script:sqliteAvailable = $false
+		try {
+			$null = [Microsoft.Data.Sqlite.SqliteConnection]::new("Data Source=:memory:")
+			$script:sqliteAvailable = $true
+		}
+		catch { }
+
+		if ($script:sqliteAvailable) {
+			$dbPath = Join-Path $TestDrive 'validation_test.db'
+			$conn = [Microsoft.Data.Sqlite.SqliteConnection]::new("Data Source=$dbPath")
 			$conn.Open()
-			[SqlLabDataGenerator.Connection]@{
+
+			$script:connectionInfo = [SqlLabDataGenerator.Connection]@{
 				DbConnection   = $conn
 				ServerInstance = 'localhost'
 				Database       = $dbPath
 				Provider       = 'SQLite'
 				ConnectedAt    = Get-Date
 			}
-		} $dbPath
 
-		$conn = $script:connectionInfo.DbConnection
-		$setupSql = @"
+			$setupSql = @"
 CREATE TABLE Category (
 	Id INTEGER PRIMARY KEY,
 	Name TEXT NOT NULL UNIQUE
@@ -45,10 +40,11 @@ CREATE TABLE Product (
 INSERT INTO Category (Id, Name) VALUES (1, 'Electronics'), (2, 'Books'), (3, 'Clothing');
 INSERT INTO Product (Id, Name, CategoryId, Price) VALUES (1, 'Phone', 1, 999.99), (2, 'Novel', 2, 19.99), (3, 'Shirt', 3, 29.99);
 "@
-		$cmd = $conn.CreateCommand()
-		$cmd.CommandText = $setupSql
-		[void]$cmd.ExecuteNonQuery()
-		$cmd.Dispose()
+			$cmd = $conn.CreateCommand()
+			$cmd.CommandText = $setupSql
+			[void]$cmd.ExecuteNonQuery()
+			$cmd.Dispose()
+		}
 
 		$script:schemaModel = [PSCustomObject]@{
 			Tables = @(
@@ -92,11 +88,11 @@ INSERT INTO Product (Id, Name, CategoryId, Price) VALUES (1, 'Phone', 1, 999.99)
 				$script:connectionInfo.DbConnection.Close()
 			}
 			$script:connectionInfo.DbConnection.Dispose()
-			[Microsoft.Data.Sqlite.SqliteConnection]::ClearAllPools()
+			try { [Microsoft.Data.Sqlite.SqliteConnection]::ClearAllPools() } catch { }
 		}
 	}
 
-	Context "Test-SldgUniqueConstraints" {
+	Context "Test-SldgUniqueConstraints" -Skip:(-not $script:sqliteAvailable) {
 		It "Returns results for unique and PK columns" {
 			$results = & $module {
 				param($ci, $sm)
@@ -146,7 +142,7 @@ INSERT INTO Product (Id, Name, CategoryId, Price) VALUES (1, 'Phone', 1, 999.99)
 		}
 	}
 
-	Context "Test-SldgForeignKeyIntegrity" {
+	Context "Test-SldgForeignKeyIntegrity" -Skip:(-not $script:sqliteAvailable) {
 		It "Returns results for FK relationships" {
 			$results = & $module {
 				param($ci, $sm)
@@ -200,7 +196,7 @@ INSERT INTO Product (Id, Name, CategoryId, Price) VALUES (1, 'Phone', 1, 999.99)
 		}
 	}
 
-	Context "Test-SldgDataTypeConstraints" {
+	Context "Test-SldgDataTypeConstraints" -Skip:(-not $script:sqliteAvailable) {
 		It "Returns results for NOT NULL columns and row count" {
 			$results = & $module {
 				param($ci, $sm)

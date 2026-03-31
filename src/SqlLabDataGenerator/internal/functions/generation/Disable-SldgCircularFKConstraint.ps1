@@ -1,4 +1,4 @@
-function Disable-SldgCircularFKConstraint {
+﻿function Disable-SldgCircularFKConstraint {
 	<#
 	.SYNOPSIS
 		Disables FK constraints for tables involved in circular dependencies.
