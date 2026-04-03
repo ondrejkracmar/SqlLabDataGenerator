@@ -3,23 +3,22 @@
     $Repository = 'PSGallery'
 )
 
-$modules = @("Pester", "PSFramework", "PSModuleDevelopment", "PSScriptAnalyzer")
+$modules = @(
+    'Pester'
+    'PSFramework'
+    'PSModuleDevelopment'
+    'PSScriptAnalyzer'
+)
 
-# Automatically add missing dependencies
+# Automatically add missing dependencies from module manifest
 $data = Import-PowerShellDataFile -Path "$PSScriptRoot\..\SqlLabDataGenerator\SqlLabDataGenerator.psd1"
 foreach ($dependency in $data.RequiredModules) {
-    if ($dependency -is [string]) {
-        if ($modules -contains $dependency) { continue }
-        $modules += $dependency
-    }
-    else {
-        if ($modules -contains $dependency.ModuleName) { continue }
-        $modules += $dependency.ModuleName
-    }
+    $name = if ($dependency -is [string]) { $dependency } else { $dependency.ModuleName }
+    if ($name -notin $modules) { $modules += $name }
 }
 
 foreach ($module in $modules) {
     Write-Host "Installing $module"
-    Install-Module $module -Force -SkipPublisherCheck -Repository $Repository
+    Install-Module $module -Force -SkipPublisherCheck -Repository $Repository -ErrorAction Stop
     Import-Module $module -Force -PassThru
 }

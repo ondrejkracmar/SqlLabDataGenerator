@@ -77,7 +77,8 @@
 				password                     = if ($DefaultPassword) { $DefaultPassword } else {
 					# Generate a 16-char password with crypto-safe randomness (test data only)
 					$bytes = [byte[]]::new(12)
-					([System.Security.Cryptography.RandomNumberGenerator]::Create()).GetBytes($bytes)
+					$rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+					try { $rng.GetBytes($bytes) } finally { $rng.Dispose() }
 					[Convert]::ToBase64String($bytes) + '!'
 				}
 			}

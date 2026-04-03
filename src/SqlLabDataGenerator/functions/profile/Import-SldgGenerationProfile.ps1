@@ -90,7 +90,7 @@
 						$tablePlan.RowCount = [int]$tableProfile.rowCount
 					}
 					catch {
-						Write-PSFMessage -Level Warning -String 'Profile.InvalidRowCount' -StringValues $tableProfile.rowCount, $tableName
+						Write-PSFMessage -Level Warning -Message ($script:strings.'Profile.InvalidRowCount' -f $tableProfile.rowCount, $tableName)
 					}
 				}
 			}
@@ -104,13 +104,13 @@
 					# Security guard: reject scriptBlock keys from JSON profiles to prevent code injection (case-insensitive)
 					$hasScriptBlock = $colProfile.PSObject.Properties.Name | Where-Object { $_ -ieq 'scriptBlock' }
 					if ($hasScriptBlock) {
-						Write-PSFMessage -Level Warning -String 'Profile.ScriptBlockSkipped' -StringValues $Path, $colName, $tableName
+						Write-PSFMessage -Level Warning -Message ($script:strings.'Profile.ScriptBlockSkipped' -f $Path, $colName, $tableName)
 						continue
 					}
 
 					# Generator whitelist: reject unknown generator names to prevent injection
 					if ($colProfile.generator -and $colProfile.generator -notin $knownGenerators) {
-						Write-PSFMessage -Level Warning -String 'Profile.UnknownGenerator' -StringValues $Path, $colName, $tableName, $colProfile.generator, ($knownGenerators -join ', ')
+						Write-PSFMessage -Level Warning -Message ($script:strings.'Profile.UnknownGenerator' -f $Path, $colName, $tableName, $colProfile.generator, ($knownGenerators -join ', '))
 						continue
 					}
 
@@ -119,7 +119,7 @@
 					if ($targetTable) {
 						$colExists = $targetTable.Columns | Where-Object { $_.ColumnName -eq $colName }
 						if (-not $colExists) {
-							Write-PSFMessage -Level Warning -String 'Profile.ColumnNotFound' -StringValues $colName, $tableName, $Path
+							Write-PSFMessage -Level Warning -Message ($script:strings.'Profile.ColumnNotFound' -f $colName, $tableName, $Path)
 							continue
 						}
 					}
@@ -138,6 +138,9 @@
 						$colProfile.generatorParams.PSObject.Properties | ForEach-Object { $params[$_.Name] = $_.Value }
 						$ruleParams['GeneratorParams'] = $params
 					}
+					if ($colProfile.aiGenerationHint) { $ruleParams['AIGenerationHint'] = $colProfile.aiGenerationHint }
+					if ($colProfile.crossColumnDependency) { $ruleParams['CrossColumnDependency'] = $colProfile.crossColumnDependency }
+					if ($colProfile.valueExamples) { $ruleParams['ValueExamples'] = @($colProfile.valueExamples) }
 
 					Set-SldgGenerationRule @ruleParams
 					$columnOverrides++

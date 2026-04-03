@@ -5,7 +5,7 @@ namespace SqlLabDataGenerator
     /// <summary>
     /// Represents the overall result of a data generation run.
     /// </summary>
-    public class GenerationResult
+    public class GenerationResult : IDisposable
     {
         /// <summary>The database name or path.</summary>
         public string Database { get; set; }
@@ -42,5 +42,16 @@ namespace SqlLabDataGenerator
 
         /// <summary>Initializes a new instance of the <see cref="GenerationResult"/> class.</summary>
         public GenerationResult() { }
+
+        /// <summary>Disposes all contained TableResult objects.</summary>
+        public void Dispose()
+        {
+            if (Tables != null)
+            {
+                foreach (var table in Tables) table?.Dispose();
+                Tables = null;
+            }
+            GC.SuppressFinalize(this);
+        }
     }
 }

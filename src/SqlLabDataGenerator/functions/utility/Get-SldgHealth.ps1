@@ -16,7 +16,14 @@
 	[CmdletBinding()]
 	param ()
 
-	$moduleInfo = Import-PowerShellDataFile -Path "$script:ModuleRoot\SqlLabDataGenerator.psd1"
+	$moduleVersion = 'unknown'
+	try {
+		$moduleInfo = Import-PowerShellDataFile -Path "$script:ModuleRoot\SqlLabDataGenerator.psd1"
+		$moduleVersion = $moduleInfo.ModuleVersion
+	}
+	catch {
+		Write-PSFMessage -Level Warning -Message "Failed to read module manifest: $_"
+	}
 
 	$aiConfig = @{
 		AIGeneration = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.Generation.AIGeneration' -Fallback $false
@@ -35,7 +42,7 @@
 	[PSCustomObject]@{
 		PSTypeName        = 'SqlLabDataGenerator.HealthStatus'
 		Status            = 'OK'
-		ModuleVersion     = $moduleInfo.ModuleVersion
+		ModuleVersion     = $moduleVersion
 		PowerShellVersion = $PSVersionTable.PSVersion.ToString()
 		Providers         = @($script:SldgState.Providers.Keys)
 		AIEnabled         = $aiConfig.AIGeneration

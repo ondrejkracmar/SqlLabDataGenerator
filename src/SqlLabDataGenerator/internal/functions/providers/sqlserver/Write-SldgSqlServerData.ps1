@@ -62,13 +62,13 @@
 			try { [void]$cmd.ExecuteNonQuery() } finally { $cmd.Dispose() }
 		}
 
-		Write-PSFMessage -Level Verbose -String 'Schema.SqlServer.Inserted' -StringValues $Data.Rows.Count, $qualifiedName
+		Write-PSFMessage -Level Verbose -Message ($script:strings.'Schema.SqlServer.Inserted' -f $Data.Rows.Count, $qualifiedName)
 		$Data.Rows.Count
 	}
 	catch {
 		# Ensure bulk copy resources are released on failure
 		if ($bulkCopy) {
-			try { $bulkCopy.Dispose() } catch { Write-PSFMessage -Level Verbose -String 'Write.BulkCopyDisposeFailed' -StringValues $_ }
+			try { $bulkCopy.Dispose() } catch { Write-PSFMessage -Level Verbose -Message ($script:strings.'Write.BulkCopyDisposeFailed' -f $_) }
 			$bulkCopy = $null
 		}
 
@@ -120,11 +120,11 @@
 				$cmd.CommandText = "SET IDENTITY_INSERT $qualifiedName OFF"
 				[void]$cmd.ExecuteNonQuery()
 			}
-			catch { Write-PSFMessage -Level Verbose -String 'Write.IdentityInsertOffFailed' -StringValues $_ }
+			catch { Write-PSFMessage -Level Verbose -Message ($script:strings.'Write.IdentityInsertOffFailed' -f $_) }
 			finally { if ($cmd) { try { $cmd.Dispose() } catch { $null = $_ } } }
 		}
 
-		Write-PSFMessage -Level Verbose -String 'Schema.SqlServer.Inserted' -StringValues $insertedCount, $qualifiedName
+		Write-PSFMessage -Level Verbose -Message ($script:strings.'Schema.SqlServer.Inserted' -f $insertedCount, $qualifiedName)
 		$insertedCount
 	}
 }

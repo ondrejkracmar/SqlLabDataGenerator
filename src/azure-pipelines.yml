@@ -105,7 +105,7 @@ stages:
                     exit 0
                 }
                 [xml]$coverage = Get-Content $coverageFile
-                $minCoverage = 35
+                $minCoverage = 65
                 # JaCoCo format
                 $counter = $coverage.report.counter | Where-Object { $_.type -eq 'LINE' }
                 if ($counter) {

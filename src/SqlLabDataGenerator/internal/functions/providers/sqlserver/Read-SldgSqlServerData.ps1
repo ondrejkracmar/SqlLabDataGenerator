@@ -40,6 +40,6 @@
 		$cmd.Dispose()
 	}
 
-	Write-PSFMessage -Level Verbose -String 'Schema.SqlServer.Read' -StringValues $dataTable.Rows.Count, $safeName
+	Write-PSFMessage -Level Verbose -Message ($script:strings.'Schema.SqlServer.Read' -f $dataTable.Rows.Count, $safeName)
 	$dataTable
 }

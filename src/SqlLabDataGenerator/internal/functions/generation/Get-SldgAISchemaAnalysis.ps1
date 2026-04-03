@@ -34,7 +34,7 @@
 
 	$aiProvider = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.AI.Provider'
 	if ($aiProvider -eq 'None') {
-		Write-PSFMessage -Level Verbose -String 'AI.SchemaAnalysisSkipped'
+		Write-PSFMessage -Level Verbose -Message $script:strings.'AI.SchemaAnalysisSkipped'
 		return $null
 	}
 
@@ -53,7 +53,12 @@
 			if ($col.IsUnique) { $flags += 'UNIQUE' }
 			$flagStr = if ($flags) { " [$($flags -join ',')]" } else { "" }
 			$semanticStr = if ($col.SemanticType) { " (semantic: $($col.SemanticType))" } else { "" }
-			"  - $($col.ColumnName) $($col.DataType)$flagStr$fk$semanticStr"
+			$checkStr = if ($col.CheckConstraints -and $col.CheckConstraints.Count -gt 0) { " CHECK($($col.CheckConstraints -join '; '))" } else { "" }
+			$typeSize = if ($col.NumericPrecision -and $col.DataType -match '^(decimal|numeric|money|smallmoney)$') {
+				$s = if ($col.NumericScale) { $col.NumericScale } else { 0 }
+				"($($col.NumericPrecision),$s)"
+			} elseif ($col.MaxLength -and $col.MaxLength -gt 0) { "($($col.MaxLength))" } else { "" }
+			"  - $($col.ColumnName) $($col.DataType)$typeSize$flagStr$fk$semanticStr$checkStr"
 		}
 
 		$tableText = "TABLE: $($table.FullName) ($($table.ColumnCount) columns)`n$($colLines -join "`n")"
@@ -85,7 +90,7 @@
 				}
 			}
 			catch {
-				Write-PSFMessage -Level Verbose -String 'AI.SchemaAnalysisSampleFailed' -StringValues $table.FullName, $_
+				Write-PSFMessage -Level Verbose -Message ($script:strings.'AI.SchemaAnalysisSampleFailed' -f $table.FullName, $_)
 				$tableText += "`n  Sample data: (query failed)"
 			}
 		}
@@ -102,7 +107,7 @@
 	}
 
 	if (-not $systemPrompt) {
-		Write-PSFMessage -Level Warning -String 'Prompt.ResolveFailed' -StringValues 'schema-analysis'
+		Write-PSFMessage -Level Warning -Message ($script:strings.'Prompt.ResolveFailed' -f 'schema-analysis')
 		return $null
 	}
 
@@ -113,7 +118,7 @@
 	$response = Invoke-SldgAIRequest -SystemPrompt $systemPrompt -UserMessage $userMessage -Purpose 'schema-analysis'
 
 	if (-not $response) {
-		Write-PSFMessage -Level Warning -String 'AI.SchemaAnalysisNoResponse'
+		Write-PSFMessage -Level Warning -Message $script:strings.'AI.SchemaAnalysisNoResponse'
 		return $null
 	}
 

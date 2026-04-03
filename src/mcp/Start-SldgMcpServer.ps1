@@ -115,9 +115,11 @@ switch ($Transport) {
 	'sse' {
 		# Generate a one-time auth token for SSE transport security
 		$script:McpAuthToken = [guid]::NewGuid().ToString('N')
+		$tokenExpiry = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.MCP.SSE.TokenExpirationMinutes'
 		Write-Host "MCP Auth Token: $($script:McpAuthToken)" -ForegroundColor Magenta
+		Write-Host "Token expires in $tokenExpiry minutes." -ForegroundColor DarkGray
 		Write-Host 'Clients must send this token in the Authorization header: Bearer <token>' -ForegroundColor DarkGray
 
-		Start-McpSseTransport -Port $Port -LogPath $LogPath -AuthToken $script:McpAuthToken
+		Start-McpSseTransport -Port $Port -LogPath $LogPath -AuthToken $script:McpAuthToken -TokenExpirationMinutes $tokenExpiry
 	}
 }

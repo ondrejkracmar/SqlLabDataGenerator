@@ -335,11 +335,11 @@
 				</TableRowEntries>
 			</TableControl>
 		</View>
-		<!-- Provider -->
+		<!-- SqlProvider -->
 		<View>
-			<Name>SqlLabDataGenerator.Provider</Name>
+			<Name>SqlLabDataGenerator.SqlProvider</Name>
 			<ViewSelectedBy>
-				<TypeName>SqlLabDataGenerator.Provider</TypeName>
+				<TypeName>SqlLabDataGenerator.SqlProvider</TypeName>
 			</ViewSelectedBy>
 			<TableControl>
 				<AutoSize/>

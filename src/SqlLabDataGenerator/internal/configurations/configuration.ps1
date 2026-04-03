@@ -33,6 +33,12 @@ Register-PSFConfigValidation -Name 'SqlLabDataGenerator.NullProbability' -Script
 $script:SldgState = [SqlLabDataGenerator.SldgSession]::new()
 $script:CacheKeySeparator = '|'
 
+# Circuit breaker state for AI provider calls
+$script:AICircuitBreaker = @{
+	ConsecutiveFailures = 0
+	OpenedAt            = $null
+}
+
 # Import behavior
 Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'Import.DoDotSource' -Value $false -Initialize -Validation 'bool' -Description "Whether the module files should be dotsourced on import. By default, the files of this module are read as string value and invoked, which is faster but worse on debugging."
 Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'Import.IndividualFiles' -Value $false -Initialize -Validation 'bool' -Description "Whether the module files should be imported individually. During the module build, all module code is compiled into few files, which are imported instead by default. Loading the compiled versions is faster, using the individual files is easier for debugging and testing out adjustments."
@@ -93,6 +99,17 @@ Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'Database.BulkCopyTimeout' -Va
 # Cache management
 Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'Cache.MaxEntries' -Value 500 -Initialize -Validation 'integerpositive' -Description "Maximum number of entries per module cache (AILocaleCache, AIValueCache, etc.). Oldest entries are evicted when exceeded."
 Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'Cache.TTLMinutes' -Value 60 -Initialize -Validation 'integerpositive' -Description "Time-to-live in minutes for cached AI responses. Expired entries are purged on next access."
+
+# AI circuit breaker — stop calling AI after consecutive failures
+Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'AI.CircuitBreakerThreshold' -Value 5 -Initialize -Validation 'integerpositive' -Description "Number of consecutive AI request failures before the circuit breaker opens and AI calls are skipped. Default: 5."
+Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'AI.CircuitBreakerCooldownSeconds' -Value 120 -Initialize -Validation 'integerpositive' -Description "Seconds to wait after circuit breaker opens before retrying AI requests. Default: 120."
+
+# MCP server settings
+Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'MCP.ToolTimeoutSeconds' -Value 300 -Initialize -Validation 'integerpositive' -Description "Maximum execution time in seconds for a single MCP tool call. Default: 300 (5 minutes)."
+Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'MCP.SSE.TokenExpirationMinutes' -Value 480 -Initialize -Validation 'integerpositive' -Description "Auth token expiration time in minutes for MCP SSE transport. Default: 480 (8 hours)."
+Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'MCP.SSE.RateLimitPerSecond' -Value 100 -Initialize -Validation 'integerpositive' -Description "Maximum requests per session per second for MCP SSE transport. Default: 100."
+Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'MCP.SSE.MaxRequestBodyBytes' -Value 1048576 -Initialize -Validation 'integerpositive' -Description "Maximum request body size in bytes for MCP SSE transport. Default: 1048576 (1 MB)."
+Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'MCP.SSE.MaxQueueDepth' -Value 1000 -Initialize -Validation 'integerpositive' -Description "Maximum pending SSE messages per session before oldest are dropped. Default: 1000."
 
 # Audit logging
 Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'Audit.LogPath' -Value '' -Initialize -Validation 'string' -Description "Path to a JSON-lines audit log file. Each generation run appends a JSON record with timestamp, user, database, row counts, and success status. Leave empty to disable persistent audit logging."

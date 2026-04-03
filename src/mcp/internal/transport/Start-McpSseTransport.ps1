@@ -16,23 +16,41 @@ function Start-McpSseTransport {
 
 		[string]$LogPath,
 
-		[string]$AuthToken
+		[string]$AuthToken,
+
+		[int]$TokenExpirationMinutes = 0
 	)
 
 	$prefix = "http://localhost:$Port/"
 	$listener = [System.Net.HttpListener]::new()
 	$listener.Prefixes.Add($prefix)
 
-	# Security limits
-	$maxRequestBodyBytes = 1MB
-	$rateLimitPerSession = 100  # max requests per session per second
-	$maxQueueDepth = 1000       # max pending SSE messages per session
+	# Security limits — read from PSF config (set in configuration.ps1)
+	$maxRequestBodyBytes = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.MCP.SSE.MaxRequestBodyBytes'
+	$rateLimitPerSession = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.MCP.SSE.RateLimitPerSecond'
+	$maxQueueDepth = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.MCP.SSE.MaxQueueDepth'
 	$sessionRateLimits = [System.Collections.Concurrent.ConcurrentDictionary[string, System.Collections.Generic.List[datetime]]]::new()
+
+	# Token expiration tracking
+	$tokenCreatedAt = [datetime]::UtcNow
 
 	# Auth token validation helper
 	$validateAuth = {
 		param ($req, $resp)
 		if (-not $AuthToken) { return $true }
+
+		# Check token expiration
+		if ($TokenExpirationMinutes -gt 0) {
+			$elapsed = ([datetime]::UtcNow - $tokenCreatedAt).TotalMinutes
+			if ($elapsed -gt $TokenExpirationMinutes) {
+				$resp.StatusCode = 401
+				$body = [System.Text.Encoding]::UTF8.GetBytes('{"error": "Token expired. Restart the server with a new token."}')
+				$resp.OutputStream.Write($body, 0, $body.Length)
+				$resp.Close()
+				return $false
+			}
+		}
+
 		$authHeader = $req.Headers['Authorization']
 		if ($authHeader -and $authHeader -eq "Bearer $AuthToken") { return $true }
 		$resp.StatusCode = 401

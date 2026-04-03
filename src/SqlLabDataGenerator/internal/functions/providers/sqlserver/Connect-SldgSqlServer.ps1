@@ -31,7 +31,7 @@
 		$builder['User ID'] = $Credential.UserName
 		$builder['Password'] = $Credential.GetNetworkCredential().Password
 		$builder['Persist Security Info'] = $false
-		Write-PSFMessage -Level Verbose -String 'Connect.SqlServer.CredentialWarning'
+		Write-PSFMessage -Level Verbose -Message $script:strings.'Connect.SqlServer.CredentialWarning'
 	}
 	else {
 		$builder['Integrated Security'] = $true
@@ -42,7 +42,7 @@
 	if ($Credential) { $builder['Password'] = ''; $builder.Clear() }
 	try {
 		$connection.Open()
-		Write-PSFMessage -Level Verbose -String 'Connect.SqlServer.Connected' -StringValues $ServerInstance, $Database
+		Write-PSFMessage -Level Verbose -Message ($script:strings.'Connect.SqlServer.Connected' -f $ServerInstance, $Database)
 	}
 	catch {
 		Stop-PSFFunction -Message ($script:strings.'Connect.Failed' -f 'SqlServer', $ServerInstance, $Database, $_) -EnableException $true -ErrorRecord $_

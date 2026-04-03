@@ -40,7 +40,7 @@
 
 		# FK column but no parent values available — warn and return sentinel $null
 		# so the caller (New-SldgRowSet) can handle the missing FK with its own fallback
-		Write-PSFMessage -Level Warning -String 'Generation.FKParentValuesNotFound' -StringValues $Column.ColumnName, $refKey
+		Write-PSFMessage -Level Warning -Message ($script:strings.'Generation.FKParentValuesNotFound' -f $Column.ColumnName, $refKey)
 		return $null
 	}
 

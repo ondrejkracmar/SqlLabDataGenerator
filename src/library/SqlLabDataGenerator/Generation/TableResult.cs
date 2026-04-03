@@ -6,7 +6,7 @@ namespace SqlLabDataGenerator
     /// <summary>
     /// Represents the result of data generation for a single table.
     /// </summary>
-    public class TableResult : IDisposable
+    public sealed class TableResult : IDisposable
     {
         /// <summary>Fully qualified table name.</summary>
         public string TableName { get; set; }

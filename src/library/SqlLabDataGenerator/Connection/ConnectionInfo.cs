@@ -1,5 +1,6 @@
 using System;
 using System.Data.Common;
+using System.Threading;
 
 namespace SqlLabDataGenerator
 {
@@ -38,10 +39,10 @@ namespace SqlLabDataGenerator
         /// <summary>Whether the underlying connection is currently open.</summary>
         public bool IsOpen =>
             DbConnection != null &&
-            !_disposed &&
+            _disposed == 0 &&
             DbConnection.State == System.Data.ConnectionState.Open;
 
-        private bool _disposed;
+        private int _disposed;
 
         /// <summary>Disposes the underlying database connection.</summary>
         public void Dispose()
@@ -53,12 +54,11 @@ namespace SqlLabDataGenerator
         /// <summary>Releases resources used by the connection.</summary>
         protected virtual void Dispose(bool disposing)
         {
-            if (_disposed) return;
+            if (Interlocked.CompareExchange(ref _disposed, 1, 0) != 0) return;
             if (disposing)
             {
                 DbConnection?.Dispose();
             }
-            _disposed = true;
         }
     }
 }

@@ -26,7 +26,7 @@
 	$lastLevelSum = -1
 	while ($changed) {
 		if ($iteration++ -ge $maxIterations) {
-			Write-PSFMessage -Level Warning -String 'Generation.LevelComputationStopped' -StringValues $maxIterations
+			Write-PSFMessage -Level Warning -Message ($script:strings.'Generation.LevelComputationStopped' -f $maxIterations)
 			break
 		}
 		$changed = $false
@@ -72,6 +72,6 @@
 	}
 
 	$firstGroupCount = if ($groups.Count -gt 0) { $groups[0].Tables.Count } else { 0 }
-	Write-PSFMessage -Level Verbose -String 'Generation.DependencyLevels' -StringValues $groups.Count, $firstGroupCount
+	Write-PSFMessage -Level Verbose -Message ($script:strings.'Generation.DependencyLevels' -f $groups.Count, $firstGroupCount)
 	$groups.ToArray()
 }

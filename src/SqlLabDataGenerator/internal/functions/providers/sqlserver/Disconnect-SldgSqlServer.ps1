@@ -10,8 +10,13 @@
 	)
 
 	if ($ConnectionInfo.DbConnection -and $ConnectionInfo.DbConnection.State -ne 'Closed') {
-		$ConnectionInfo.DbConnection.Close()
-		$ConnectionInfo.DbConnection.Dispose()
-		Write-PSFMessage -Level Verbose -String 'Connect.SqlServer.Disconnected' -StringValues $ConnectionInfo.ServerInstance
+		try {
+			$ConnectionInfo.DbConnection.Close()
+			$ConnectionInfo.DbConnection.Dispose()
+			Write-PSFMessage -Level Verbose -Message ($script:strings.'Connect.SqlServer.Disconnected' -f $ConnectionInfo.ServerInstance)
+		}
+		catch {
+			Write-PSFMessage -Level Warning -Message ($script:strings.'Connect.SqlServer.DisconnectFailed' -f $ConnectionInfo.ServerInstance, $_)
+		}
 	}
 }

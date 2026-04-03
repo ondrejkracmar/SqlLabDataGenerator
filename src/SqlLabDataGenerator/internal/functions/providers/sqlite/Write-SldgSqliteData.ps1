@@ -90,8 +90,12 @@
 				}
 			}
 
-			$affected = $cmd.ExecuteNonQuery()
-			$cmd.Dispose()
+			try {
+				$affected = $cmd.ExecuteNonQuery()
+			}
+			finally {
+				$cmd.Dispose()
+			}
 			# Handle drivers that return -1 (unknown) for affected rows
 			if ($affected -lt 0) {
 				$affected = $currentBatchSize  # assume all rows succeeded when driver can't report
@@ -99,7 +103,7 @@
 			# Detect silently ignored rows and warn the user
 			$skippedRows = $currentBatchSize - $affected
 			if ($skippedRows -gt 0) {
-				Write-PSFMessage -Level Warning -String 'Write.SQLiteConstraintViolations' -StringValues $skippedRows, $currentBatchSize, $TableName
+				Write-PSFMessage -Level Warning -Message ($script:strings.'Write.SQLiteConstraintViolations' -f $skippedRows, $currentBatchSize, $TableName)
 			}
 			$insertedCount += $affected
 			$rowIndex += $currentBatchSize
@@ -110,7 +114,7 @@
 	catch {
 		if ($localTransaction) {
 			try { $localTransaction.Rollback() } catch {
-				Write-PSFMessage -Level Warning -String 'Connect.SQLite.RollbackFailed' -StringValues $_
+				Write-PSFMessage -Level Warning -Message ($script:strings.'Connect.SQLite.RollbackFailed' -f $_)
 			}
 		}
 		throw

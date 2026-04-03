@@ -41,12 +41,18 @@
 	foreach ($parentKey in $fkByParent.Keys) {
 		$parentFks = $fkByParent[$parentKey]
 		$firstFk = $parentFks[0]
-		$safeRef = Get-SldgSafeSqlName -SchemaName $firstFk.ReferencedSchema -TableName $firstFk.ReferencedTable
+		$isSQLite = $ConnectionInfo.Provider -eq 'SQLite'
+		$safeRef = Get-SldgSafeSqlName -SchemaName $firstFk.ReferencedSchema -TableName $firstFk.ReferencedTable -SQLite:$isSQLite
 		try {
-			$safeCols = @($parentFks | ForEach-Object { Get-SldgSafeSqlName -ColumnName $_.ReferencedColumn } | Select-Object -Unique)
+			$isSQLite = $ConnectionInfo.Provider -eq 'SQLite'
+			$safeCols = @($parentFks | ForEach-Object { Get-SldgSafeSqlName -ColumnName $_.ReferencedColumn -SQLite:$isSQLite } | Select-Object -Unique)
 			$cmd = $ConnectionInfo.DbConnection.CreateCommand()
 			if ($Transaction) { $cmd.Transaction = $Transaction }
-			$cmd.CommandText = "SELECT DISTINCT TOP ($FkQueryLimit) $($safeCols -join ', ') FROM $safeRef ORDER BY $($safeCols -join ', ')"
+			if ($isSQLite) {
+				$cmd.CommandText = "SELECT DISTINCT $($safeCols -join ', ') FROM $safeRef ORDER BY $($safeCols -join ', ') LIMIT $FkQueryLimit"
+			} else {
+				$cmd.CommandText = "SELECT DISTINCT TOP ($FkQueryLimit) $($safeCols -join ', ') FROM $safeRef ORDER BY $($safeCols -join ', ')"
+			}
 			$cmd.CommandTimeout = $CommandTimeout
 			$reader = $cmd.ExecuteReader()
 

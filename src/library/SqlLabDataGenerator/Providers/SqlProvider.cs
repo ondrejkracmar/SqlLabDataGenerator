@@ -4,9 +4,9 @@ using System.Collections;
 namespace SqlLabDataGenerator
 {
     /// <summary>
-    /// Represents a registered database provider.
+    /// Represents a registered database provider (SQL Server, SQLite, etc.).
     /// </summary>
-    public class Provider
+    public class SqlProvider
     {
         /// <summary>Provider name ('SQLite', 'SqlServer').</summary>
         public string Name { get; set; }
@@ -17,7 +17,7 @@ namespace SqlLabDataGenerator
         /// <summary>When the provider was registered.</summary>
         public DateTime Registered { get; set; }
 
-        /// <summary>Initializes a new instance of the <see cref="Provider"/> class.</summary>
-        public Provider() { }
+        /// <summary>Initializes a new instance of the <see cref="SqlProvider"/> class.</summary>
+        public SqlProvider() { }
     }
 }

@@ -50,7 +50,7 @@
 			[void]$session.CacheTimestamps.TryRemove($key, [ref]$null)
 		}
 
-		Write-PSFMessage -Level Host -String 'Cache.Cleared' -StringValues $count, $CacheName
+		Write-PSFMessage -Level Host -Message ($script:strings.'Cache.Cleared' -f $count, $CacheName)
 	}
 	else {
 		if (-not $PSCmdlet.ShouldProcess('All AI caches', 'Clear cache')) { return }
@@ -59,6 +59,6 @@
 
 		$session.ClearCaches()
 
-		Write-PSFMessage -Level Host -String 'Cache.ClearedAll' -StringValues $totalCount
+		Write-PSFMessage -Level Host -Message ($script:strings.'Cache.ClearedAll' -f $totalCount)
 	}
 }

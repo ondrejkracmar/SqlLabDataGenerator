@@ -112,8 +112,9 @@
 				$script:SldgState.Locales[$Name] = $aiData
 			}
 			catch {
-				Write-PSFMessage -Level Warning -String 'Locale.AIGenerationFailed' -StringValues $Name, $_.Exception.Message
+				Write-PSFMessage -Level Warning -Message ($script:strings.'Locale.AIGenerationFailed' -f $Name, $_.Exception.Message)
 				if ($script:SldgState.Locales.ContainsKey('en-US')) {
+					Write-PSFMessage -Level Warning -Message ($script:strings.'Locale.AIFallbackFailed' -f $Name, $_.Exception.Message)
 					$script:SldgState.Locales[$Name] = $script:SldgState.Locales['en-US']
 				}
 				else {
@@ -151,7 +152,7 @@
 				$lang = $MixFrom[$category]
 				$validCategories = @('PersonNames', 'Addresses', 'PhoneFormat', 'Companies', 'Identifiers', 'Email', 'Text')
 				if ($category -notin $validCategories) {
-					Write-PSFMessage -Level Warning -String 'Locale.UnknownCategory' -StringValues $category, ($validCategories -join ', ')
+					Write-PSFMessage -Level Warning -Message ($script:strings.'Locale.UnknownCategory' -f $category, ($validCategories -join ', '))
 					continue
 				}
 
@@ -194,7 +195,7 @@
 						}
 					}
 					catch {
-						Write-PSFMessage -Level Warning -String 'Locale.AICategoryMixFailed' -StringValues $category, $lang, $_.Exception.Message
+						Write-PSFMessage -Level Warning -Message ($script:strings.'Locale.AICategoryMixFailed' -f $category, $lang, $_.Exception.Message)
 					}
 				}
 			}
@@ -205,7 +206,7 @@
 			$requiredKeys = @('MaleNames', 'FemaleNames', 'LastNames', 'StreetNames', 'StreetTypes', 'Locations', 'Countries', 'EmailDomains', 'PhoneFormat', 'CompanyPrefixes', 'CompanyCores', 'CompanySuffixes', 'Departments', 'JobTitles', 'Industries')
 			$missingKeys = @($requiredKeys | Where-Object { -not $baseLocale.ContainsKey($_) })
 			if ($missingKeys.Count -gt 0) {
-				Write-PSFMessage -Level Warning -String 'Locale.MixMissingKeys' -StringValues $Name, ($missingKeys -join ', ')
+				Write-PSFMessage -Level Warning -Message ($script:strings.'Locale.MixMissingKeys' -f $Name, ($missingKeys -join ', '))
 			}
 		}
 	}

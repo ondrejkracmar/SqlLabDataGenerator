@@ -41,9 +41,12 @@
 			if ($col.IsNullable) { $flags += 'NULL' }
 			if ($col.IsUnique) { $flags += 'UNIQUE' }
 			$flagStr = if ($flags) { " [$($flags -join ',')]" } else { "" }
-			$lenStr = if ($col.MaxLength -and $col.MaxLength -gt 0) { "($($col.MaxLength))" } else { "" }
-			$checkStr = if ($col.CheckConstraint) { " CHECK($($col.CheckConstraint))" } else { "" }
-			"  - $($col.ColumnName) $($col.DataType)$lenStr$flagStr$fk$checkStr"
+			$checkStr = if ($col.CheckConstraints -and $col.CheckConstraints.Count -gt 0) { " CHECK($($col.CheckConstraints -join '; '))" } else { "" }
+			$precisionStr = if ($col.NumericPrecision -and $col.DataType -match '^(decimal|numeric|money|smallmoney)$') {
+				$s = if ($col.NumericScale) { $col.NumericScale } else { 0 }
+				"($($col.NumericPrecision),$s)"
+			} elseif ($col.MaxLength -and $col.MaxLength -gt 0) { "($($col.MaxLength))" } else { "" }
+			"  - $($col.ColumnName) $($col.DataType)$precisionStr$flagStr$fk$checkStr"
 		}
 		$fkSummary = foreach ($fk in $table.ForeignKeys) {
 			"  FK: $($fk.ColumnName) -> $($fk.ReferencedTable).$($fk.ReferencedColumn)"
@@ -60,7 +63,7 @@
 	}
 
 	if (-not $systemPrompt) {
-		Write-PSFMessage -Level Warning -String 'Semantic.PromptResolveFailed'
+		Write-PSFMessage -Level Warning -Message $script:strings.'Semantic.PromptResolveFailed'
 		return $null
 	}
 
@@ -121,7 +124,7 @@
 			$parseError = $null
 			try { $null = $jsonContent | ConvertFrom-Json -ErrorAction Stop } catch { $parseError = $_ }
 			if ($parseError) {
-				$jsonContent = [regex]::Replace($jsonContent, '(?<!\\)\\(?!["\\\/bfnrtu])', '\\')
+				$jsonContent = [regex]::Replace($jsonContent, '(?<!\\)\\(?!["\\\//bfnrtu])', '\\', 'None', [timespan]::FromSeconds(2))
 			}
 
 			# Remove AI truncation artifacts: trailing "..." or ", ..." before closing bracket

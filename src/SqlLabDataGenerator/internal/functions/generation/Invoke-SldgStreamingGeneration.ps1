@@ -36,6 +36,10 @@
 
 		[int]$BatchSize = 1000,
 
+		[hashtable]$ExistingUniqueValues,
+
+		[string]$TableNotes,
+
 		[switch]$NoInsert,
 
 		[switch]$PassThru
@@ -76,12 +80,13 @@
 	for ($chunk = 0; $chunk -lt $chunkCount; $chunk++) {
 		$rowsInChunk = [math]::Min($ChunkSize, $TotalRowCount - ($chunk * $ChunkSize))
 
-		Write-PSFMessage -Level Verbose -String 'Generation.StreamingChunk' -StringValues ($chunk + 1), $chunkCount, $rowsInChunk, $TableInfo.FullName
+		Write-PSFMessage -Level Verbose -Message ($script:strings.'Generation.StreamingChunk' -f ($chunk + 1), $chunkCount, $rowsInChunk, $TableInfo.FullName)
 
 		$rowSet = New-SldgRowSet -TableInfo $TableInfo -RowCount $rowsInChunk `
 			-GeneratorMap $GeneratorMap -ForeignKeyValues $ForeignKeyValues `
 			-TableRules $TableRules -SharedUniqueTracker $sharedTracker `
-			-SharedPKAutoIncrements $sharedPKAutoIncrements
+			-SharedPKAutoIncrements $sharedPKAutoIncrements `
+			-ExistingUniqueValues $ExistingUniqueValues -TableNotes $TableNotes
 
 		# Accumulate FK values for child tables
 		foreach ($key in $rowSet.GeneratedValues.Keys) {
@@ -105,7 +110,7 @@
 				$insertedTotal += & $WriteFunction @writeParams
 			}
 			catch {
-				Write-PSFMessage -Level Warning -String 'Generation.StreamingChunkFailed' -StringValues ($chunk + 1), $chunkCount, $TableInfo.FullName, $_
+				Write-PSFMessage -Level Warning -Message ($script:strings.'Generation.StreamingChunkFailed' -f ($chunk + 1), $chunkCount, $TableInfo.FullName, $_)
 				throw
 			}
 		}

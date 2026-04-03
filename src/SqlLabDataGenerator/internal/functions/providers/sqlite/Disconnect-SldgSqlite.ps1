@@ -13,10 +13,10 @@
 		try {
 			$ConnectionInfo.DbConnection.Close()
 			$ConnectionInfo.DbConnection.Dispose()
-			Write-PSFMessage -Level Verbose -String 'Connect.SQLite.Disconnected' -StringValues $ConnectionInfo.Database
+			Write-PSFMessage -Level Verbose -Message ($script:strings.'Connect.SQLite.Disconnected' -f $ConnectionInfo.Database)
 		}
 		catch {
-			Write-PSFMessage -Level Warning -String 'Connect.SQLite.DisconnectFailed' -StringValues $_
+			Write-PSFMessage -Level Warning -Message ($script:strings.'Connect.SQLite.DisconnectFailed' -f $_)
 		}
 	}
 }

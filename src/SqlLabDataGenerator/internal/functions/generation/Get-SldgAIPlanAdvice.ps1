@@ -23,7 +23,7 @@
 
 	$aiProvider = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.AI.Provider'
 	if ($aiProvider -eq 'None') {
-		Write-PSFMessage -Level Verbose -String 'AI.PlanAdviceSkipped'
+		Write-PSFMessage -Level Verbose -Message $script:strings.'AI.PlanAdviceSkipped'
 		return $null
 	}
 
@@ -56,7 +56,7 @@
 	}
 
 	if (-not $systemPrompt) {
-		Write-PSFMessage -Level Warning -String 'Prompt.ResolveFailed' -StringValues 'plan-advice'
+		Write-PSFMessage -Level Warning -Message ($script:strings.'Prompt.ResolveFailed' -f 'plan-advice')
 		return $null
 	}
 
@@ -72,7 +72,7 @@
 	$response = Invoke-SldgAIRequest -SystemPrompt $systemPrompt -UserMessage $userMessage -Purpose 'plan-advice'
 
 	if (-not $response) {
-		Write-PSFMessage -Level Warning -String 'AI.PlanAdviceNoResponse'
+		Write-PSFMessage -Level Warning -Message $script:strings.'AI.PlanAdviceNoResponse'
 		return $null
 	}
 

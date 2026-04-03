@@ -80,7 +80,7 @@
 		}
 
 		$connection.Open()
-		Write-PSFMessage -Level Verbose -String 'Connect.SQLite.Connected' -StringValues $dbPath
+		Write-PSFMessage -Level Verbose -Message ($script:strings.'Connect.SQLite.Connected' -f $dbPath)
 	}
 	catch {
 		Stop-PSFFunction -Message ($script:strings.'Connect.Failed' -f 'SQLite', $dbPath, '', $_) -EnableException $true -ErrorRecord $_

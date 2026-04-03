@@ -64,7 +64,7 @@
 					$failedParents = @($tp.ForeignKeys | ForEach-Object { "$($_.ReferencedSchema).$($_.ReferencedTable)" } | Where-Object { $failedTables.Contains($_) } | Select-Object -Unique)
 					if ($failedParents.Count -gt 0) {
 						[void]$failedTables.Add($tp.FullName)
-						Write-PSFMessage -Level Warning -String 'Generation.SkippedDueToParent' -StringValues $tp.FullName, ($failedParents -join ', ')
+						Write-PSFMessage -Level Warning -Message ($script:strings.'Generation.SkippedDueToParent' -f $tp.FullName, ($failedParents -join ', '))
 						$tableResults.Add([SqlLabDataGenerator.TableResult]@{
 							TableName  = $tp.FullName
 							RowCount   = 0
@@ -267,7 +267,7 @@
 								}
 							}
 							catch {
-								Write-PSFMessage -Level Verbose -String 'Generation.ParallelMaxPKQueryFailed' -StringValues $col.ColumnName, $_
+								Write-PSFMessage -Level Verbose -Message ($script:strings.'Generation.ParallelMaxPKQueryFailed' -f $col.ColumnName, $_)
 							}
 						}
 					}
@@ -276,6 +276,24 @@
 				$rowSet = $null
 				$streamResult = $null
 				try {
+					# Fetch existing unique values and table notes for the sequential fallback path
+					$existingUnique = $null
+					if ($ConnectionInfo -and $Provider) {
+						$uqParams = @{
+							TableInfo        = $tableInfo
+							TablePlan        = $tablePlan
+							ConnectionInfo   = $ConnectionInfo
+							UniqueQueryLimit = 1000
+							CommandTimeout   = $dbCommandTimeout
+						}
+						if ($Transaction) { $uqParams['Transaction'] = $Transaction }
+						$existingUnique = Get-SldgExistingUniqueValue @uqParams
+					}
+					$seqTableNotes = $null
+					if ($Plan.AIAdvice -and $Plan.AIAdvice.TableGenerationNotes -and $Plan.AIAdvice.TableGenerationNotes.ContainsKey($tablePlan.FullName)) {
+						$seqTableNotes = $Plan.AIAdvice.TableGenerationNotes[$tablePlan.FullName]
+					}
+
 					if ($StreamingThreshold -gt 0 -and $tablePlan.RowCount -gt $StreamingThreshold) {
 						Write-PSFMessage -Level Host -Message ($script:strings.'Generation.StreamingStarting' -f $tablePlan.FullName, $tablePlan.RowCount, $StreamingChunkSize)
 						$streamParams = @{
@@ -292,13 +310,23 @@
 						if ($ConnectionInfo) { $streamParams['ConnectionInfo'] = $ConnectionInfo }
 						if ($Transaction) { $streamParams['Transaction'] = $Transaction }
 						if ($Provider) { $streamParams['WriteFunction'] = $Provider.FunctionMap.WriteData }
+						if ($existingUnique) { $streamParams['ExistingUniqueValues'] = $existingUnique }
+						if ($seqTableNotes) { $streamParams['TableNotes'] = $seqTableNotes }
 						$streamResult = Invoke-SldgStreamingGeneration @streamParams
 						foreach ($key in $streamResult.GeneratedValues.Keys) { $FkValues[$key] = $streamResult.GeneratedValues[$key] }
 						$insertedCount = $streamResult.InsertedCount
 					}
 					else {
-						$rowSet = New-SldgRowSet -TableInfo $tableInfo -RowCount $tablePlan.RowCount `
-							-GeneratorMap $Plan.GeneratorMap -ForeignKeyValues $FkValues -TableRules $tableRules
+						$rowSetParams = @{
+							TableInfo            = $tableInfo
+							RowCount             = $tablePlan.RowCount
+							GeneratorMap         = $Plan.GeneratorMap
+							ForeignKeyValues     = $FkValues
+							TableRules           = $tableRules
+						}
+						if ($existingUnique) { $rowSetParams['ExistingUniqueValues'] = $existingUnique }
+						if ($seqTableNotes) { $rowSetParams['TableNotes'] = $seqTableNotes }
+						$rowSet = New-SldgRowSet @rowSetParams
 						foreach ($key in $rowSet.GeneratedValues.Keys) { $FkValues[$key] = $rowSet.GeneratedValues[$key] }
 						$insertedCount = 0
 						if (-not $NoInsert -and $ConnectionInfo) {
@@ -342,9 +370,9 @@
 					})
 					if ($Transaction) {
 						$generationFailed = $true
-						Write-PSFMessage -Level Warning -String 'Generation.RollingBack' -StringValues $tablePlan.FullName
+						Write-PSFMessage -Level Warning -Message ($script:strings.'Generation.RollingBack' -f $tablePlan.FullName)
 						try { $Transaction.Rollback() }
-						catch { Write-PSFMessage -Level Error -String 'Generation.RollbackCritical' -StringValues $_ }
+						catch { Write-PSFMessage -Level Error -Message ($script:strings.'Generation.RollbackCritical' -f $_) }
 						$totalInserted = 0
 						foreach ($tr in $tableResults) { if ($tr.Success) { $tr.RolledBack = $true } }
 						break

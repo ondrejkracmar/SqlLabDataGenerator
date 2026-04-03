@@ -82,7 +82,7 @@
 		to prevent code injection from untrusted files.
 	#>
 	[OutputType([void])]
-	[CmdletBinding()]
+	[CmdletBinding(SupportsShouldProcess)]
 	param (
 		[Parameter(Mandatory)]
 		$Plan,
@@ -112,6 +112,8 @@
 		[string[]]$ValueExamples
 	)
 
+	if (-not $PSCmdlet.ShouldProcess("$TableName.$ColumnName", 'Set generation rule')) { return }
+
 	$rule = @{}
 	if ($ValueList) { $rule['ValueList'] = $ValueList }
 	if ($PSBoundParameters.ContainsKey('StaticValue')) { $rule['StaticValue'] = $StaticValue }
@@ -131,17 +133,17 @@
 	# Also update the column plan
 	$tablePlan = $Plan.Tables | Where-Object { $_.FullName -eq $TableName } | Select-Object -First 1
 	if (-not $tablePlan) {
-		Write-PSFMessage -Level Warning -String 'GenerationRule.TableNotFound' -StringValues $TableName
+		Write-PSFMessage -Level Warning -Message ($script:strings.'GenerationRule.TableNotFound' -f $TableName)
 	}
 	else {
 		$colPlan = $tablePlan.Columns | Where-Object { $_.ColumnName -eq $ColumnName } | Select-Object -First 1
 		if (-not $colPlan) {
-			Write-PSFMessage -Level Warning -String 'GenerationRule.ColumnNotFound' -StringValues $ColumnName, $TableName
+			Write-PSFMessage -Level Warning -Message ($script:strings.'GenerationRule.ColumnNotFound' -f $ColumnName, $TableName)
 		}
 		else {
 			# Warn if a ValueList is set on a FK column — values may not exist in the parent table
 			if ($ValueList -and $colPlan.ForeignKey) {
-				Write-PSFMessage -Level Warning -String 'GenerationRule.FKValueListWarning' -StringValues $ColumnName, $TableName, $colPlan.ForeignKey.ReferencedTable, $colPlan.ForeignKey.ReferencedColumn
+				Write-PSFMessage -Level Warning -Message ($script:strings.'GenerationRule.FKValueListWarning' -f $ColumnName, $TableName, $colPlan.ForeignKey.ReferencedTable, $colPlan.ForeignKey.ReferencedColumn)
 			}
 			$colPlan.CustomRule = $rule
 		}

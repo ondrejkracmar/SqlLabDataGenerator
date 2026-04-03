@@ -121,12 +121,12 @@
 		if (-not $customPath) {
 			$customPath = Join-Path (Split-Path $script:ModuleRoot -Parent) 'CustomPrompts'
 			Set-PSFConfig -FullName 'SqlLabDataGenerator.AI.PromptPath' -Value $customPath
-			Write-PSFMessage -Level Verbose -String 'Prompt.PromptPathAutoconfigured' -StringValues $customPath
+			Write-PSFMessage -Level Verbose -Message ($script:strings.'Prompt.PromptPathAutoconfigured' -f $customPath)
 		}
 
 		if (-not (Test-Path $customPath)) {
 			$null = New-Item -Path $customPath -ItemType Directory -Force
-			Write-PSFMessage -Level Verbose -String 'Prompt.DirectoryCreated' -StringValues $customPath
+			Write-PSFMessage -Level Verbose -Message ($script:strings.'Prompt.DirectoryCreated' -f $customPath)
 		}
 
 		$fileName = "$Purpose.$Variant.prompt"
@@ -160,7 +160,7 @@ version: 1
 		$fullContent = "$header`n$body"
 
 		Set-Content -Path $targetPath -Value $fullContent -Encoding UTF8 -NoNewline
-		Write-PSFMessage -Level Host -String 'Prompt.Saved' -StringValues $targetPath
+		Write-PSFMessage -Level Host -Message ($script:strings.'Prompt.Saved' -f $targetPath)
 
 		[SqlLabDataGenerator.PromptTemplate]@{
 			Purpose     = $Purpose

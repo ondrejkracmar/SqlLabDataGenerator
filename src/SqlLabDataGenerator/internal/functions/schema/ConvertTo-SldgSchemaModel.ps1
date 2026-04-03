@@ -120,7 +120,7 @@
 				}
 			}
 			catch [System.Text.RegularExpressions.RegexMatchTimeoutException] {
-				Write-PSFMessage -Level Warning -String 'Schema.ViewRegexTimeout' -StringValues $tableKey
+				Write-PSFMessage -Level Warning -Message ($script:strings.'Schema.ViewRegexTimeout' -f $tableKey)
 			}
 		}
 	}

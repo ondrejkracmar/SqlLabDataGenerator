@@ -164,7 +164,7 @@
 		$cursor = $depGraph[$colName]
 		while ($cursor -and $depGraph.ContainsKey($cursor)) {
 			if ($cursor -eq $colName) {
-				Write-PSFMessage -Level Warning -String 'RowSet.CircularDependency' -StringValues $colName, $TableInfo.FullName
+				Write-PSFMessage -Level Warning -Message ($script:strings.'RowSet.CircularDependency' -f $colName, $TableInfo.FullName)
 				$depGraph.Remove($colName)
 				$dependentCols = @($dependentCols | Where-Object { $_.ColumnName -ne $colName })
 				$independentCols += ($activeColumns | Where-Object { $_.ColumnName -eq $colName })
@@ -205,10 +205,34 @@
 		if ($aiCandidates.Count -gt 0) {
 			$maxAIBatch = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.Generation.MaxAIBatchSize'
 
+			# Build table context summary from FK relationships so AI understands the table's role
+			$tableContextLines = [System.Collections.Generic.List[string]]::new()
+			if ($TableInfo.ForeignKeys -and $TableInfo.ForeignKeys.Count -gt 0) {
+				$parentDescs = foreach ($fk in $TableInfo.ForeignKeys) {
+					"$($fk.ParentColumn) references $($fk.ReferencedTable).$($fk.ReferencedColumn)"
+				}
+				$tableContextLines.Add("Table $($TableInfo.FullName) is a CHILD table with FK dependencies: $($parentDescs -join '; ').")
+			}
+			else {
+				$tableContextLines.Add("Table $($TableInfo.FullName) is a ROOT/LOOKUP table (no FK dependencies to other tables).")
+			}
+			# Summarize which columns have unique constraints
+			$uniqueCols = @($activeColumns | Where-Object { ($_.IsUnique -or $_.IsPrimaryKey) -and -not $_.IsIdentity })
+			if ($uniqueCols.Count -gt 0) {
+				$tableContextLines.Add("Columns with UNIQUE constraint (every generated value MUST be different): $($uniqueCols.ColumnName -join ', ').")
+			}
+			# Summarize columns with check constraints
+			$checkCols = @($activeColumns | Where-Object { $_.CheckConstraints -and $_.CheckConstraints.Count -gt 0 })
+			if ($checkCols.Count -gt 0) {
+				$checkDescs = foreach ($cc in $checkCols) { "$($cc.ColumnName): $($cc.CheckConstraints -join '; ')" }
+				$tableContextLines.Add("CHECK constraints: $($checkDescs -join '; ').")
+			}
+			$tableContext = $tableContextLines -join "`n"
+
 			# Try FK-context-aware generation for semantic consistency
 			# (e.g., city names matching their assigned country)
 			if ($fkColumns.Count -gt 0) {
-				$fkContextResult = New-SldgFKContextAwareBatch -AIColumns $aiCandidates -FKColumns $fkColumns -ForeignKeyValues $ForeignKeyValues -TableName $TableInfo.FullName -RowCount ([math]::Min($RowCount, $maxAIBatch)) -Locale $locale -ExistingUniqueValues $ExistingUniqueValues -TableNotes $TableNotes
+				$fkContextResult = New-SldgFKContextAwareBatch -AIColumns $aiCandidates -FKColumns $fkColumns -ForeignKeyValues $ForeignKeyValues -TableName $TableInfo.FullName -RowCount ([math]::Min($RowCount, $maxAIBatch)) -Locale $locale -ExistingUniqueValues $ExistingUniqueValues -TableNotes $TableNotes -TableContext $tableContext
 				if ($fkContextResult) {
 					$aiBatch = $fkContextResult.AIBatch
 					$fkPreAssignments = $fkContextResult.FKAssignments
@@ -218,14 +242,20 @@
 			# Fall back to flat batch generation (no FK context)
 			if (-not $aiBatch) {
 				$aiParams = @{
-					Columns   = $aiCandidates
-					TableName = $TableInfo.FullName
-					BatchSize = [math]::Min($RowCount, $maxAIBatch)
-					Locale    = $locale
+					Columns      = $aiCandidates
+					TableName    = $TableInfo.FullName
+					BatchSize    = [math]::Min($RowCount, $maxAIBatch)
+					Locale       = $locale
+					TableContext = $tableContext
 				}
 				if ($ExistingUniqueValues) { $aiParams['ExistingUniqueValues'] = $ExistingUniqueValues }
 				if ($TableNotes) { $aiParams['TableNotes'] = $TableNotes }
 				$aiBatch = New-SldgAIGeneratedBatch @aiParams
+			}
+
+			# Warn when AI was expected but returned nothing — falling back to pattern generators
+			if (-not $aiBatch) {
+				Write-PSFMessage -Level Warning -Message ($script:strings.'AI.BatchFallbackWarning' -f $TableInfo.FullName)
 			}
 		}
 	}
@@ -260,7 +290,7 @@
 		if ($allPKsAreFk -and $poolSize -lt [long]::MaxValue) {
 			$compositePKPoolSize = $poolSize
 			if ($RowCount -gt $compositePKPoolSize) {
-				Write-PSFMessage -Level Warning -String 'RowSet.CompositePKCapped' -StringValues $RowCount, $TableInfo.FullName, $compositePKPoolSize
+				Write-PSFMessage -Level Warning -Message ($script:strings.'RowSet.CompositePKCapped' -f $RowCount, $TableInfo.FullName, $compositePKPoolSize)
 				$RowCount = [int]$compositePKPoolSize
 			}
 		}
@@ -343,7 +373,7 @@
 						if ($available.Count -gt 0) {
 							$value = $available | Get-Random
 						} else {
-							Write-PSFMessage -Level Warning -String 'RowSet.FKExhausted' -StringValues $col.ColumnName, $TableInfo.FullName
+							Write-PSFMessage -Level Warning -Message ($script:strings.'RowSet.FKExhausted' -f $col.ColumnName, $TableInfo.FullName)
 							$retryCount = $maxUniqueRetries
 							$rowValid = $false
 							break
@@ -384,7 +414,7 @@
 					}
 					# Truncate strings exceeding MaxLength
 					if ($col.MaxLength -and $col.MaxLength -gt 0 -and $value -is [string] -and $value.Length -gt $col.MaxLength) {
-						Write-PSFMessage -Level Warning -String 'RowSet.ValueTruncated' -StringValues $col.ColumnName, $value.Length, $col.MaxLength
+						Write-PSFMessage -Level Warning -Message ($script:strings.'RowSet.ValueTruncated' -f $col.ColumnName, $value.Length, $col.MaxLength)
 						$value = $value.Substring(0, $col.MaxLength)
 					}
 				}
@@ -457,7 +487,7 @@
 
 		# Skip row if uniqueness retries were exhausted
 		if (-not $rowValid) {
-			Write-PSFMessage -Level Warning -String 'RowSet.UniqueRetriesExhausted' -StringValues $rowIdx, $TableInfo.FullName, $maxUniqueRetries
+			Write-PSFMessage -Level Warning -Message ($script:strings.'RowSet.UniqueRetriesExhausted' -f $rowIdx, $TableInfo.FullName, $maxUniqueRetries)
 			continue
 		}
 

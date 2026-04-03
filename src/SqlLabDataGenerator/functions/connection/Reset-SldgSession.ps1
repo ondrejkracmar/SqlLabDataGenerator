@@ -45,7 +45,7 @@
 		# Log what is being cleared for diagnostics
 		$connInfo = $session.ActiveConnection
 		if ($connInfo) {
-			Write-PSFMessage -Level Verbose -String 'Session.ClosingConnection' -StringValues $connInfo.Provider, $connInfo.Database
+			Write-PSFMessage -Level Verbose -Message ($script:strings.'Session.ClosingConnection' -f $connInfo.Provider, $connInfo.Database)
 		}
 
 		$providerCount = $session.Providers.Count
@@ -54,6 +54,6 @@
 
 		$session.Reset()
 
-		Write-PSFMessage -Level Host -String 'Session.ResetComplete' -StringValues $providerCount, $localeCount, $cacheTotal
+		Write-PSFMessage -Level Host -Message ($script:strings.'Session.ResetComplete' -f $providerCount, $localeCount, $cacheTotal)
 	}
 }

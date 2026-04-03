@@ -482,22 +482,22 @@
         <member name="M:SqlLabDataGenerator.TableResult.Dispose">
             <summary>Disposes the contained DataTable(s).</summary>
         </member>
-        <member name="T:SqlLabDataGenerator.Provider">
+        <member name="T:SqlLabDataGenerator.SqlProvider">
             <summary>
-            Represents a registered database provider.
+            Represents a registered database provider (SQL Server, SQLite, etc.).
             </summary>
         </member>
-        <member name="P:SqlLabDataGenerator.Provider.Name">
+        <member name="P:SqlLabDataGenerator.SqlProvider.Name">
             <summary>Provider name ('SQLite', 'SqlServer').</summary>
         </member>
-        <member name="P:SqlLabDataGenerator.Provider.FunctionMap">
+        <member name="P:SqlLabDataGenerator.SqlProvider.FunctionMap">
             <summary>Function map (keys: Connect, GetSchema, WriteData, ReadData, Disconnect, optional DeleteData).</summary>
         </member>
-        <member name="P:SqlLabDataGenerator.Provider.Registered">
+        <member name="P:SqlLabDataGenerator.SqlProvider.Registered">
             <summary>When the provider was registered.</summary>
         </member>
-        <member name="M:SqlLabDataGenerator.Provider.#ctor">
-            <summary>Initializes a new instance of the <see cref="T:SqlLabDataGenerator.Provider"/> class.</summary>
+        <member name="M:SqlLabDataGenerator.SqlProvider.#ctor">
+            <summary>Initializes a new instance of the <see cref="T:SqlLabDataGenerator.SqlProvider"/> class.</summary>
         </member>
         <member name="T:SqlLabDataGenerator.ColumnInfo">
             <summary>

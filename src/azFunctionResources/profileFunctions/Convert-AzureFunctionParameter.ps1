@@ -50,19 +50,37 @@
 		{
 			throw "Serialized parameter data exceeds maximum allowed size (10 MB)."
 		}
+
+		# Type allowlist: define safe parameter types BEFORE deserialization
+		$allowedTypes = @(
+			[string], [int], [long], [double], [decimal], [bool], [datetime],
+			[guid], [timespan], [char], [byte],
+			[string[]], [int[]], [long[]], [double[]], [bool[]], [datetime[]], [byte[]],
+			[hashtable], [System.Collections.Specialized.OrderedDictionary],
+			[pscredential], [securestring], [switch],
+			[System.Management.Automation.SwitchParameter]
+		)
+		$allowedTypeNames = @($allowedTypes | ForEach-Object { $_.FullName })
+
+		# Pre-scan serialized XML for type references before deserialization to block gadget chains
+		if ($serializedData -is [string]) {
+			$typePattern = '<T[Nn]>\s*([^<]+)\s*</T[Nn]>'
+			$typeMatches = [regex]::Matches($serializedData, $typePattern)
+			foreach ($tm in $typeMatches) {
+				$typeName = $tm.Groups[1].Value.Trim()
+				# Allow Deserialized. prefix wrapper types
+				$baseTypeName = $typeName -replace '^Deserialized\.', ''
+				if ($baseTypeName -notin $allowedTypeNames -and "System.$baseTypeName" -notin $allowedTypeNames) {
+					throw "Serialized data references disallowed type '$typeName'. Deserialization blocked."
+				}
+			}
+		}
+
 		try
 		{
 			$deserialized = $serializedData | ConvertFrom-PSFClixml
 
-			# Type allowlist: only permit safe parameter types from deserialized input
-			$allowedTypes = @(
-				[string], [int], [long], [double], [decimal], [bool], [datetime],
-				[guid], [timespan], [char], [byte],
-				[string[]], [int[]], [long[]], [double[]], [bool[]], [datetime[]], [byte[]],
-				[hashtable], [System.Collections.Specialized.OrderedDictionary],
-				[pscredential], [securestring], [switch],
-				[System.Management.Automation.SwitchParameter]
-			)
+			# Post-deserialization validation as defense-in-depth
 			if ($deserialized -is [hashtable]) {
 				foreach ($key in @($deserialized.Keys)) {
 					$val = $deserialized[$key]

@@ -28,6 +28,8 @@
 
 		[string]$TableNotes,
 
+		[string]$TableContext,
+
 		[string]$ParentContext,
 
 		[switch]$Force
@@ -73,7 +75,7 @@
 
 	$aiProvider = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.AI.Provider'
 	if ($aiProvider -eq 'None') {
-		Write-PSFMessage -Level Verbose -String 'AI.BatchSkipped' -StringValues $TableName
+		Write-PSFMessage -Level Verbose -Message ($script:strings.'AI.BatchSkipped' -f $TableName)
 		return $null
 	}
 
@@ -89,15 +91,43 @@
 		$dependency = if ($col.AICrossColumnDependency) { " — depends on: $($col.AICrossColumnDependency)" } else { "" }
 		$nullable = if ($col.IsNullable) { " [NULLABLE]" } else { " [NOT NULL]" }
 		$unique = if ($col.IsUnique -or ($col.IsPrimaryKey)) { " [UNIQUE]" } else { "" }
-		$maxLen = if ($col.MaxLength -and $col.MaxLength -gt 0) { "($($col.MaxLength))" } else { "" }
-		# Add explicit numeric range constraint for bounded integer types
+		$pkFlag = if ($col.IsPrimaryKey) { " [PK]" } else { "" }
+		# Type size: prefer MaxLength for string types, NumericPrecision/Scale for decimal types
+		$maxLen = if ($col.MaxLength -and $col.MaxLength -gt 0) {
+			"($($col.MaxLength))"
+		}
+		elseif ($col.NumericPrecision -and $col.DataType -match '^(decimal|numeric|money|smallmoney)$') {
+			$scale = if ($col.NumericScale) { $col.NumericScale } else { 0 }
+			"($($col.NumericPrecision),$scale)"
+		}
+		else { "" }
+		# Add explicit numeric range constraint for bounded types
 		$rangeHint = switch ($col.DataType.ToLower()) {
 			'tinyint' { " [range: 0–255]" }
 			'smallint' { " [range: -32768–32767]" }
+			{ $_ -in @('decimal', 'numeric') } {
+				if ($col.NumericPrecision) {
+					$s = if ($col.NumericScale) { [int]$col.NumericScale } else { 0 }
+					$intDigits = [int]$col.NumericPrecision - $s
+					if ($intDigits -gt 0 -and $intDigits -le 18) {
+						$maxInt = [math]::Pow(10, $intDigits) - 1
+						if ($s -gt 0) { " [range: -$maxInt.$('9' * $s)–$maxInt.$('9' * $s)]" }
+						else { " [range: -$maxInt–$maxInt]" }
+					} else { "" }
+				} else { "" }
+			}
 			default { "" }
 		}
+		# Check constraints
+		$checkStr = if ($col.CheckConstraints -and $col.CheckConstraints.Count -gt 0) {
+			" [CHECK: $($col.CheckConstraints -join '; ')]"
+		} else { "" }
+		# Default value (skip computed defaults like getdate(), newid())
+		$defaultStr = if ($col.DefaultValue -and $col.DefaultValue -notmatch '(?i)getdate|newid|newsequentialid|sysdatetime') {
+			" [DEFAULT: $($col.DefaultValue)]"
+		} else { "" }
 
-		"  - $($col.ColumnName): $($col.DataType)$maxLen, semantic: $semanticType$nullable$unique$rangeHint$hint$examples$pattern$dependency"
+		"  - $($col.ColumnName): $($col.DataType)$maxLen, semantic: $semanticType$nullable$unique$pkFlag$rangeHint$checkStr$defaultStr$hint$examples$pattern$dependency"
 	}
 	$colText = $colDescriptions -join "`n"
 
@@ -129,8 +159,15 @@
 			JsonExample        = $jsonRow
 		}
 		if (-not $chunkSystemPrompt) {
-			Write-PSFMessage -Level Warning -String 'Prompt.ResolveFailed' -StringValues 'batch-generation'
+			Write-PSFMessage -Level Warning -Message ($script:strings.'Prompt.ResolveFailed' -f 'batch-generation')
 			break
+		}
+
+		# Inject table relationship context (FK structure, table role) so AI understands the table's place in the schema
+		if ($TableContext) {
+			$escapedContext = Remove-SldgUnsafeChar -Text $TableContext -Mode General -MaxLength 1500
+			$escapedContext = $escapedContext -replace '\{', '{{' -replace '\}', '}}'
+			$chunkSystemPrompt += "`n`nTABLE CONTEXT (this table's position in the database schema):`n$escapedContext"
 		}
 
 		# Inject per-table generation notes from schema analysis (two-tier AI)
@@ -146,10 +183,11 @@
 			$chunkSystemPrompt += "`n`n" + ($script:strings.'AI.IndustryContext' -f $sanitizedHint)
 		}
 
-		# Inject FK parent context for semantic consistency (e.g., cities matching their country)
+		# Inject FK parent context for semantic consistency (e.g., cities matching their country,
+		# or junction table rows coherent with both parents)
 		if ($ParentContext) {
-			$sanitizedContext = Remove-SldgUnsafeChar -Text $ParentContext -Mode General -MaxLength 500
-			$chunkSystemPrompt += "`n`nPARENT ROW CONTEXT (all rows in this batch are children of the same parent row — generate values that are semantically appropriate and consistent with this parent):`n$sanitizedContext"
+			$sanitizedContext = Remove-SldgUnsafeChar -Text $ParentContext -Mode General -MaxLength 2000
+			$chunkSystemPrompt += "`n`nPARENT ROW CONTEXT (generate values that are semantically appropriate and consistent with the parent relationships described below):`n$sanitizedContext"
 		}
 
 		# Add existing UNIQUE values that must be avoided (prevent duplicate key violations)
@@ -157,8 +195,8 @@
 			$exclusionLines = foreach ($col in $Columns) {
 				if ($ExistingUniqueValues.ContainsKey($col.ColumnName) -and ($col.IsUnique -or $col.IsPrimaryKey)) {
 					$existingVals = $ExistingUniqueValues[$col.ColumnName]
-					# Limit to first 50 values to avoid token overflow; sanitize to prevent prompt injection
-					$sample = @($existingVals | Select-Object -First 50 | ForEach-Object { "$_" -replace '[^\p{L}\p{N}\s\.\-_,]', '' } | Where-Object { $_.Length -gt 0 })
+					# Limit to first 200 values to avoid token overflow; sanitize to prevent prompt injection
+					$sample = @($existingVals | Select-Object -First 200 | ForEach-Object { "$_" -replace '[^\p{L}\p{N}\s\.\-_,]', '' } | Where-Object { $_.Length -gt 0 })
 					if ($sample.Count -gt 0) {
 						"  - $($col.ColumnName): DO NOT use these existing values: $($sample -join ', ')"
 					}
@@ -176,7 +214,7 @@
 		$response = Invoke-SldgAIRequest -SystemPrompt $chunkSystemPrompt -UserMessage $userMessage -Purpose 'batch-generation'
 
 		if (-not $response) {
-			Write-PSFMessage -Level Warning -String 'AI.BatchNoResponse' -StringValues $TableName
+			Write-PSFMessage -Level Warning -Message ($script:strings.'AI.BatchNoResponse' -f $TableName)
 			break
 		}
 
@@ -191,7 +229,7 @@
 
 		# Fix invalid JSON escape sequences (e.g. \+ from regex patterns)
 		# (?<!\\) lookbehind: skip the second \ in valid \\ pairs so we only fix bare invalid escapes
-		$jsonText = [regex]::Replace($jsonText, '(?<!\\)\\(?!["\\\//bfnrtu])', '\\')
+		$jsonText = [regex]::Replace($jsonText, '(?<!\\)\\(?!["\\\//bfnrtu])', '\\', 'None', [timespan]::FromSeconds(2))
 		# Remove truncation artifacts (e.g. trailing "..." in arrays)
 		$jsonText = $jsonText -replace ',?\s*"\.{3,}"\s*\]', ']'
 		$jsonText = $jsonText -replace ',?\s*\.{3,}\s*\]', ']'
@@ -215,7 +253,7 @@
 				$rowProps = @($row.psobject.Properties.Name)
 				$missingCols = @($colNames | Where-Object { $_ -notin $rowProps })
 				if ($missingCols.Count -gt 0) {
-					Write-PSFMessage -Level Warning -String 'AI.BatchMissingColumns' -StringValues $TableName, ($missingCols -join ', ')
+					Write-PSFMessage -Level Warning -Message ($script:strings.'AI.BatchMissingColumns' -f $TableName, ($missingCols -join ', '))
 				}
 				foreach ($colName in $colNames) {
 					$val = $row.$colName
@@ -227,7 +265,7 @@
 			$remaining -= $parsed.Count
 			# If AI returned fewer rows than requested, log a warning and stop looping
 			if ($parsed.Count -lt $chunkSize) {
-				Write-PSFMessage -Level Warning -String 'AI.BatchRowCountMismatch' -StringValues $TableName, $parsed.Count, $chunkSize
+				Write-PSFMessage -Level Warning -Message ($script:strings.'AI.BatchRowCountMismatch' -f $TableName, $parsed.Count, $chunkSize)
 				break
 			}
 		}
@@ -238,7 +276,7 @@
 	}
 
 	if ($iteration -ge $maxIterations -and $remaining -gt 0) {
-		Write-PSFMessage -Level Warning -String 'AI.BatchMaxIterations' -StringValues $TableName, $maxIterations, $remaining
+		Write-PSFMessage -Level Warning -Message ($script:strings.'AI.BatchMaxIterations' -f $TableName, $maxIterations, $remaining)
 	}
 
 	if ($allResults.Count -eq 0) {

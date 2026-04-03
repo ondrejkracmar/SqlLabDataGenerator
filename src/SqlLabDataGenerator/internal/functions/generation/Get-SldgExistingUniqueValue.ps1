@@ -33,13 +33,18 @@
 	if ($uniqueCols.Count -eq 0) { return $null }
 
 	$existingUnique = @{}
-	$safeTbl = Get-SldgSafeSqlName -SchemaName $TablePlan.SchemaName -TableName $TablePlan.TableName
-	$safeCols = @($uniqueCols | ForEach-Object { Get-SldgSafeSqlName -ColumnName $_.ColumnName })
+	$isSQLite = $ConnectionInfo.Provider -eq 'SQLite'
+	$safeTbl = Get-SldgSafeSqlName -SchemaName $TablePlan.SchemaName -TableName $TablePlan.TableName -SQLite:$isSQLite
+	$safeCols = @($uniqueCols | ForEach-Object { Get-SldgSafeSqlName -ColumnName $_.ColumnName -SQLite:$isSQLite })
 
 	try {
 		$uqCmd = $ConnectionInfo.DbConnection.CreateCommand()
 		if ($Transaction) { $uqCmd.Transaction = $Transaction }
-		$uqCmd.CommandText = "SELECT TOP ($UniqueQueryLimit) $($safeCols -join ', ') FROM $safeTbl"
+		if ($isSQLite) {
+			$uqCmd.CommandText = "SELECT $($safeCols -join ', ') FROM $safeTbl LIMIT $UniqueQueryLimit"
+		} else {
+			$uqCmd.CommandText = "SELECT TOP ($UniqueQueryLimit) $($safeCols -join ', ') FROM $safeTbl"
+		}
 		$uqCmd.CommandTimeout = $CommandTimeout
 		$uqReader = $uqCmd.ExecuteReader()
 
@@ -65,7 +70,7 @@
 		}
 	}
 	catch {
-		Write-PSFMessage -Level Verbose -String 'Generation.UniqueQueryFailed' -StringValues $TablePlan.FullName, $_
+		Write-PSFMessage -Level Verbose -Message ($script:strings.'Generation.UniqueQueryFailed' -f $TablePlan.FullName, $_)
 	}
 
 	if ($existingUnique.Count -eq 0) { return $null }

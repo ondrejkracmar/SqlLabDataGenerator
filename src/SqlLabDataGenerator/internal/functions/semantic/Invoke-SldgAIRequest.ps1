@@ -21,7 +21,7 @@
 	$override = $null
 	if ($Purpose -and $script:SldgState.AIModelOverrides.ContainsKey($Purpose)) {
 		$override = $script:SldgState.AIModelOverrides[$Purpose]
-		Write-PSFMessage -Level Verbose -String 'AI.ModelOverrideUsing' -StringValues $Purpose, $override['Provider'], $override['Model']
+		Write-PSFMessage -Level Verbose -Message ($script:strings.'AI.ModelOverrideUsing' -f $Purpose, $override['Provider'], $override['Model'])
 	}
 
 	$aiProvider = if ($override) { $override['Provider'] } else { Get-PSFConfigValue -FullName 'SqlLabDataGenerator.AI.Provider' }
@@ -39,7 +39,7 @@
 		} elseif ($apiKeyRaw) { [string]$apiKeyRaw } else { $null }
 	}
 	catch {
-		Write-PSFMessage -Level Warning -String 'AI.ApiKeyFailed' -StringValues $_
+		Write-PSFMessage -Level Warning -Message ($script:strings.'AI.ApiKeyFailed' -f $_)
 		return $null
 	}
 
@@ -58,6 +58,21 @@
 	# Ollama does not require an API key
 	if ($aiProvider -ne 'Ollama' -and -not $apiKey) {
 		return $null
+	}
+
+	# Circuit breaker: skip AI calls after consecutive failures to avoid hammering a broken provider
+	$cbThreshold = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.AI.CircuitBreakerThreshold'
+	$cbCooldown = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.AI.CircuitBreakerCooldownSeconds'
+	if ($script:AICircuitBreaker.ConsecutiveFailures -ge $cbThreshold) {
+		$elapsed = ([datetime]::UtcNow - $script:AICircuitBreaker.OpenedAt).TotalSeconds
+		if ($elapsed -lt $cbCooldown) {
+			# Circuit is still open — skip this call
+			return $null
+		}
+		# Cooldown expired — reset and allow a probe request
+		Write-PSFMessage -Level Warning -Message $script:strings.'AI.CircuitBreakerReset'
+		$script:AICircuitBreaker.ConsecutiveFailures = 0
+		$script:AICircuitBreaker.OpenedAt = $null
 	}
 
 	# Rate limiting: enforce max requests per minute
@@ -129,12 +144,21 @@
 	}
 
 	$body = @{
-		model      = $model
-		max_tokens = $maxTokens
-		messages   = @(
+		model    = $model
+		messages = @(
 			@{ role = 'system'; content = $SystemPrompt }
 			@{ role = 'user'; content = $UserMessage }
 		)
+	}
+
+	# Token limit parameter: newer OpenAI models require 'max_completion_tokens',
+	# older models use 'max_tokens'. We start with 'max_completion_tokens' and
+	# auto-fallback to 'max_tokens' if the API returns 'unsupported_parameter'.
+	$tokenParamName = $null
+	$tokenParamSwitched = $false
+	if ($aiProvider -in @('OpenAI', 'AzureOpenAI')) {
+		$tokenParamName = 'max_completion_tokens'
+		$body[$tokenParamName] = $maxTokens
 	}
 
 	# Ollama supports additional options
@@ -194,10 +218,10 @@
 		$skipCertCheck = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.AI.Ollama.SkipCertificateCheck'
 		if ($skipCertCheck -and $PSVersionTable.PSVersion.Major -ge 7) {
 			if ($env:SLDG_ALLOW_SKIP_TLS -eq '1' -or $env:SLDG_ALLOW_SKIP_TLS -eq 'true') {
-				Write-PSFMessage -Level Warning -String 'AI.TLSSkipActive'
+				Write-PSFMessage -Level Warning -Message $script:strings.'AI.TLSSkipActive'
 				$params['SkipCertificateCheck'] = $true
 			} else {
-				Write-PSFMessage -Level Warning -String 'AI.TLSSkipBlocked'
+				Write-PSFMessage -Level Warning -Message $script:strings.'AI.TLSSkipBlocked'
 			}
 		}
 	}
@@ -211,9 +235,11 @@
 
 				# Ollama /api/chat returns message directly, OpenAI-compatible returns choices array
 				if ($response.message) {
+					$script:AICircuitBreaker.ConsecutiveFailures = 0
 					return $response.message.content
 				}
 				elseif ($response.choices) {
+					$script:AICircuitBreaker.ConsecutiveFailures = 0
 					return $response.choices[0].message.content
 				}
 				else {
@@ -228,6 +254,24 @@
 				$statusCode = 0
 				if ($_.Exception.Response) {
 					try { $statusCode = [int]$_.Exception.Response.StatusCode } catch { $null = $_ }
+				}
+
+				# Auto-fallback: if API rejects the token-limit parameter, switch and retry immediately (once only)
+				if ($statusCode -eq 400 -and $tokenParamName -and -not $tokenParamSwitched -and $_.ErrorDetails.Message -match 'unsupported_parameter') {
+					$tokenParamSwitched = $true
+					$oldParam = $tokenParamName
+					if ($tokenParamName -eq 'max_completion_tokens') {
+						$tokenParamName = 'max_tokens'
+					} else {
+						$tokenParamName = 'max_completion_tokens'
+					}
+					$body.Remove($oldParam)
+					$body[$tokenParamName] = $maxTokens
+					$bodyJson = $body | ConvertTo-Json -Depth 10
+					$params['Body'] = $bodyJson
+					Write-PSFMessage -Level Verbose -Message "Switching token parameter from '$oldParam' to '$tokenParamName' and retrying."
+					$attempt-- # do not consume a retry attempt for parameter negotiation
+					continue
 				}
 
 				# Do not retry on authentication/authorization failures
@@ -259,6 +303,13 @@
 		}
 
 		Write-PSFMessage -Level Warning -Message ($script:strings.'AI.RequestFailed' -f $lastError)
+
+		# Track failure for circuit breaker
+		$script:AICircuitBreaker.ConsecutiveFailures++
+		if ($script:AICircuitBreaker.ConsecutiveFailures -ge $cbThreshold) {
+			$script:AICircuitBreaker.OpenedAt = [datetime]::UtcNow
+			Write-PSFMessage -Level Warning -Message ($script:strings.'AI.CircuitBreakerOpen' -f $cbThreshold, $cbCooldown)
+		}
 		$null
 	}
 	finally {

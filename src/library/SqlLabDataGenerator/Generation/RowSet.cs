@@ -7,7 +7,7 @@ namespace SqlLabDataGenerator
     /// <summary>
     /// Represents a set of generated rows for a table.
     /// </summary>
-    public class RowSet : IDisposable
+    public sealed class RowSet : IDisposable
     {
         /// <summary>The table info for which rows were generated.</summary>
         public object TableInfo { get; set; }

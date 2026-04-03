@@ -76,7 +76,7 @@
 	}
 
 	if (-not $systemPrompt) {
-		Write-PSFMessage -Level Warning -String 'Prompt.ResolveFailed' -StringValues $promptPurpose
+		Write-PSFMessage -Level Warning -Message ($script:strings.'Prompt.ResolveFailed' -f $promptPurpose)
 		return $null
 	}
 

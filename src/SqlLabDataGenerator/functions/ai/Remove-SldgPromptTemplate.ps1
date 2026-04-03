@@ -67,7 +67,7 @@
 
 			# Skip built-in templates — only custom overrides can be removed
 			if ($InputObject.PSObject.Properties['IsCustom'] -and -not $InputObject.IsCustom) {
-				Write-PSFMessage -Level Verbose -String 'Prompt.SkippingBuiltIn' -StringValues $Purpose, $Variant
+				Write-PSFMessage -Level Verbose -Message ($script:strings.'Prompt.SkippingBuiltIn' -f $Purpose, $Variant)
 				return
 			}
 		}
@@ -85,13 +85,13 @@
 		$targetPath = Join-Path $customPath $fileName
 
 		if (-not (Test-Path $targetPath)) {
-			Write-PSFMessage -Level Warning -String 'Prompt.CustomNotFound' -StringValues $targetPath
+			Write-PSFMessage -Level Warning -Message ($script:strings.'Prompt.CustomNotFound' -f $targetPath)
 			return
 		}
 
 		if ($PSCmdlet.ShouldProcess($targetPath, 'Remove custom prompt template')) {
 			Remove-Item -Path $targetPath -Force
-			Write-PSFMessage -Level Host -String 'Prompt.Removed' -StringValues $targetPath
+			Write-PSFMessage -Level Host -Message ($script:strings.'Prompt.Removed' -f $targetPath)
 		}
 	}
 }

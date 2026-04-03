@@ -41,7 +41,7 @@
 
 	# Safety guard: skip masking if no rows were read (prevents data loss from DELETE)
 	if (-not $existingData -or $existingData.Rows.Count -eq 0) {
-		Write-PSFMessage -Level Warning -String 'Generation.MaskingNoRows' -StringValues $TablePlan.FullName
+		Write-PSFMessage -Level Warning -Message ($script:strings.'Generation.MaskingNoRows' -f $TablePlan.FullName)
 		return [SqlLabDataGenerator.TableResult]@{
 			TableName = $TablePlan.FullName
 			RowCount  = 0
@@ -81,26 +81,32 @@
 	$insertedCount = $existingData.Rows.Count
 	if (-not $NoInsert) {
 		# Masking mode: delete existing rows, then re-insert the masked data
-		$deleteParams = @{
-			ConnectionInfo = $ConnectionInfo
-			SchemaName     = $TablePlan.SchemaName
-			TableName      = $TablePlan.TableName
+		# Wrap in a local transaction if none was provided to prevent data loss on partial failure
+		$localTransaction = $null
+		if (-not $Transaction) {
+			$localTransaction = $ConnectionInfo.DbConnection.BeginTransaction()
+			$Transaction = $localTransaction
 		}
-		if ($Transaction) { $deleteParams['Transaction'] = $Transaction }
-		if ($Provider.FunctionMap.ContainsKey('DeleteData')) {
-			& $Provider.FunctionMap.DeleteData @deleteParams
-		}
-		else {
-			# Fallback: execute DELETE directly
-			$delCmd = $ConnectionInfo.DbConnection.CreateCommand()
-			if ($Transaction) { $delCmd.Transaction = $Transaction }
-			$safeName = Get-SldgSafeSqlName -SchemaName $TablePlan.SchemaName -TableName $TablePlan.TableName -SQLite:($ConnectionInfo.Provider -eq 'SQLite')
-			$delCmd.CommandText = "DELETE FROM $safeName"
-			[void]$delCmd.ExecuteNonQuery()
-			$delCmd.Dispose()
-		}
-
 		try {
+			$deleteParams = @{
+				ConnectionInfo = $ConnectionInfo
+				SchemaName     = $TablePlan.SchemaName
+				TableName      = $TablePlan.TableName
+			}
+			if ($Transaction) { $deleteParams['Transaction'] = $Transaction }
+			if ($Provider.FunctionMap.ContainsKey('DeleteData')) {
+				& $Provider.FunctionMap.DeleteData @deleteParams
+			}
+			else {
+				# Fallback: execute DELETE directly
+				$delCmd = $ConnectionInfo.DbConnection.CreateCommand()
+				if ($Transaction) { $delCmd.Transaction = $Transaction }
+				$safeName = Get-SldgSafeSqlName -SchemaName $TablePlan.SchemaName -TableName $TablePlan.TableName -SQLite:($ConnectionInfo.Provider -eq 'SQLite')
+				$delCmd.CommandText = "DELETE FROM $safeName"
+				[void]$delCmd.ExecuteNonQuery()
+				$delCmd.Dispose()
+			}
+
 			$writeParams = @{
 				ConnectionInfo = $ConnectionInfo
 				SchemaName     = $TablePlan.SchemaName
@@ -110,8 +116,17 @@
 			}
 			if ($Transaction) { $writeParams['Transaction'] = $Transaction }
 			$insertedCount = & $Provider.FunctionMap.WriteData @writeParams
+
+			if ($localTransaction) { $localTransaction.Commit() }
+		}
+		catch {
+			if ($localTransaction) {
+				try { $localTransaction.Rollback() } catch { $null = $_ }
+			}
+			throw
 		}
 		finally {
+			if ($localTransaction) { $localTransaction.Dispose() }
 			$existingData.Dispose()
 		}
 	}

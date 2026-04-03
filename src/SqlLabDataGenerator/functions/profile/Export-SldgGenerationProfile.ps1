@@ -101,6 +101,15 @@
 				if ($colPlan.CustomRule.ContainsKey('Generator')) {
 					$colExport['generator'] = $colPlan.CustomRule.Generator
 				}
+				if ($colPlan.CustomRule.ContainsKey('AIGenerationHint')) {
+					$colExport['aiGenerationHint'] = $colPlan.CustomRule.AIGenerationHint
+				}
+				if ($colPlan.CustomRule.ContainsKey('CrossColumnDependency')) {
+					$colExport['crossColumnDependency'] = $colPlan.CustomRule.CrossColumnDependency
+				}
+				if ($colPlan.CustomRule.ContainsKey('ValueExamples')) {
+					$colExport['valueExamples'] = $colPlan.CustomRule.ValueExamples
+				}
 			}
 
 			$tableExport.columns[$colPlan.ColumnName] = $colExport
@@ -116,6 +125,6 @@
 
 	$export | ConvertTo-Json -Depth 10 | Set-Content -Path $Path -Encoding UTF8
 
-	Write-PSFMessage -Level Host -String 'Profile.Exported' -StringValues $Path
+	Write-PSFMessage -Level Host -Message ($script:strings.'Profile.Exported' -f $Path)
 	}
 }

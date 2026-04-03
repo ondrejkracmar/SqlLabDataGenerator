@@ -80,8 +80,47 @@ function Invoke-McpToolsCall {
 		$psParams = $argObject
 	}
 
+	# Validate parameters against tool schema (enum values, required fields)
+	$schema = $tool.inputSchema
+	if ($schema -and $schema.properties) {
+		# Check required fields
+		if ($schema.required) {
+			$missingRequired = @($schema.required | Where-Object { -not $psParams.ContainsKey($_) -or $null -eq $psParams[$_] })
+			if ($missingRequired.Count -gt 0) {
+				return [ordered]@{
+					content = @([ordered]@{ type = 'text'; text = "Missing required parameter(s): $($missingRequired -join ', ')" })
+					isError = $true
+				}
+			}
+		}
+
+		# Validate enum values and basic type constraints
+		foreach ($paramName in @($psParams.Keys)) {
+			$propSchema = $schema.properties.$paramName
+			if (-not $propSchema) { continue }
+
+			$value = $psParams[$paramName]
+
+			# Enum validation
+			if ($propSchema.enum -and $value -notin $propSchema.enum) {
+				return [ordered]@{
+					content = @([ordered]@{ type = 'text'; text = "Invalid value '$value' for parameter '$paramName'. Allowed: $($propSchema.enum -join ', ')" })
+					isError = $true
+				}
+			}
+
+			# String length sanity check (prevent excessively large inputs)
+			if ($propSchema.type -eq 'string' -and $value -is [string] -and $value.Length -gt 1MB) {
+				return [ordered]@{
+					content = @([ordered]@{ type = 'text'; text = "Parameter '$paramName' exceeds maximum allowed length." })
+					isError = $true
+				}
+			}
+		}
+	}
+
 	# Invoke the cmdlet with timeout protection
-	$toolTimeoutSeconds = 300  # 5-minute max execution time per tool call
+	$toolTimeoutSeconds = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.MCP.ToolTimeoutSeconds'
 	$modBase = (Get-Module SqlLabDataGenerator).ModuleBase
 	try {
 		$job = Start-Job -ScriptBlock {

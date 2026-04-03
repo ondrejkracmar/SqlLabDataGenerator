@@ -52,9 +52,9 @@
 		}
 		$auditJson = $auditRecord | ConvertTo-Json -Depth 4 -Compress
 		Add-Content -Path $auditLogPath -Value $auditJson -Encoding UTF8
-		Write-PSFMessage -Level Verbose -String 'Generation.AuditWritten' -StringValues $auditLogPath
+		Write-PSFMessage -Level Verbose -Message ($script:strings.'Generation.AuditWritten' -f $auditLogPath)
 	}
 	catch {
-		Write-PSFMessage -Level Warning -String 'Generation.AuditWriteFailed' -StringValues $_
+		Write-PSFMessage -Level Warning -Message ($script:strings.'Generation.AuditWriteFailed' -f $_)
 	}
 }

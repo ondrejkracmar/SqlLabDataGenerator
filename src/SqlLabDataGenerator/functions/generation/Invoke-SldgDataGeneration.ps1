@@ -112,12 +112,12 @@
 		[System.Security.Principal.WindowsIdentity]::GetCurrent().Name
 	}
 
-	Write-PSFMessage -Level Verbose -String 'Generation.AuditStart' -StringValues $executingUser, $Plan.Database, $Plan.TableCount, $Plan.Mode
+	Write-PSFMessage -Level Verbose -Message ($script:strings.'Generation.AuditStart' -f $executingUser, $Plan.Database, $Plan.TableCount, $Plan.Mode)
 
 	# Start a transaction if requested
 	if ($UseTransaction -and -not $NoInsert -and $ConnectionInfo) {
 		$transaction = $ConnectionInfo.DbConnection.BeginTransaction()
-		Write-PSFMessage -Level Verbose -String 'Generation.TransactionStarted' -StringValues $ConnectionInfo.Provider
+		Write-PSFMessage -Level Verbose -Message ($script:strings.'Generation.TransactionStarted' -f $ConnectionInfo.Provider)
 	}
 
 	# Streaming config for large tables
@@ -140,7 +140,7 @@
 	# S4: Auto-enable transaction for masking mode to prevent data loss from DELETE+INSERT
 	if ($isMaskingMode -and -not $NoInsert -and $ConnectionInfo -and -not $transaction) {
 		$transaction = $ConnectionInfo.DbConnection.BeginTransaction()
-		Write-PSFMessage -Level Verbose -String 'Generation.MaskingTransactionStarted'
+		Write-PSFMessage -Level Verbose -Message $script:strings.'Generation.MaskingTransactionStarted'
 	}
 
 	$tableIndex = 0
@@ -170,7 +170,7 @@
 		$totalInserted = $parallelResult.TotalInserted
 		$generationFailed = $parallelResult.GenerationFailed
 		if ($generationFailed -and $transaction) {
-			try { $transaction.Rollback() } catch { Write-PSFMessage -Level Warning -String 'Generation.ParallelRollbackFailed' -StringValues $_ }
+			try { $transaction.Rollback() } catch { Write-PSFMessage -Level Warning -Message ($script:strings.'Generation.ParallelRollbackFailed' -f $_) }
 			$transaction = $null
 		}
 	}
@@ -218,10 +218,10 @@
 					})
 				if ($transaction) {
 					$generationFailed = $true
-				Write-PSFMessage -Level Warning -String 'Generation.MaskingRollingBack' -StringValues $tablePlan.FullName
+				Write-PSFMessage -Level Warning -Message ($script:strings.'Generation.MaskingRollingBack' -f $tablePlan.FullName)
 				try { $transaction.Rollback() }
 				catch {
-					Write-PSFMessage -Level Error -String 'Generation.MaskingRollbackCritical' -StringValues $_
+					Write-PSFMessage -Level Error -Message ($script:strings.'Generation.MaskingRollbackCritical' -f $_)
 					}
 					$transaction = $null
 					$totalInserted = 0
@@ -235,7 +235,7 @@
 		if ($failedTables.Count -gt 0 -and $tablePlan.ForeignKeys -and $tablePlan.ForeignKeys.Count -gt 0) {
 			$failedParents = @($tablePlan.ForeignKeys | ForEach-Object { "$($_.ReferencedSchema).$($_.ReferencedTable)" } | Where-Object { $failedTables.Contains($_) } | Select-Object -Unique)
 			if ($failedParents.Count -gt 0) {
-				Write-PSFMessage -Level Warning -String 'Generation.SkippedDueToParent' -StringValues $tablePlan.FullName, ($failedParents -join ', ')
+				Write-PSFMessage -Level Warning -Message ($script:strings.'Generation.SkippedDueToParent' -f $tablePlan.FullName, ($failedParents -join ', '))
 				[void]$failedTables.Add($tablePlan.FullName)
 				$tableResults.Add([SqlLabDataGenerator.TableResult]@{
 						TableName  = $tablePlan.FullName
@@ -287,7 +287,7 @@
 						$col | Add-Member -NotePropertyName 'PKStartValue' -NotePropertyValue ([long]$maxVal) -Force
 					}
 					catch {
-						Write-PSFMessage -Level Verbose -String 'Generation.MaxPKQueryFailed' -StringValues $col.ColumnName, $_
+						Write-PSFMessage -Level Verbose -Message ($script:strings.'Generation.MaxPKQueryFailed' -f $col.ColumnName, $_)
 					}
 				}
 			}
@@ -313,6 +313,25 @@
 				if ($ConnectionInfo) { $streamParams['ConnectionInfo'] = $ConnectionInfo }
 				if ($transaction) { $streamParams['Transaction'] = $transaction }
 				if ($provider) { $streamParams['WriteFunction'] = $provider.FunctionMap.WriteData }
+
+				# Query existing unique values for streaming mode (same as non-streaming path)
+				if ($ConnectionInfo -and $provider) {
+					$uqParams = @{
+						TableInfo        = $tableInfo
+						TablePlan        = $tablePlan
+						ConnectionInfo   = $ConnectionInfo
+						UniqueQueryLimit = $uniqueQueryLimit
+						CommandTimeout   = $dbCommandTimeout
+					}
+					if ($transaction) { $uqParams['Transaction'] = $transaction }
+					$streamExistingUnique = Get-SldgExistingUniqueValue @uqParams
+					if ($streamExistingUnique) { $streamParams['ExistingUniqueValues'] = $streamExistingUnique }
+				}
+
+				# Two-tier AI: pass per-table generation notes to streaming mode
+				if ($Plan.AIAdvice -and $Plan.AIAdvice.TableGenerationNotes -and $Plan.AIAdvice.TableGenerationNotes.ContainsKey($tablePlan.FullName)) {
+					$streamParams['TableNotes'] = $Plan.AIAdvice.TableGenerationNotes[$tablePlan.FullName]
+				}
 
 				$streamResult = Invoke-SldgStreamingGeneration @streamParams
 
@@ -394,11 +413,11 @@
 							$pkCmd.Dispose()
 							if ($pkVals.Count -gt 0) {
 								$fkValues[$colKey] = $pkVals.ToArray()
-								Write-PSFMessage -Level Verbose -String 'Generation.PostInsertPKCollected' -StringValues $colKey, $pkVals.Count
+								Write-PSFMessage -Level Verbose -Message ($script:strings.'Generation.PostInsertPKCollected' -f $colKey, $pkVals.Count)
 							}
 						}
 						catch {
-							Write-PSFMessage -Level Verbose -String 'Generation.PostInsertPKFailed' -StringValues $colKey, $_
+							Write-PSFMessage -Level Verbose -Message ($script:strings.'Generation.PostInsertPKFailed' -f $colKey, $_)
 						}
 					}
 				}
@@ -440,10 +459,10 @@
 
 			if ($transaction) {
 				$generationFailed = $true
-				Write-PSFMessage -Level Warning -String 'Generation.RollingBack' -StringValues $tablePlan.FullName
+				Write-PSFMessage -Level Warning -Message ($script:strings.'Generation.RollingBack' -f $tablePlan.FullName)
 				try { $transaction.Rollback() }
 				catch {
-					Write-PSFMessage -Level Error -String 'Generation.RollbackCritical' -StringValues $_
+					Write-PSFMessage -Level Error -Message ($script:strings.'Generation.RollbackCritical' -f $_)
 				}
 				$transaction = $null
 				$totalInserted = 0
@@ -473,7 +492,7 @@
 	if ($fkReenableFailures.Count -gt 0) {
 		$generationFailed = $true
 		if ($transaction) {
-			try { $transaction.Rollback() } catch { Write-PSFMessage -Level Error -String 'Generation.FKReenableRollbackFailed' -StringValues $_ }
+			try { $transaction.Rollback() } catch { Write-PSFMessage -Level Error -Message ($script:strings.'Generation.FKReenableRollbackFailed' -f $_) }
 			$transaction = $null
 		}
 		Stop-PSFFunction -String 'Generation.FKReenableCritical' -StringValues ($fkReenableFailures -join ', ') -EnableException $true
@@ -483,13 +502,13 @@
 	if ($transaction -and -not $generationFailed) {
 		try {
 			$transaction.Commit()
-			Write-PSFMessage -Level Verbose -String 'Generation.TransactionCommitted'
+			Write-PSFMessage -Level Verbose -Message $script:strings.'Generation.TransactionCommitted'
 		}
 		catch {
-			Write-PSFMessage -Level Warning -String 'Generation.CommitFailed' -StringValues $_
+			Write-PSFMessage -Level Warning -Message ($script:strings.'Generation.CommitFailed' -f $_)
 			try { $transaction.Rollback() }
 			catch {
-				Write-PSFMessage -Level Error -String 'Generation.CommitRollbackCritical' -StringValues $_
+				Write-PSFMessage -Level Error -Message ($script:strings.'Generation.CommitRollbackCritical' -f $_)
 			}
 			$totalInserted = 0
 			$generationFailed = $true
@@ -500,7 +519,7 @@
 
 	$generationDuration = (Get-Date) - $generationStartTime
 	Write-PSFMessage -Level Host -Message ($script:strings.'Generation.Complete' -f $Plan.TableCount, $totalInserted)
-	Write-PSFMessage -Level Verbose -String 'Generation.AuditComplete' -StringValues $executingUser, $totalInserted, $generationDuration.TotalSeconds.ToString('F1'), $generationFailed
+	Write-PSFMessage -Level Verbose -Message ($script:strings.'Generation.AuditComplete' -f $executingUser, $totalInserted, $generationDuration.TotalSeconds.ToString('F1'), $generationFailed)
 
 	# Persistent audit log — append a JSON record for compliance/traceability
 	Write-SldgAuditRecord -Plan $Plan -TotalInserted $totalInserted -StartTime $generationStartTime `

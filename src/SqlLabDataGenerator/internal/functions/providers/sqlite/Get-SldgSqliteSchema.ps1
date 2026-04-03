@@ -148,6 +148,42 @@
 			}
 		}
 
+		# Extract CHECK constraints from CREATE TABLE SQL
+		$checkConstraintMap = @{}
+		$createCmd = $conn.CreateCommand()
+		try {
+			$createCmd.CommandText = "SELECT sql FROM sqlite_master WHERE type='table' AND name=`"$safeTableName`""
+			$createSql = $createCmd.ExecuteScalar()
+			if ($createSql) {
+				# Match inline column CHECK constraints: CHECK(expression)
+				# Use regex with timeout to prevent ReDoS on pathological CREATE TABLE statements
+				$regexTimeout = [timespan]::FromSeconds(2)
+				try {
+					# Match per-column CHECK: "colname" TYPE ... CHECK(expr)
+					# Also match table-level CHECK constraints and try to associate them by column name reference
+					$checkRegex = [regex]::new('CHECK\s*\(([^)]+)\)', 'IgnoreCase', $regexTimeout)
+					$checkMatches = $checkRegex.Matches($createSql)
+					foreach ($m in $checkMatches) {
+						$checkExpr = $m.Groups[1].Value.Trim()
+						# Try to associate the check with a specific column by finding which column name appears in it
+						foreach ($col in $columns) {
+							$escapedName = [regex]::Escape($col.name)
+							if ([regex]::IsMatch($checkExpr, "(?i)\b$escapedName\b", 'None', $regexTimeout)) {
+								if (-not $checkConstraintMap.ContainsKey($col.name)) { $checkConstraintMap[$col.name] = [System.Collections.Generic.List[string]]::new() }
+								$checkConstraintMap[$col.name].Add($checkExpr)
+						}
+						}
+					}
+				}
+				catch [System.Text.RegularExpressions.RegexMatchTimeoutException] {
+					Write-PSFMessage -Level Warning -Message ($script:strings.'Schema.SQLite.CheckParseTimeout' -f $tableName)
+				}
+			}
+		}
+		finally {
+			$createCmd.Dispose()
+		}
+
 		# Build column objects
 		$colObjects = foreach ($col in $columns) {
 			$fk = $fks | Where-Object { $_.from -eq $col.name } | Select-Object -First 1
@@ -195,7 +231,7 @@
 				SemanticType        = $null
 				Classification      = $null
 				GenerationRule      = $null
-				CheckConstraints    = @()
+				CheckConstraints    = if ($checkConstraintMap.ContainsKey($col.name)) { @($checkConstraintMap[$col.name]) } else { @() }
 				SchemaHint          = $null
 				ViewDetectedFormat  = $null
 			}

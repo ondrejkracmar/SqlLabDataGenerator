@@ -118,7 +118,7 @@ WHERE d.referenced_id IS NOT NULL
 ORDER BY TableSchema, TableName, ViewSchema, ViewName
 "@
 
-	Write-PSFMessage -Level Verbose -String 'Schema.SqlServer.Retrieved' -StringValues $tables.Rows.Count, $columns.Rows.Count, $foreignKeys.Rows.Count
+	Write-PSFMessage -Level Verbose -Message ($script:strings.'Schema.SqlServer.Retrieved' -f $tables.Rows.Count, $columns.Rows.Count, $foreignKeys.Rows.Count)
 
 	# Build normalized schema model
 	ConvertTo-SldgSchemaModel -Tables $tables -Columns $columns -ForeignKeys $foreignKeys `

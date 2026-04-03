@@ -50,7 +50,7 @@
 		}
 	}
 
-	$script:SldgState.Providers[$Name] = [SqlLabDataGenerator.Provider]@{
+	$script:SldgState.Providers[$Name] = [SqlLabDataGenerator.SqlProvider]@{
 		Name        = $Name
 		FunctionMap = $FunctionMap
 		Registered  = Get-Date

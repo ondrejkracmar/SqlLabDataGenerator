@@ -161,7 +161,7 @@
 			Write-PSFMessage -Level Host -Message ($script:strings.'Scenario.AutoDetected' -f $bestMatch, $bestScore)
 		}
 		else {
-			Write-PSFMessage -Level Verbose -String 'Scenario.NoMatch' -StringValues $bestScore
+			Write-PSFMessage -Level Verbose -Message ($script:strings.'Scenario.NoMatch' -f $bestScore)
 			return $null
 		}
 	}

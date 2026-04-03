@@ -181,6 +181,9 @@
 	'AI.SchemaAnalysisApplying'              = 'Applying schema analysis notes for {0} tables (two-tier AI)'
 	'AI.BatchSkipped'                        = "AI batch generation skipped for table '{0}': AI provider is 'None'."
 	'AI.BatchNoResponse'                     = "AI batch generation for table '{0}' returned no response."
+	'AI.BatchFallbackWarning'                = "AI generation failed for table '{0}'. Falling back to pattern-based generators - data quality may be reduced."
+	'AI.CircuitBreakerOpen'                  = 'AI circuit breaker is OPEN after {0} consecutive failures. AI calls will be skipped for {1}s. Pattern-based generators will be used instead.'
+	'AI.CircuitBreakerReset'                 = 'AI circuit breaker reset after cooldown period. Retrying AI requests.'
 	'AI.BatchNotArray'                       = 'AI response is not an array'
 	'AI.AnalysisBatch'                       = 'AI analysis batch {0}/{1}: {2}'
 	'AI.LocaleMultiple'                      = 'Multiple locales specified: {0}. Distribute rows roughly evenly across these locales. Each row must be culturally consistent within its locale — a person from one culture must have names, addresses, phone numbers, and other values matching that same culture. Do NOT mix languages within a single row.'
@@ -299,6 +302,7 @@
 	# Internal: FK Context-Aware Batch
 	'FKContext.ParentCountExceedsLimit'      = "FK parent count ({0}) exceeds limit ({1}) for '{2}'. Using flat batch."
 	'FKContext.GroupingRows'                 = "FK-context-aware generation for '{0}': grouping {1} rows by '{2}' ({3} parent values)"
+	'FKContext.MultiFKGrouping'             = "Multi-FK context-aware generation for '{0}': grouping {1} rows by primary FK '{2}' + secondary FK '{3}'"
 
 	# Internal: AI Batch Generation
 	'AI.BatchMissingColumns'                 = "AI response for '{0}' missing columns: {1}. Using NULL for missing values."

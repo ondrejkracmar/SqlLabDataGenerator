@@ -101,7 +101,7 @@
 		Global: GPT-4o for classification and planning. Override: Ollama for batch data generation.
 	#>
 	[OutputType([SqlLabDataGenerator.AIProviderInfo])]
-	[CmdletBinding()]
+	[CmdletBinding(SupportsShouldProcess)]
 	param (
 		[Parameter(Mandatory)]
 		[ValidateSet('None', 'OpenAI', 'AzureOpenAI', 'Ollama')]
@@ -131,6 +131,25 @@
 		[string]$Purpose
 	)
 
+	if (-not $PSCmdlet.ShouldProcess($Provider, 'Set AI provider')) { return }
+
+	# Helper: validate endpoint URI for cloud providers
+	$validateEndpoint = {
+		param ([string]$EndpointUri, [string]$ProviderName)
+		if ($ProviderName -notin @('OpenAI', 'AzureOpenAI')) { return }
+		try {
+			$parsedUri = [System.Uri]::new($EndpointUri)
+			if ($parsedUri.UserInfo) {
+				Stop-PSFFunction -String 'AI.EndpointCredentialsForbidden' -EnableException $true
+			}
+			if ($parsedUri.Scheme -ne 'https') {
+				Stop-PSFFunction -String 'AI.EndpointHttpsForbidden' -StringValues $ProviderName, $parsedUri.Scheme, $parsedUri.Host -EnableException $true
+			}
+		} catch [System.UriFormatException] {
+			Stop-PSFFunction -String 'AI.EndpointInvalidUri' -StringValues $ProviderName -EnableException $true
+		}
+	}
+
 	# Per-purpose override mode
 	if ($Purpose) {
 		$override = @{ Provider = $Provider }
@@ -139,20 +158,7 @@
 		elseif ($Provider -eq 'Ollama') { $override['Model'] = 'llama3' }
 
 		if ($Endpoint) {
-			# Enforce HTTPS for cloud providers (same validation as global path)
-			if ($Provider -in @('OpenAI', 'AzureOpenAI')) {
-				try {
-					$parsedUri = [System.Uri]::new($Endpoint)
-					if ($parsedUri.UserInfo) {
-						Stop-PSFFunction -String 'AI.EndpointCredentialsForbidden' -EnableException $true
-					}
-					if ($parsedUri.Scheme -ne 'https') {
-						Stop-PSFFunction -String 'AI.EndpointHttpsForbidden' -StringValues $Provider, $parsedUri.Scheme, $parsedUri.Host -EnableException $true
-					}
-				} catch [System.UriFormatException] {
-					Stop-PSFFunction -String 'AI.EndpointInvalidUri' -StringValues $Provider -EnableException $true
-				}
-			}
+			& $validateEndpoint $Endpoint $Provider
 			$override['Endpoint'] = $Endpoint
 		}
 		elseif ($Provider -eq 'Ollama') { $override['Endpoint'] = 'http://localhost:11434' }
@@ -168,7 +174,7 @@
 		if ($PSBoundParameters.ContainsKey('Temperature')) { $override['Temperature'] = $Temperature }
 
 		$script:SldgState.AIModelOverrides[$Purpose] = $override
-		Write-PSFMessage -Level Host -String 'AI.OverrideSet' -StringValues $Purpose, $Provider, $override['Model']
+		Write-PSFMessage -Level Host -Message ($script:strings.'AI.OverrideSet' -f $Purpose, $Provider, $override['Model'])
 
 		return [SqlLabDataGenerator.AIModelOverride]@{
 			Purpose    = $Purpose
@@ -192,20 +198,7 @@
 
 	# Endpoint
 	if ($Endpoint) {
-		# Enforce HTTPS for cloud providers to protect API keys in transit
-		if ($Provider -in @('OpenAI', 'AzureOpenAI')) {
-			try {
-				$parsedUri = [System.Uri]::new($Endpoint)
-				if ($parsedUri.UserInfo) {
-					Stop-PSFFunction -String 'AI.EndpointCredentialsForbidden' -EnableException $true
-				}
-				if ($parsedUri.Scheme -ne 'https') {
-					Stop-PSFFunction -String 'AI.EndpointHttpsForbidden' -StringValues $Provider, $parsedUri.Scheme, $parsedUri.Host -EnableException $true
-				}
-			} catch [System.UriFormatException] {
-				Stop-PSFFunction -String 'AI.EndpointInvalidUri' -StringValues $Provider -EnableException $true
-			}
-		}
+		& $validateEndpoint $Endpoint $Provider
 		Set-PSFConfig -FullName 'SqlLabDataGenerator.AI.Endpoint' -Value $Endpoint
 	}
 	elseif ($Provider -eq 'Ollama') {
@@ -236,7 +229,7 @@
 
 	# SkipCertificateCheck (Ollama)
 	if ($SkipCertificateCheck) {
-		Write-PSFMessage -Level Warning -String 'AI.TLSDisabledWarning'
+		Write-PSFMessage -Level Warning -Message $script:strings.'AI.TLSDisabledWarning'
 		Set-PSFConfig -FullName 'SqlLabDataGenerator.AI.Ollama.SkipCertificateCheck' -Value $true
 	}
 

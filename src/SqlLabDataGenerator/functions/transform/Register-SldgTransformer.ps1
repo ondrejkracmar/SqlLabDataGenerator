@@ -32,7 +32,7 @@
 		Registers a transformer that converts generated data to CSV-ready user objects.
 	#>
 	[OutputType([void])]
-	[CmdletBinding()]
+	[CmdletBinding(SupportsShouldProcess)]
 	param (
 		[Parameter(Mandatory)]
 		[ValidateNotNullOrEmpty()]
@@ -50,6 +50,8 @@
 
 		[string]$OutputType
 	)
+
+	if (-not $PSCmdlet.ShouldProcess($Name, 'Register transformer')) { return }
 
 	Register-SldgTransformerInternal -Name $Name -Description $Description `
 		-TransformFunction $TransformFunction `
