@@ -146,6 +146,17 @@
 	$tableIndex = 0
 	$tableTotal = $Plan.Tables.Count
 
+	# Auto-enable AI row-level generation when the plan was created with -UseAI
+	$aiGenOverrideApplied = $false
+	if ($Plan.UseAIGeneration) {
+		$currentAIGen = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.Generation.AIGeneration'
+		if (-not $currentAIGen) {
+			Set-PSFConfig -FullName 'SqlLabDataGenerator.Generation.AIGeneration' -Value $true
+			$aiGenOverrideApplied = $true
+			Write-PSFMessage -Level Verbose -Message 'Auto-enabled AI row generation from plan UseAIGeneration flag.'
+		}
+	}
+
 	# A2: Pre-scan and disable FK constraints for circular dependency tables before insertion
 	$circularTables = @($Plan.Tables | Where-Object { $_.HasCircularDependency })
 	$disabledFKInfo = $null
@@ -520,6 +531,11 @@
 	$generationDuration = (Get-Date) - $generationStartTime
 	Write-PSFMessage -Level Host -Message ($script:strings.'Generation.Complete' -f $Plan.TableCount, $totalInserted)
 	Write-PSFMessage -Level Verbose -Message ($script:strings.'Generation.AuditComplete' -f $executingUser, $totalInserted, $generationDuration.TotalSeconds.ToString('F1'), $generationFailed)
+
+	# Restore AI generation config if we overrode it
+	if ($aiGenOverrideApplied) {
+		Set-PSFConfig -FullName 'SqlLabDataGenerator.Generation.AIGeneration' -Value $false
+	}
 
 	# Persistent audit log — append a JSON record for compliance/traceability
 	Write-SldgAuditRecord -Plan $Plan -TotalInserted $totalInserted -StartTime $generationStartTime `

@@ -185,6 +185,7 @@
 	'AI.CircuitBreakerOpen'                  = 'AI circuit breaker is OPEN after {0} consecutive failures. AI calls will be skipped for {1}s. Pattern-based generators will be used instead.'
 	'AI.CircuitBreakerReset'                 = 'AI circuit breaker reset after cooldown period. Retrying AI requests.'
 	'AI.BatchNotArray'                       = 'AI response is not an array'
+	'AI.BatchLoremIpsumDetected'             = "AI batch for table '{0}' contained Lorem Ipsum / Latin filler text. Discarding AI response — falling back to pattern-based generators."
 	'AI.AnalysisBatch'                       = 'AI analysis batch {0}/{1}: {2}'
 	'AI.LocaleMultiple'                      = 'Multiple locales specified: {0}. Distribute rows roughly evenly across these locales. Each row must be culturally consistent within its locale — a person from one culture must have names, addresses, phone numbers, and other values matching that same culture. Do NOT mix languages within a single row. NEVER use Lorem Ipsum, Latin filler, or placeholder text — all values must be real, meaningful words in the appropriate locale language.'
 	'AI.LocaleSingle'                        = 'Generate all data using real, meaningful words in the native language of {0}. NEVER use Lorem Ipsum, Latin filler, or placeholder text.'

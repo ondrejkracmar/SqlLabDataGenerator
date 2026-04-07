@@ -57,10 +57,11 @@
 	Write-PSFMessage -Level Host -Message ($script:strings.'Profile.Exporting' -f $Path)
 
 	$export = @{
-		database  = $Plan.Database
-		mode      = $Plan.Mode
-		createdAt = (Get-Date -Format 'o')
-		tables    = @{}
+		database         = $Plan.Database
+		mode             = $Plan.Mode
+		useAIGeneration  = $Plan.UseAIGeneration
+		createdAt        = (Get-Date -Format 'o')
+		tables           = @{}
 	}
 
 	foreach ($tablePlan in $Plan.Tables) {

@@ -77,6 +77,11 @@
 	$ruleCount = 0
 	$columnOverrides = 0
 
+	# Restore UseAIGeneration flag from profile
+	if ($profileData.useAIGeneration) {
+		$Plan.UseAIGeneration = $true
+	}
+
 	if ($profileData.tables) {
 		$tableNames = $profileData.tables.PSObject.Properties.Name
 		foreach ($tableName in $tableNames) {

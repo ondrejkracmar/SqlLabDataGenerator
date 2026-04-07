@@ -198,15 +198,16 @@
 	}
 
 	$plan = [SqlLabDataGenerator.GenerationPlan]@{
-		Database       = $Schema.Database
-		Mode           = $Mode
-		Tables         = $tablePlans.ToArray()
-		TableCount     = $tablePlans.Count
-		TotalRows      = ($tablePlans | Measure-Object -Property RowCount -Sum).Sum
-		GeneratorMap   = $generatorMap
-		CreatedAt      = Get-Date
-		GenerationRules = @{}
-		AIAdvice       = $aiAdvice
+		Database         = $Schema.Database
+		Mode             = $Mode
+		Tables           = $tablePlans.ToArray()
+		TableCount       = $tablePlans.Count
+		TotalRows        = ($tablePlans | Measure-Object -Property RowCount -Sum).Sum
+		GeneratorMap     = $generatorMap
+		CreatedAt        = Get-Date
+		GenerationRules  = @{}
+		AIAdvice         = $aiAdvice
+		UseAIGeneration  = [bool]$UseAI
 	}
 
 	# Apply AI-suggested custom rules

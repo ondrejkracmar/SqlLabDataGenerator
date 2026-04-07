@@ -28,6 +28,7 @@ $exceptions['LegalSurplus'] = @(
 	'AI.BatchMissingColumns'
 	'AI.BatchNoResponse'
 	'AI.BatchNotArray'
+	'AI.BatchLoremIpsumDetected'
 	'AI.BatchParseFailed'
 	'AI.BatchRowCountMismatch'
 	'AI.BatchSkipped'

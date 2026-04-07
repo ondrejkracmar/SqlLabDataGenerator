@@ -35,6 +35,9 @@ namespace SqlLabDataGenerator
         /// <summary>AI-generated plan advice, if available.</summary>
         public AIPlanAdvice AIAdvice { get; set; }
 
+        /// <summary>When true, AI batch generation is used for row-level data (set by -UseAI on New-SldgGenerationPlan).</summary>
+        public bool UseAIGeneration { get; set; }
+
         /// <summary>Initializes a new instance of the <see cref="GenerationPlan"/> class.</summary>
         public GenerationPlan() { }
     }

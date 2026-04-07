@@ -247,6 +247,35 @@
 				break
 			}
 
+			# Detect Lorem Ipsum / Latin filler text in AI responses — reject entire batch if found.
+			# AI models sometimes generate Latin placeholder text despite explicit instructions not to.
+			$loremDetected = $false
+			$loremPattern = '\b(lorem\s+ipsum|dolor\s+sit\s+amet|consectetur\s+adipiscing|sed\s+do\s+eiusmod|tempor\s+incididunt|labore\s+et\s+dolore|magna\s+aliqua|ut\s+enim\s+ad\s+minim|veniam\s+quis\s+nostrud|exercitation\s+ullamco|laboris\s+nisi\s+ut|aliquip\s+ex\s+ea|commodo\s+consequat|duis\s+aute\s+irure|reprehenderit\s+in\s+voluptate|velit\s+esse\s+cillum|fugiat\s+nulla\s+pariatur|excepteur\s+sint\s+occaecat|cupidatat\s+non\s+proident|sunt\s+in\s+culpa)\b'
+			# Also catch single Lorem Ipsum words densely packed — 3+ of these in one string value is suspicious
+			$loremWords = 'lorem|ipsum|dolor|amet|elit|adipiscing|consectetur|eiusmod|tempor|incididunt|labore|dolore|aliqua|veniam|nostrud|exercitation|ullamco|laboris|aliquip|consequat|irure|reprehenderit|voluptate|cillum|fugiat|pariatur|excepteur|occaecat|cupidatat|proident|officia|deserunt|mollit|anim|laborum'
+			foreach ($row in $parsed) {
+				if ($loremDetected) { break }
+				foreach ($prop in $row.psobject.Properties) {
+					if ($prop.Value -is [string] -and $prop.Value.Length -gt 5) {
+						# Check for multi-word Latin phrases
+						if ($prop.Value -match $loremPattern) {
+							$loremDetected = $true
+							break
+						}
+						# Check for dense concentration of single Lorem Ipsum words (3+ matches in one value)
+						$wordMatches = [regex]::Matches($prop.Value, $loremWords, 'IgnoreCase')
+						if ($wordMatches.Count -ge 3) {
+							$loremDetected = $true
+							break
+						}
+					}
+				}
+			}
+			if ($loremDetected) {
+				Write-PSFMessage -Level Warning -Message ($script:strings.'AI.BatchLoremIpsumDetected' -f $TableName)
+				break
+			}
+
 			foreach ($row in $parsed) {
 				$rowHash = @{}
 				# Validate AI returned all expected columns

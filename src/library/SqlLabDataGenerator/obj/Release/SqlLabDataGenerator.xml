@@ -328,6 +328,9 @@
         <member name="P:SqlLabDataGenerator.GenerationPlan.AIAdvice">
             <summary>AI-generated plan advice, if available.</summary>
         </member>
+        <member name="P:SqlLabDataGenerator.GenerationPlan.UseAIGeneration">
+            <summary>When true, AI batch generation is used for row-level data (set by -UseAI on New-SldgGenerationPlan).</summary>
+        </member>
         <member name="M:SqlLabDataGenerator.GenerationPlan.#ctor">
             <summary>Initializes a new instance of the <see cref="T:SqlLabDataGenerator.GenerationPlan"/> class.</summary>
         </member>
