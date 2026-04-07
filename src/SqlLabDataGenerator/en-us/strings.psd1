@@ -186,11 +186,11 @@
 	'AI.CircuitBreakerReset'                 = 'AI circuit breaker reset after cooldown period. Retrying AI requests.'
 	'AI.BatchNotArray'                       = 'AI response is not an array'
 	'AI.AnalysisBatch'                       = 'AI analysis batch {0}/{1}: {2}'
-	'AI.LocaleMultiple'                      = 'Multiple locales specified: {0}. Distribute rows roughly evenly across these locales. Each row must be culturally consistent within its locale — a person from one culture must have names, addresses, phone numbers, and other values matching that same culture. Do NOT mix languages within a single row.'
-	'AI.LocaleSingle'                        = 'Generate all data in the native language and cultural conventions of {0}.'
+	'AI.LocaleMultiple'                      = 'Multiple locales specified: {0}. Distribute rows roughly evenly across these locales. Each row must be culturally consistent within its locale — a person from one culture must have names, addresses, phone numbers, and other values matching that same culture. Do NOT mix languages within a single row. NEVER use Lorem Ipsum, Latin filler, or placeholder text — all values must be real, meaningful words in the appropriate locale language.'
+	'AI.LocaleSingle'                        = 'Generate all data using real, meaningful words in the native language of {0}. NEVER use Lorem Ipsum, Latin filler, or placeholder text.'
 	'AI.IndustryContext'                     = 'Industry context: {0} — use industry-specific terminology and realistic values.'
 	'AI.IndustryAnalysisContext'             = 'The database is from the {0} industry. Use industry-specific terminology, common patterns, realistic value ranges, and domain knowledge for generation hints.'
-	'AI.BatchUserMessage'                    = 'Generate {0} rows of test data for table {1} with locale {2}. Return ONLY the JSON array.'
+	'AI.BatchUserMessage'                    = 'Generate {0} rows of realistic test data for table {1} in locale {2}. Use real meaningful words — NO Lorem Ipsum or Latin filler. Return ONLY the JSON array.'
 	'AI.AnalysisUserMessage'                 = 'Analyze this database schema and provide detailed semantic classification for every column:'
 
 	# Connection (provider-specific)

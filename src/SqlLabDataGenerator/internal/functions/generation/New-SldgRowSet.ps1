@@ -359,7 +359,23 @@
 				elseif ($aiBatch -and -not $customRule -and (-not $col.ForeignKey -or -not $ForeignKeyValues) -and $aiBatchIndex -lt $aiBatch.Count) {
 					$aiRow = $aiBatch[$aiBatchIndex]
 					if ($aiRow.ContainsKey($col.ColumnName) -and $aiRow[$col.ColumnName] -isnot [DBNull]) {
-						$value = $aiRow[$col.ColumnName]
+						$aiVal = $aiRow[$col.ColumnName]
+						# Discard AI value if column is numeric but AI returned a non-numeric string
+						# (e.g. AI returns "US" for an int FK column) — let downstream generators handle it
+						if ($aiVal -is [string] -and $col.DataType -match '^(tinyint|smallint|int|bigint)$') {
+							$numTest = 0
+							if ([long]::TryParse($aiVal, [ref]$numTest)) {
+								$value = $aiVal
+							}
+							# else: skip this AI value, fall through to FK lookup or standard generator
+						}
+						# Discard AI value if it exceeds MaxLength for a unique column — truncated values
+						# cause repeated collisions that exhaust the retry loop (e.g. "NorthAmerica" → "Nor")
+						elseif ($aiVal -is [string] -and $col.MaxLength -and $col.MaxLength -gt 0 -and $aiVal.Length -gt $col.MaxLength -and ($col.IsUnique -or $col.IsPrimaryKey -or $uniqueTracker.ContainsKey($col.ColumnName))) {
+							# skip — let standard generator produce a correctly-sized value
+						} else {
+							$value = $aiVal
+						}
 					}
 				}
 
@@ -403,11 +419,12 @@
 				# Clamp/convert values BEFORE uniqueness check so the tracked value matches what gets inserted
 				if ($value -isnot [DBNull]) {
 					# Clamp numeric values to valid SQL type ranges (AI can generate out-of-range values)
+					# Wrap integer casts in try/catch — AI may return non-numeric strings (e.g. "US") for integer columns
 					switch ($col.DataType.ToLower()) {
-						'tinyint' { $value = [Math]::Max(0, [Math]::Min(255, [int]$value)) }
-						'smallint' { $value = [Math]::Max(-32768, [Math]::Min(32767, [int]$value)) }
-						'int' { $value = [Math]::Max(-2147483648, [Math]::Min(2147483647, [long]$value)) }
-						'bigint' { $value = [Math]::Max([long]::MinValue, [Math]::Min([long]::MaxValue, [long]$value)) }
+						'tinyint' { try { $value = [Math]::Max(0, [Math]::Min(255, [int]$value)) } catch { $value = Get-Random -Minimum 0 -Maximum 256 } }
+						'smallint' { try { $value = [Math]::Max(-32768, [Math]::Min(32767, [int]$value)) } catch { $value = Get-Random -Minimum 1 -Maximum 32768 } }
+						'int' { try { $value = [Math]::Max(-2147483648, [Math]::Min(2147483647, [long]$value)) } catch { $value = Get-Random -Minimum 1 -Maximum 2147483647 } }
+						'bigint' { try { $value = [Math]::Max([long]::MinValue, [Math]::Min([long]::MaxValue, [long]$value)) } catch { $value = [long](Get-Random -Minimum 1 -Maximum 2147483647) } }
 						{ $_ -in @('decimal', 'numeric') } { try { $value = [decimal]$value } catch { $value = [decimal]0 } }
 						{ $_ -in @('float', 'real') } { try { $value = [double]$value } catch { $value = [double]0 } }
 						{ $_ -eq 'money' -or $_ -eq 'smallmoney' } { try { $value = [decimal]$value } catch { $value = [decimal]0 } }

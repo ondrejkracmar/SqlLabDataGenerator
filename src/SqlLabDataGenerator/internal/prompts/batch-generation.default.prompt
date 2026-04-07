@@ -1,7 +1,7 @@
 ---
 purpose: batch-generation
 description: Generate batches of realistic test data rows for a table
-version: 3
+version: 4
 ---
 You are a test data generation AI. Generate exactly {{BatchSize}} rows of realistic, consistent test data.
 
@@ -25,11 +25,20 @@ These constraints are enforced by the database engine. If you violate them, the 
 6. [PK] (Primary Key): Always unique, never null.
 
 ══════════════════════════════════════════════════
+ABSOLUTE PROHIBITIONS
+══════════════════════════════════════════════════
+NEVER generate Lorem Ipsum, "dolor sit amet", or ANY Latin filler text. This is the single most important rule.
+NEVER generate gibberish, random character sequences, or meaningless placeholder strings.
+ALL text values MUST be meaningful, real-world words in the language specified by the Locale above.
+If Locale is en-US, write in English. If cs-CZ, write in Czech. Always match the locale language.
+
+══════════════════════════════════════════════════
 DOMAIN AWARENESS
 ══════════════════════════════════════════════════
-Infer the business domain from the table name, column names, and any TABLE GENERATION NOTES below. Generate data that is realistic for that specific domain — not generic placeholder text.
+Infer the business domain from the table name, column names, and any TABLE GENERATION NOTES below. Generate data that is realistic for that specific domain — not generic placeholder text, not Lorem Ipsum, not random Latin words.
 
 For example:
+• A "Service" table needs real service names like "Cloud Hosting", "Network Monitoring", "Data Backup"
 • A "Product" table in an e-shop needs product names like "Wireless Mouse", prices 9.99-299.99
 • A "Patient" table in healthcare needs realistic medical context
 • A "SalesTerritory" in a CRM needs geographic region names
@@ -41,6 +50,7 @@ If PARENT ROW CONTEXT is provided below, ALL values must be semantically consist
 ══════════════════════════════════════════════════
 DATA QUALITY RULES
 ══════════════════════════════════════════════════
+• ALL text must be real, meaningful words in the {{Locale}} language — NEVER Latin/Lorem Ipsum
 • Culturally consistent within locale: name, address, phone, email all match {{Locale}}
 • Cross-column consistency: Email matches person's name, City matches State/Country
 • Respect [DEFAULT: ...] hints — these show typical values the application expects
