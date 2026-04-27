@@ -27,6 +27,8 @@
 
 	if (-not $TablePlan.ForeignKeys -or $TablePlan.ForeignKeys.Count -eq 0) { return }
 
+	$fallbackStats = [System.Collections.Generic.List[object]]::new()
+
 	# Group FK columns by parent table to minimize database round-trips
 	$fkByParent = @{}
 	foreach ($fk in $TablePlan.ForeignKeys) {
@@ -75,6 +77,11 @@
 				$refKey = "$($fk.ReferencedSchema).$($fk.ReferencedTable).$($fk.ReferencedColumn)"
 				if ($colLists[$fk.ReferencedColumn].Count -gt 0) {
 					$FkValues[$refKey] = $colLists[$fk.ReferencedColumn].ToArray()
+					$fallbackStats.Add([PSCustomObject]@{
+						ReferenceKey = $refKey
+						ValueCount   = $colLists[$fk.ReferencedColumn].Count
+						TableName    = $TablePlan.FullName
+					})
 					Write-PSFMessage -Level Verbose -Message ($script:strings.'Generation.FKFallbackLoaded' -f $refKey, $colLists[$fk.ReferencedColumn].Count)
 				}
 			}
@@ -86,4 +93,6 @@
 			}
 		}
 	}
+
+	$fallbackStats.ToArray()
 }

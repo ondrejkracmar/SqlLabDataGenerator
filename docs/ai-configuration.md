@@ -736,8 +736,10 @@ Set-SldgGenerationRule -Plan $plan -TableName 'dbo.AuditLog' `
 ### Step 5 — Generate
 
 ```powershell
-$result = Invoke-SldgDataGeneration -Plan $plan
+$result = Invoke-SldgDataGeneration -Plan $plan -UseTransaction `
+    -ValidateAfterGeneration -FailOnValidationError -FailOnSkippedRows
 $result.Tables | Format-Table TableName, RowCount, Success -AutoSize
+$result.QualityReport
 ```
 
 ```
@@ -760,11 +762,13 @@ Generation order follows FK dependencies:
 5. `dbo.TimeEntry` — depends on Task and Employee
 6. `dbo.AuditLog` — no FK dependencies
 
-### Step 6 — Validate and Inspect
+### Step 6 — Inspect Validation
 
 ```powershell
-Test-SldgGeneratedData -Schema $analyzed
+$result.ValidationResults | Format-Table TableName, CheckType, Passed, Severity, Message -AutoSize
 ```
+
+The strict generation switches run `Test-SldgGeneratedData` after insert, attach the checks to `ValidationResults`, and fail the run when errors or skipped rows are detected. You can still run `Test-SldgGeneratedData -Schema $analyzed` later for an ad hoc validation pass.
 
 ```
 TableName        Checks   Passed  Failed
@@ -955,8 +959,10 @@ Set-SldgGenerationRule -Plan $plan -TableName 'dbo.Navsteva' `
 ### Step 5 — Generate and Export
 
 ```powershell
-$result = Invoke-SldgDataGeneration -Plan $plan
-$result | Format-Table TableName, RowCount, Success
+$result = Invoke-SldgDataGeneration -Plan $plan -UseTransaction `
+    -ValidateAfterGeneration -FailOnValidationError -FailOnSkippedRows
+$result.Tables | Format-Table TableName, RowCount, Success
+$result.QualityReport
 ```
 
 ```

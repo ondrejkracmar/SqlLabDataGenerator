@@ -195,6 +195,16 @@ Describe "Invoke-SldgDataGeneration" {
 				$row['FirstName'] | Should -Not -BeNullOrEmpty
 			}
 		}
+
+		It "Reports requested and inserted rows in QualityReport" {
+			$result = Invoke-SldgDataGeneration -Plan $script:realPlan -NoInsert -PassThru -ErrorAction SilentlyContinue
+			$result.QualityReport.RequestedRows | Should -Be 5
+			$result.QualityReport.InsertedRows | Should -Be 5
+			$result.QualityReport.SkippedRows | Should -Be 0
+			$result.QualityReport.FailedRows | Should -Be 0
+			$result.Tables[0].RequestedRows | Should -Be 5
+			$result.Tables[0].SkippedRows | Should -Be 0
+		}
 	}
 
 	Context "Parallel Parameter Validation" {
@@ -206,6 +216,13 @@ Describe "Invoke-SldgDataGeneration" {
 		It "Has ThrottleLimit parameter" {
 			$cmd = Get-Command Invoke-SldgDataGeneration
 			$cmd.Parameters.ContainsKey('ThrottleLimit') | Should -BeTrue
+		}
+
+		It "Has generation quality gate parameters" {
+			$cmd = Get-Command Invoke-SldgDataGeneration
+			$cmd.Parameters['ValidateAfterGeneration'].SwitchParameter | Should -BeTrue
+			$cmd.Parameters['FailOnValidationError'].SwitchParameter | Should -BeTrue
+			$cmd.Parameters['FailOnSkippedRows'].SwitchParameter | Should -BeTrue
 		}
 
 		It "Succeeds with Parallel flag on empty plan in NoInsert mode" {
@@ -221,6 +238,84 @@ Describe "Invoke-SldgDataGeneration" {
 			$result = Invoke-SldgDataGeneration -Plan $emptyPlan -NoInsert -Parallel
 			$result | Should -Not -BeNullOrEmpty
 			$result.TotalRows | Should -Be 0
+		}
+	}
+
+	Context "Quality Reporting" {
+		BeforeAll {
+			& $module { $script:SldgState.ActiveConnection = $null }
+			$script:qualityPlan = [PSCustomObject]@{
+				Database        = 'TestDB'
+				Mode            = 'Synthetic'
+				Tables          = @()
+				TableCount      = 0
+				GeneratorMap    = @{}
+				GenerationRules = @{}
+			}
+		}
+
+		It "Adds QualityReport to GenerationResult" {
+			$result = Invoke-SldgDataGeneration -Plan $script:qualityPlan -NoInsert
+			$result.PSObject.Properties.Name | Should -Contain 'QualityReport'
+			$result.QualityReport.RequestedRows | Should -Be 0
+			$result.QualityReport.InsertedRows | Should -Be 0
+			$result.QualityReport.SkippedRows | Should -Be 0
+			$result.QualityReport.ValidationRun | Should -BeFalse
+		}
+
+		It "Adds ValidationResults to GenerationResult" {
+			$result = Invoke-SldgDataGeneration -Plan $script:qualityPlan -NoInsert
+			$result.PSObject.Properties.Name | Should -Contain 'ValidationResults'
+			@($result.ValidationResults).Count | Should -Be 0
+		}
+
+		It "Requires inserted data for ValidateAfterGeneration" {
+			{ Invoke-SldgDataGeneration -Plan $script:qualityPlan -NoInsert -ValidateAfterGeneration -ErrorAction Stop } | Should -Throw
+		}
+
+		It "Reports failed rows separately from skipped rows" {
+			$badTable = [PSCustomObject]@{
+				SchemaName  = 'dbo'
+				TableName   = 'BrokenChild'
+				FullName    = 'dbo.BrokenChild'
+				RowCount    = 3
+				Columns     = @(
+					[PSCustomObject]@{
+						ColumnName   = 'ParentId'
+						DataType     = 'int'
+						SemanticType = $null
+						Skip         = $false
+						IsPrimaryKey = $false
+						IsUnique     = $false
+						IsNullable   = $false
+						MaxLength    = $null
+						ForeignKey   = [PSCustomObject]@{
+							ReferencedSchema = 'dbo'
+							ReferencedTable  = 'Parent'
+							ReferencedColumn = 'Id'
+						}
+						IsPII        = $false
+						CustomRule   = $null
+					}
+				)
+				ForeignKeys = @()
+			}
+			$badPlan = [PSCustomObject]@{
+				Database        = 'TestDB'
+				Mode            = 'Synthetic'
+				Tables          = @($badTable)
+				TableCount      = 1
+				GeneratorMap    = @{}
+				GenerationRules = @{}
+			}
+
+			$result = Invoke-SldgDataGeneration -Plan $badPlan -NoInsert -ErrorAction SilentlyContinue
+
+			$result.FailureCount | Should -Be 1
+			$result.QualityReport.FailedRows | Should -Be 3
+			$result.QualityReport.SkippedRows | Should -Be 0
+			$result.Tables[0].RequestedRows | Should -Be 3
+			$result.Tables[0].SkippedRows | Should -Be 0
 		}
 	}
 }

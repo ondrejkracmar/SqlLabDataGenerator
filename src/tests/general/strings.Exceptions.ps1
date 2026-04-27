@@ -143,6 +143,7 @@ $exceptions['LegalSurplus'] = @(
 	'Generation.RollingBack'
 	'Generation.RowsSkipped'
 	'Generation.SkippedDueToParent'
+	'Generation.SkippedRowsStrictFailure'
 	'Generation.SkippingComputed'
 	'Generation.SkippingSpatial'
 	'Generation.Starting'
@@ -264,7 +265,9 @@ $exceptions['LegalSurplus'] = @(
 	'Validation.Complete'
 	'Validation.FKCheck'
 	'Validation.FKViolation'
+	'Validation.RequiresInsertedData'
 	'Validation.Starting'
+	'Validation.StrictFailure'
 	'Validation.UniqueCheck'
 	'Validation.UniqueViolation'
 

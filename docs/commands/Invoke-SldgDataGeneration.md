@@ -21,7 +21,8 @@ Executes data generation according to a generation plan.
 
 ```
 Invoke-SldgDataGeneration [-Plan] <Object> [[-ConnectionInfo] <Object>] [-NoInsert] [-PassThru]
- [-WhatIf] [-Confirm] [<CommonParameters>]
+ [-UseTransaction] [-Parallel] [[-ThrottleLimit] <Int32>] [-ValidateAfterGeneration]
+ [-FailOnValidationError] [-FailOnSkippedRows] [-WhatIf] [-Confirm] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -30,6 +31,10 @@ Generates synthetic data for all tables in the plan, respecting FK dependencies,
 unique constraints, and custom rules.
 Data is generated in topological order
 so that parent tables are populated before child tables.
+
+The result includes a `QualityReport` property with requested, inserted, skipped, failed,
+FK fallback, and validation counts. Use `-ValidateAfterGeneration` to run database integrity
+checks immediately after insertion and attach `ValidationResults` to the generation result.
 
 ## EXAMPLES
 
@@ -44,6 +49,13 @@ Generates and inserts data for all tables in the plan.
 $result = Invoke-SldgDataGeneration -Plan $plan -NoInsert -PassThru
 
 Generates data in memory without inserting.
+
+### EXAMPLE 3
+
+$result = Invoke-SldgDataGeneration -Plan $plan -ValidateAfterGeneration -FailOnValidationError -FailOnSkippedRows
+
+Generates and inserts data, validates FK/unique/data type constraints after generation, and fails
+the run if validation errors or skipped inserted rows are detected.
 
 ## PARAMETERS
 
@@ -82,6 +94,49 @@ Aliases: []
 ParameterSets:
 - Name: (All)
   Position: 1
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+### -FailOnSkippedRows
+
+Fails the generation run when a provider inserts fewer rows than requested for any table.
+This catches silent provider behaviors such as ignored constraint violations.
+
+```yaml
+Type: System.Management.Automation.SwitchParameter
+DefaultValue: False
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+### -FailOnValidationError
+
+Fails the generation run when `-ValidateAfterGeneration` finds validation errors.
+
+```yaml
+Type: System.Management.Automation.SwitchParameter
+DefaultValue: False
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
   IsRequired: false
   ValueFromPipeline: false
   ValueFromPipelineByPropertyName: false
@@ -134,6 +189,27 @@ AcceptedValues: []
 HelpMessage: ''
 ```
 
+### -Parallel
+
+Generates independent tables in parallel when supported by the current PowerShell runtime.
+
+```yaml
+Type: System.Management.Automation.SwitchParameter
+DefaultValue: False
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
 ### -Plan
 
 The generation plan from New-SldgGenerationPlan.
@@ -147,6 +223,71 @@ ParameterSets:
 - Name: (All)
   Position: 0
   IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+### -ThrottleLimit
+
+Maximum number of tables generated concurrently when `-Parallel` is used.
+
+```yaml
+Type: System.Int32
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+### -UseTransaction
+
+Wraps inserts in a single transaction where supported. If generation fails before commit, inserted
+data is rolled back.
+
+```yaml
+Type: System.Management.Automation.SwitchParameter
+DefaultValue: False
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+### -ValidateAfterGeneration
+
+Runs `Test-SldgGeneratedData` after inserted generation completes. The validation output is attached
+to the returned result as `ValidationResults`, and aggregate counts are included in `QualityReport`.
+
+```yaml
+Type: System.Management.Automation.SwitchParameter
+DefaultValue: False
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
   ValueFromPipeline: false
   ValueFromPipelineByPropertyName: false
   ValueFromRemainingArguments: false

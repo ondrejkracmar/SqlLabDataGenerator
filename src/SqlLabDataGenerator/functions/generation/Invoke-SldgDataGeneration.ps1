@@ -39,6 +39,15 @@
 	.PARAMETER ThrottleLimit
 		Maximum number of tables to generate in parallel when using -Parallel.
 
+	.PARAMETER ValidateAfterGeneration
+		Runs Test-SldgGeneratedData after inserts complete and attaches the validation results to the generation result.
+
+	.PARAMETER FailOnValidationError
+		Turns validation errors from -ValidateAfterGeneration into a terminating error.
+
+	.PARAMETER FailOnSkippedRows
+		Turns any skipped/ignored inserted rows into a terminating error. This is useful for strict data quality gates.
+
 	.PARAMETER Confirm
 		Prompts for confirmation before inserting data into each table.
 
@@ -79,7 +88,13 @@
 
 		[switch]$Parallel,
 
-		[int]$ThrottleLimit
+		[int]$ThrottleLimit,
+
+		[switch]$ValidateAfterGeneration,
+
+		[switch]$FailOnValidationError,
+
+		[switch]$FailOnSkippedRows
 	)
 
 	process {
@@ -89,6 +104,9 @@
 	}
 
 	if ($ConnectionInfo) { Assert-SldgConnectionOpen -ConnectionInfo $ConnectionInfo }
+	if ($ValidateAfterGeneration -and ($NoInsert -or -not $ConnectionInfo)) {
+		Stop-PSFFunction -String 'Validation.RequiresInsertedData' -EnableException $true
+	}
 
 	$provider = if ($ConnectionInfo) { Get-SldgProviderInternal -Name $ConnectionInfo.Provider } else { $null }
 	$batchSize = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.Generation.BatchSize'
@@ -103,6 +121,7 @@
 
 	$fkValues = @{}
 	$tableResults = [System.Collections.Generic.List[object]]::new()
+	$fkFallbackStats = [System.Collections.Generic.List[object]]::new()
 	$totalInserted = 0
 	$transaction = $null
 	$generationStartTime = Get-Date
@@ -134,6 +153,7 @@
 	$useParallel = $Parallel -and -not ($Plan.Mode -eq 'Masking') -and $PSVersionTable.PSVersion.Major -ge 7
 
 	$generationFailed = $false
+	$validationResults = @()
 	$isMaskingMode = $Plan.Mode -eq 'Masking'
 	$failedTables = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
 
@@ -180,6 +200,7 @@
 		$tableResults.AddRange($parallelResult.TableResults)
 		$totalInserted = $parallelResult.TotalInserted
 		$generationFailed = $parallelResult.GenerationFailed
+		foreach ($fallback in @($parallelResult.FKFallbackStats)) { $fkFallbackStats.Add($fallback) }
 		if ($generationFailed -and $transaction) {
 			try { $transaction.Rollback() } catch { Write-PSFMessage -Level Warning -Message ($script:strings.'Generation.ParallelRollbackFailed' -f $_) }
 			$transaction = $null
@@ -270,7 +291,8 @@
 				CommandTimeout = $dbCommandTimeout
 			}
 			if ($transaction) { $fkFallbackParams['Transaction'] = $transaction }
-			Resolve-SldgForeignKeyFallback @fkFallbackParams
+			$loadedFallbacks = Resolve-SldgForeignKeyFallback @fkFallbackParams
+			foreach ($fallback in @($loadedFallbacks)) { $fkFallbackStats.Add($fallback) }
 		}
 
 		# Get table info from schema (need full column info)
@@ -446,6 +468,9 @@
 				Success    = $true
 				Error      = $null
 			}
+			$skippedRows = [Math]::Max(0, [int]$tablePlan.RowCount - [int]$insertedCount)
+			$tableResult | Add-Member -NotePropertyName RequestedRows -NotePropertyValue ([int]$tablePlan.RowCount) -Force
+			$tableResult | Add-Member -NotePropertyName SkippedRows -NotePropertyValue $skippedRows -Force
 			if ($PassThru -and $rowSet) {
 				$tableResult.DataTable = $rowSet.DataTable
 			}
@@ -467,6 +492,9 @@
 					Success    = $false
 					Error      = $Error[0].Exception.Message
 				})
+			$failedResult = $tableResults[$tableResults.Count - 1]
+			$failedResult | Add-Member -NotePropertyName RequestedRows -NotePropertyValue ([int]$tablePlan.RowCount) -Force
+			$failedResult | Add-Member -NotePropertyName SkippedRows -NotePropertyValue ([int]$tablePlan.RowCount) -Force
 
 			if ($transaction) {
 				$generationFailed = $true
@@ -509,6 +537,30 @@
 		Stop-PSFFunction -String 'Generation.FKReenableCritical' -StringValues ($fkReenableFailures -join ', ') -EnableException $true
 	}
 
+	# Normalize per-table quality metrics. Parallel generation and skipped-parent paths may
+	# create TableResult objects outside the sequential table block.
+	foreach ($tableResult in $tableResults) {
+		$matchingPlanTable = $Plan.Tables | Where-Object { $_.FullName -eq $tableResult.TableName } | Select-Object -First 1
+		$requestedRowsForTable = if ($matchingPlanTable) { [int]$matchingPlanTable.RowCount } else { [int]$tableResult.RowCount }
+		$skippedRowsForTable = if ($tableResult.Success) { [Math]::Max(0, $requestedRowsForTable - [int]$tableResult.RowCount) } else { 0 }
+		$tableResult | Add-Member -NotePropertyName RequestedRows -NotePropertyValue $requestedRowsForTable -Force
+		$tableResult | Add-Member -NotePropertyName SkippedRows -NotePropertyValue $skippedRowsForTable -Force
+	}
+
+	# Strict row-quality gate: detect provider fallbacks such as SQLite INSERT OR IGNORE.
+	# Run before commit so -UseTransaction can still roll back strict failures.
+	$skippedRowCount = ($tableResults | ForEach-Object { [int]$_.SkippedRows } | Measure-Object -Sum).Sum
+	if ($null -eq $skippedRowCount) { $skippedRowCount = 0 }
+	if ($FailOnSkippedRows -and $skippedRowCount -gt 0) {
+		$generationFailed = $true
+		if ($transaction) {
+			try { $transaction.Rollback() } catch { Write-PSFMessage -Level Error -Message ($script:strings.'Generation.RollbackCritical' -f $_) }
+			$transaction = $null
+			$totalInserted = 0
+		}
+		Stop-PSFFunction -String 'Generation.SkippedRowsStrictFailure' -StringValues $skippedRowCount -EnableException $true
+	}
+
 	# Commit transaction if all succeeded
 	if ($transaction -and -not $generationFailed) {
 		try {
@@ -523,6 +575,15 @@
 			}
 			$totalInserted = 0
 			$generationFailed = $true
+		}
+	}
+
+	# Optional post-generation database validation
+	if ($ValidateAfterGeneration) {
+		$validationResults = @(Test-SldgGeneratedData -Schema $Plan -ConnectionInfo $ConnectionInfo)
+		$validationErrors = @($validationResults | Where-Object { -not $_.Passed -and $_.Severity -eq 'Error' })
+		if ($FailOnValidationError -and $validationErrors.Count -gt 0) {
+			Stop-PSFFunction -String 'Validation.StrictFailure' -StringValues $validationErrors.Count -EnableException $true
 		}
 	}
 
@@ -544,7 +605,35 @@
 	# Store generated data reference
 	$script:SldgState.GeneratedData[$Plan.Database] = $tableResults
 
-	[SqlLabDataGenerator.GenerationResult]@{
+	$requestedRows = ($Plan.Tables | Measure-Object -Property RowCount -Sum).Sum
+	if ($null -eq $requestedRows) { $requestedRows = 0 }
+	$failedRows = ($tableResults | Where-Object { -not $_.Success } | ForEach-Object {
+		if ($_.PSObject.Properties.Name -contains 'RequestedRows') { [int]$_.RequestedRows } else { 0 }
+	} | Measure-Object -Sum).Sum
+	if ($null -eq $failedRows) { $failedRows = 0 }
+	$skippedRows = ($tableResults | ForEach-Object {
+		if ($_.PSObject.Properties.Name -contains 'SkippedRows') { [int]$_.SkippedRows } else { 0 }
+	} | Measure-Object -Sum).Sum
+	if ($null -eq $skippedRows) { $skippedRows = 0 }
+
+	$qualityReport = [PSCustomObject]@{
+		RequestedRows             = [int]$requestedRows
+		InsertedRows              = [int]$totalInserted
+		SkippedRows               = [int]$skippedRows
+		FailedRows                = [int]$failedRows
+		TableCount                = [int]$Plan.TableCount
+		SuccessfulTables          = ($tableResults | Where-Object Success).Count
+		FailedTables              = ($tableResults | Where-Object { -not $_.Success }).Count
+		FKFallbackReferenceCount   = @($fkFallbackStats).Count
+		FKFallbackValueCount       = [int]((@($fkFallbackStats) | Measure-Object -Property ValueCount -Sum).Sum)
+		FKFallbacks               = @($fkFallbackStats)
+		ValidationRun             = [bool]$ValidateAfterGeneration
+		ValidationPassed          = if ($ValidateAfterGeneration) { @($validationResults | Where-Object { -not $_.Passed -and $_.Severity -eq 'Error' }).Count -eq 0 } else { $null }
+		ValidationErrorCount      = if ($ValidateAfterGeneration) { @($validationResults | Where-Object { -not $_.Passed -and $_.Severity -eq 'Error' }).Count } else { 0 }
+		ValidationWarningCount    = if ($ValidateAfterGeneration) { @($validationResults | Where-Object { $_.Severity -eq 'Warning' }).Count } else { 0 }
+	}
+
+	$result = [SqlLabDataGenerator.GenerationResult]@{
 		Database      = $Plan.Database
 		Mode          = $Plan.Mode
 		TableCount    = $Plan.TableCount
@@ -557,5 +646,8 @@
 		Duration      = $generationDuration
 		User          = $executingUser
 	}
+	$result | Add-Member -NotePropertyName QualityReport -NotePropertyValue $qualityReport -Force
+	$result | Add-Member -NotePropertyName ValidationResults -NotePropertyValue @($validationResults) -Force
+	$result
 	}
 }

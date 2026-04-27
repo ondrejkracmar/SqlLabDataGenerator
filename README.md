@@ -65,11 +65,12 @@ $analyzed = Get-SldgColumnAnalysis -Schema $schema
 # 4. Plan — 100 rows per table, ordered by FK dependencies
 $plan = New-SldgGenerationPlan -Schema $analyzed -RowCount 100
 
-# 5. Generate and insert into the database
-Invoke-SldgDataGeneration -Plan $plan
+# 5. Generate, insert, validate, and fail if data quality checks do not pass
+$result = Invoke-SldgDataGeneration -Plan $plan -UseTransaction `
+    -ValidateAfterGeneration -FailOnValidationError -FailOnSkippedRows
 
-# Optional: check that FKs, unique constraints, NOT NULL all hold
-Test-SldgGeneratedData -Schema $schema
+# Inspect requested/inserted/skipped/failed rows and validation counts
+$result.QualityReport
 
 # Done — close connection
 Disconnect-SldgDatabase
@@ -103,9 +104,10 @@ $plan = New-SldgGenerationPlan -Schema $analyzed -RowCount 200 -UseAI
 # Generate — AI produces entire rows with cross-column consistency
 #   (e.g. Email matches FirstName + LastName, Address is coherent)
 #   Per-table notes from schema analysis guide the generation model automatically
-Invoke-SldgDataGeneration -Plan $plan
+$result = Invoke-SldgDataGeneration -Plan $plan -UseTransaction `
+    -ValidateAfterGeneration -FailOnValidationError -FailOnSkippedRows
 
-Test-SldgGeneratedData -Schema $schema
+$result.QualityReport
 Disconnect-SldgDatabase
 ```
 
@@ -140,7 +142,8 @@ Set-SldgGenerationRule -Plan $plan -TableName 'dbo.UsageReport' -ColumnName 'Rep
     -CrossColumnDependency 'ReportType'
 
 # Now generate with your customizations applied
-Invoke-SldgDataGeneration -Plan $plan
+$result = Invoke-SldgDataGeneration -Plan $plan -UseTransaction `
+    -ValidateAfterGeneration -FailOnValidationError -FailOnSkippedRows
 ```
 
 ## Generation Modes
@@ -240,7 +243,24 @@ $result = Invoke-SldgDataGeneration -Plan $plan -NoInsert -PassThru
 
 # Access generated data
 $result.Tables[0].DataTable | Format-Table
+
+# NoInsert does not run database validation; use inserted generation for QualityReport validation counts
+$result.QualityReport
 ```
+
+## Quality Gates and Validation
+
+For CI/CD, demos, and shared test environments, run generation with strict quality gates:
+
+```powershell
+$result = Invoke-SldgDataGeneration -Plan $plan -UseTransaction `
+    -ValidateAfterGeneration -FailOnValidationError -FailOnSkippedRows
+
+$result.QualityReport
+$result.ValidationResults | Format-Table TableName, CheckType, Passed, Severity, Message -AutoSize
+```
+
+`-ValidateAfterGeneration` runs `Test-SldgGeneratedData` immediately after insert and attaches the output to `ValidationResults`. `-FailOnValidationError` turns validation errors into a failing run. `-FailOnSkippedRows` catches provider behavior where fewer rows were inserted than requested, such as ignored constraint violations. The `QualityReport` property summarizes requested, inserted, skipped, failed, FK fallback, and validation counts.
 
 ## Profiles — Repeatable Generation
 
@@ -253,7 +273,8 @@ Export-SldgGenerationProfile -Plan $plan -Path '.\profile.json' -IncludeSemantic
 # Load on another machine or CI/CD
 $plan = New-SldgGenerationPlan -Schema $analyzed
 Import-SldgGenerationProfile -Path '.\profile.json' -Plan $plan
-Invoke-SldgDataGeneration -Plan $plan
+$result = Invoke-SldgDataGeneration -Plan $plan -UseTransaction `
+    -ValidateAfterGeneration -FailOnValidationError -FailOnSkippedRows
 ```
 
 ## Data Transforms
@@ -321,7 +342,7 @@ Streaming is automatic — when a table exceeds the row threshold (default 100 0
 |---|---|
 | `New-SldgGenerationPlan` | Create an execution plan ordered by FK dependencies; supports AI advice and scenario templates |
 | `Set-SldgGenerationRule` | Override column generation: ValueList, StaticValue, ScriptBlock, AI hints, cross-column dependencies |
-| `Invoke-SldgDataGeneration` | Run data generation; supports `-Parallel`, `-NoInsert`, `-PassThru`, `-UseTransaction` |
+| `Invoke-SldgDataGeneration` | Run data generation; supports `-Parallel`, `-NoInsert`, `-PassThru`, `-UseTransaction`, validation gates, and `QualityReport` |
 | `Test-SldgGeneratedData` | Validate FK integrity, unique constraints, NOT NULL, row counts |
 
 ### Profile

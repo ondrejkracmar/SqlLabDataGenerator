@@ -44,6 +44,7 @@
 	$psd1Path = Join-Path (Get-Module SqlLabDataGenerator).ModuleBase 'SqlLabDataGenerator.psd1'
 
 	$tableResults = [System.Collections.Generic.List[object]]::new()
+	$fkFallbackStats = [System.Collections.Generic.List[object]]::new()
 	$totalInserted = 0
 	$generationFailed = $false
 	$failedTables = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
@@ -234,6 +235,11 @@
 								}
 								if ($vals.Count -gt 0) {
 									$FkValues[$refKey] = $vals.ToArray()
+									$fkFallbackStats.Add([PSCustomObject]@{
+										ReferenceKey = $refKey
+										ValueCount   = $vals.Count
+										TableName    = $tablePlan.FullName
+									})
 									Write-PSFMessage -Level Verbose -Message ($script:strings.'Generation.FKFallbackLoaded' -f $refKey, $vals.Count)
 								}
 							}
@@ -386,5 +392,6 @@
 		TableResults    = $tableResults.ToArray()
 		TotalInserted   = $totalInserted
 		GenerationFailed = $generationFailed
+		FKFallbackStats  = $fkFallbackStats.ToArray()
 	}
 }

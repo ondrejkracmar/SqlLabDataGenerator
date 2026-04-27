@@ -109,19 +109,20 @@ The plan orders tables by FK dependencies (parent tables first) and assigns a ge
 ### 5. Generate
 
 ```powershell
-Invoke-SldgDataGeneration -Plan $plan
+$result = Invoke-SldgDataGeneration -Plan $plan -UseTransaction `
+    -ValidateAfterGeneration -FailOnValidationError -FailOnSkippedRows
 ```
 
-Data is inserted directly into the database. FK columns are automatically filled with valid parent values.
+Data is inserted directly into the database. FK columns are automatically filled with valid parent values. The strict switches validate the inserted data and fail the run if validation errors or skipped rows are detected.
 
-### 6. Validate and Disconnect
+### 6. Inspect and Disconnect
 
 ```powershell
-Test-SldgGeneratedData -Schema $schema
+$result.QualityReport
 Disconnect-SldgDatabase
 ```
 
-Validation checks FK integrity, unique constraints, NOT NULL, and row counts.
+`QualityReport` summarizes requested, inserted, skipped, failed, FK fallback, and validation counts. You can also run `Test-SldgGeneratedData -Schema $schema` separately later if you need an ad hoc validation pass.
 
 ---
 
@@ -157,9 +158,10 @@ $schema   = Get-SldgDatabaseSchema
 $analyzed = Get-SldgColumnAnalysis -Schema $schema -UseAI
 $plan     = New-SldgGenerationPlan -Schema $analyzed -RowCount 200 -UseAI
 
-Invoke-SldgDataGeneration -Plan $plan
+$result = Invoke-SldgDataGeneration -Plan $plan -UseTransaction `
+    -ValidateAfterGeneration -FailOnValidationError -FailOnSkippedRows
 
-Test-SldgGeneratedData -Schema $schema
+$result.QualityReport
 Disconnect-SldgDatabase
 ```
 
@@ -269,7 +271,10 @@ $result = Invoke-SldgDataGeneration -Plan $plan -NoInsert -PassThru
 
 # Access generated DataTables
 $result.Tables[0].DataTable | Format-Table
+$result.QualityReport
 ```
+
+`-NoInsert` is useful for previewing rows, but database validation requires inserted data. Use `-ValidateAfterGeneration` on an inserted run when you want FK, unique, NOT NULL, and row-count checks attached to the result.
 
 ---
 
@@ -296,7 +301,8 @@ Export-SldgGenerationProfile -Plan $plan -Path '.\profile.json' -IncludeSemantic
 # Import on another machine or in CI/CD
 $plan = New-SldgGenerationPlan -Schema $analyzed
 Import-SldgGenerationProfile -Path '.\profile.json' -Plan $plan
-Invoke-SldgDataGeneration -Plan $plan
+$result = Invoke-SldgDataGeneration -Plan $plan -UseTransaction `
+    -ValidateAfterGeneration -FailOnValidationError -FailOnSkippedRows
 ```
 
 Profiles store row counts, value lists, static values, and generator overrides. ScriptBlock rules are rejected on import for security.

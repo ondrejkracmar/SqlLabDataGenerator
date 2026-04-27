@@ -43,6 +43,7 @@
 	'Generation.FKFallbackFailed'            = 'FK fallback: could not read existing values for {0}: {1}'
 	'Generation.BulkCopyFallback'            = 'BulkCopy failed for {0} ({1}), falling back to row-by-row insert'
 	'Generation.RowsSkipped'                 = '{0} rows skipped due to constraint violations in {1}'
+	'Generation.SkippedRowsStrictFailure'    = 'Generation inserted fewer rows than requested. Skipped rows: {0}'
 
 	# Validation
 	'Validation.Starting'                    = 'Validating generated data for {0} tables'
@@ -51,6 +52,8 @@
 	'Validation.UniqueCheck'                 = 'Checking unique constraints for [{0}].[{1}]'
 	'Validation.UniqueViolation'             = 'Unique constraint violation on [{0}].[{1}].{2}: {3} duplicate values'
 	'Validation.Complete'                    = 'Validation complete: {0} checks passed, {1} warnings, {2} errors'
+	'Validation.RequiresInsertedData'        = '-ValidateAfterGeneration requires inserted data and an active connection. Remove -NoInsert or run Test-SldgGeneratedData separately.'
+	'Validation.StrictFailure'               = 'Post-generation validation failed with {0} error(s).'
 
 	# Profile
 	'Profile.Importing'                      = 'Importing generation profile from: {0}'
