@@ -56,7 +56,7 @@
 
 		# A-2: Per-purpose AI circuit breakers must be cleared too — otherwise a stale OPEN
 		# state from before the reset blocks AI traffic in the freshly reset session.
-		Reset-SldgCircuitBreakers
+		Reset-SldgCircuitBreaker
 
 		Write-PSFMessage -Level Host -Message ($script:strings.'Session.ResetComplete' -f $providerCount, $localeCount, $cacheTotal)
 	}

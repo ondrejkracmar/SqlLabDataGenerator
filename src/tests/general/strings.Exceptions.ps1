@@ -24,6 +24,7 @@ $exceptions['LegalSurplus'] = @(
 	'AI.BatchFallbackWarning'
 	'AI.BatchGenerated'
 	'AI.BatchGenerating'
+	'AI.BatchInvalidRow'
 	'AI.BatchMaxIterations'
 	'AI.BatchMissingColumns'
 	'AI.BatchNoResponse'
@@ -32,9 +33,12 @@ $exceptions['LegalSurplus'] = @(
 	'AI.BatchParseFailed'
 	'AI.BatchRowCountMismatch'
 	'AI.BatchSkipped'
+	'AI.BatchUnexpectedColumns'
 	'AI.BatchUserMessage'
 	'AI.CircuitBreakerOpen'
+	'AI.CircuitBreakerOpenPurpose'
 	'AI.CircuitBreakerReset'
+	'AI.CircuitBreakerResetPurpose'
 	'AI.IndustryAnalysisContext'
 	'AI.IndustryContext'
 	'AI.LocaleMultiple'
@@ -67,12 +71,25 @@ $exceptions['LegalSurplus'] = @(
 	'AI.TLSDisabledWarning'
 	'AI.TLSSkipActive'
 	'AI.TLSSkipBlocked'
+	'AI.TLSSkipNeedsExplicitOptIn'
 	'AI.UnexpectedResponse'
 	'AI.UnknownProvider'
 
 	# --- Audit ---
+	'Audit.SymlinkRejected'
 	'Audit.WriteFailed'
 	'Audit.Written'
+
+	# --- Client (Function client module) ---
+	'Client.MIRequiresAudience'
+	'Client.MIRequiresAzAccounts'
+	'Client.NoAuthConfigured'
+
+	# --- MCP ---
+	'MCP.CORS.OriginRejected'
+
+	# --- Module ---
+	'Module.ManifestReadFailed'
 
 	# --- Cache ---
 	'Cache.Cleared'
@@ -101,6 +118,7 @@ $exceptions['LegalSurplus'] = @(
 	'FKContext.ParentCountExceedsLimit'
 
 	# --- Generation ---
+	'Generation.AIGenOverride'
 	'Generation.AuditComplete'
 	'Generation.AuditStart'
 	'Generation.AuditWriteFailed'

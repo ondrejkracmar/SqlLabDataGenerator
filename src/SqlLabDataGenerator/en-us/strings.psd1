@@ -172,8 +172,8 @@
 	'AI.TLSDisabledWarning'                  = 'TLS certificate validation is disabled for the AI endpoint. This is insecure and should only be used in development environments with self-signed certificates.'
 	'AI.ModelOverrideUsing'                  = "Using AI model override for purpose '{0}': {1} / {2}"
 	'AI.ApiKeyFailed'                        = 'Failed to retrieve API key: {0}'
-	'AI.TLSSkipBlocked'                      = 'TLS certificate validation skip requested for Ollama but blocked. Set environment variable SLDG_ALLOW_SKIP_TLS=1 to allow this in development environments.'
-	'AI.TLSSkipActive'                       = 'TLS certificate validation is disabled for Ollama (SLDG_ALLOW_SKIP_TLS is set). This should NEVER be used in production environments.'
+	'AI.TLSSkipBlocked'                      = 'TLS certificate validation skip requested for Ollama but blocked: endpoint is not a loopback address. TLS skip is only honoured for localhost / 127.0.0.1 / ::1.'
+	'AI.TLSSkipActive'                       = 'TLS certificate validation is disabled for Ollama (loopback endpoint, explicit opt-in via Set-SldgAIProvider -SkipCertificateCheck). This should NEVER be used in production environments.'
 	'AI.PlanAdviceSkipped'                   = "AI plan advice skipped: AI provider is 'None'."
 	'AI.PlanAdviceNoResponse'                = 'AI plan advice returned no response.'
 	'AI.SchemaAnalysisSkipped'               = "AI schema analysis skipped: AI provider is 'None'."

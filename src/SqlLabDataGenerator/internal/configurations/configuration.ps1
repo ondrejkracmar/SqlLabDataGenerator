@@ -50,10 +50,11 @@ $script:AICircuitBreakers = [System.Collections.Concurrent.ConcurrentDictionary[
 function Get-SldgCircuitBreaker {
 	param ([string]$Purpose)
 	$key = if ($Purpose) { $Purpose } else { '' }
-	return $script:AICircuitBreakers.GetOrAdd($key, { param ($k) @{ ConsecutiveFailures = 0; OpenedAt = $null } })
+	# $args[0] is the key supplied by GetOrAdd; ignored because all breakers share the same initial shape.
+	return $script:AICircuitBreakers.GetOrAdd($key, { @{ ConsecutiveFailures = 0; OpenedAt = $null } })
 }
 
-function Reset-SldgCircuitBreakers {
+function Reset-SldgCircuitBreaker {
 	$script:AICircuitBreakers.Clear()
 }
 

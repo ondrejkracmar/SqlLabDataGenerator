@@ -46,10 +46,17 @@ Describe "AI Retry Intelligence and Response Validation" {
 	}
 
 	Context "Invoke-SldgAIRequest - TLS Skip Validation" {
-		It "Source checks for explicit TLS values only" {
+		It "Source uses PSFConfig opt-in (not ambient env var) for TLS skip" {
 			$source = & $module { (Get-Command Invoke-SldgAIRequest).ScriptBlock.ToString() }
-			# Should check for '1' or 'true' specifically, not just truthy
-			$source | Should -Match "SLDG_ALLOW_SKIP_TLS.*-eq.*'(1|true)'"
+			# S-3: TLS skip is now an explicit, audited opt-in via PSFConfig — env var gate removed.
+			$source | Should -Match "SqlLabDataGenerator\.AI\.Ollama\.SkipCertificateCheck"
+			$source | Should -Not -Match 'SLDG_ALLOW_SKIP_TLS'
+		}
+
+		It "Source restricts TLS skip to loopback endpoints" {
+			$source = & $module { (Get-Command Invoke-SldgAIRequest).ScriptBlock.ToString() }
+			$source | Should -Match 'IsLoopback'
+			$source | Should -Match 'isLoopback'
 		}
 	}
 
