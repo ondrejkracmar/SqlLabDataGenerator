@@ -1,4 +1,4 @@
-Describe "AI Retry Intelligence and Response Validation" {
+﻿Describe "AI Retry Intelligence and Response Validation" {
 	BeforeAll {
 		Remove-Module SqlLabDataGenerator -ErrorAction Ignore
 		Import-Module "$PSScriptRoot\..\..\..\SqlLabDataGenerator\SqlLabDataGenerator.psd1" -Force
@@ -50,7 +50,9 @@ Describe "AI Retry Intelligence and Response Validation" {
 			$source = & $module { (Get-Command Invoke-SldgAIRequest).ScriptBlock.ToString() }
 			# S-3: TLS skip is now an explicit, audited opt-in via PSFConfig — env var gate removed.
 			$source | Should -Match "SqlLabDataGenerator\.AI\.Ollama\.SkipCertificateCheck"
-			$source | Should -Not -Match 'SLDG_ALLOW_SKIP_TLS'
+			# Ensure no live Get-/Test- code path consults an environment variable for the TLS skip decision.
+			$source | Should -Not -Match '\$env:[A-Za-z_]*SKIP_TLS[A-Za-z_]*'
+			$source | Should -Not -Match 'Test-Path\s+env:[A-Za-z_]*SKIP_TLS'
 		}
 
 		It "Source restricts TLS skip to loopback endpoints" {

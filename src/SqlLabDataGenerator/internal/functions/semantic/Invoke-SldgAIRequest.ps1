@@ -217,7 +217,7 @@
 	}
 
 	# Ollama may use self-signed certs in dev — scoped to Ollama only.
-	# S-3: Removed ambient $env:SLDG_ALLOW_SKIP_TLS gate (any child process could set it).
+	# S-3: Removed the ambient environment-variable gate (any child process could set it).
 	# Skipping TLS validation now requires an explicit, audited opt-in via Set-SldgAIProvider -SkipCertificateCheck,
 	# which only flips the PSFConfig for the current session (not persisted by default).
 	if ($aiProvider -eq 'Ollama') {
