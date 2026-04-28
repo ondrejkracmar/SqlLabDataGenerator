@@ -117,7 +117,8 @@
 				Write-PSFMessage -Level Warning -Message ($script:strings.'Connect.SQLite.RollbackFailed' -f $_)
 			}
 		}
-		throw
+		Stop-PSFFunction -Message $_.Exception.Message -ErrorRecord $_ -EnableException $true
+		return
 	}
 
 	$insertedCount

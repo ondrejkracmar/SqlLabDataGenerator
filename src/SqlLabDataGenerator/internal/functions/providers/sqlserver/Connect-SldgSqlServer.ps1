@@ -27,19 +27,23 @@
 		$builder['TrustServerCertificate'] = $true
 	}
 
+	# S-1: Use SqlCredential to keep the password in a SecureString instead of
+	# extracting it to a managed string via GetNetworkCredential().Password.
+	# SqlCredential requires that the connection string does NOT contain
+	# 'User ID', 'Password', or 'Integrated Security'.
+	$sqlCredential = $null
 	if ($Credential) {
-		$builder['User ID'] = $Credential.UserName
-		$builder['Password'] = $Credential.GetNetworkCredential().Password
-		$builder['Persist Security Info'] = $false
+		$securePassword = $Credential.Password.Copy()
+		$securePassword.MakeReadOnly()
+		$sqlCredential = [Microsoft.Data.SqlClient.SqlCredential]::new($Credential.UserName, $securePassword)
 		Write-PSFMessage -Level Verbose -Message $script:strings.'Connect.SqlServer.CredentialWarning'
 	}
 	else {
 		$builder['Integrated Security'] = $true
 	}
 
-	# Pass connection string directly to SqlConnection and clear builder immediately
 	$connection = New-Object Microsoft.Data.SqlClient.SqlConnection($builder.ConnectionString)
-	if ($Credential) { $builder['Password'] = ''; $builder.Clear() }
+	if ($sqlCredential) { $connection.Credential = $sqlCredential }
 	try {
 		$connection.Open()
 		Write-PSFMessage -Level Verbose -Message ($script:strings.'Connect.SqlServer.Connected' -f $ServerInstance, $Database)

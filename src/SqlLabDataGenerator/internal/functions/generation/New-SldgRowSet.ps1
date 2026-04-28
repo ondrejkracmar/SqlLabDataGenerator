@@ -581,6 +581,7 @@
 
 	} catch {
 		$dataTable.Dispose()
-		throw
+		Stop-PSFFunction -Message $_.Exception.Message -ErrorRecord $_ -EnableException $true
+		return
 	}
 }

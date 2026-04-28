@@ -60,19 +60,22 @@
 		return $null
 	}
 
-	# Circuit breaker: skip AI calls after consecutive failures to avoid hammering a broken provider
+	# Circuit breaker: skip AI calls after consecutive failures to avoid hammering a broken provider.
+	# A-2: Per-purpose breaker — a failure in 'batch-generation' must not disable 'column-analysis'.
 	$cbThreshold = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.AI.CircuitBreakerThreshold'
-	$cbCooldown = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.AI.CircuitBreakerCooldownSeconds'
-	if ($script:AICircuitBreaker.ConsecutiveFailures -ge $cbThreshold) {
-		$elapsed = ([datetime]::UtcNow - $script:AICircuitBreaker.OpenedAt).TotalSeconds
+	$cbCooldown  = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.AI.CircuitBreakerCooldownSeconds'
+	$cbKey       = if ($Purpose) { $Purpose } else { '' }
+	$cb          = Get-SldgCircuitBreaker -Purpose $cbKey
+	if ($cb.ConsecutiveFailures -ge $cbThreshold) {
+		$elapsed = ([datetime]::UtcNow - $cb.OpenedAt).TotalSeconds
 		if ($elapsed -lt $cbCooldown) {
-			# Circuit is still open — skip this call
+			# Circuit is still open for this purpose — skip this call
 			return $null
 		}
 		# Cooldown expired — reset and allow a probe request
-		Write-PSFMessage -Level Warning -Message $script:strings.'AI.CircuitBreakerReset'
-		$script:AICircuitBreaker.ConsecutiveFailures = 0
-		$script:AICircuitBreaker.OpenedAt = $null
+		Write-PSFMessage -Level Warning -Message ($script:strings.'AI.CircuitBreakerResetPurpose' -f $cbKey)
+		$cb.ConsecutiveFailures = 0
+		$cb.OpenedAt = $null
 	}
 
 	# Rate limiting: enforce max requests per minute
@@ -213,11 +216,23 @@
 		$params['TimeoutSec'] = $timeoutSec
 	}
 
-	# Ollama may use self-signed certs in dev — scoped to Ollama only
+	# Ollama may use self-signed certs in dev — scoped to Ollama only.
+	# S-3: Removed ambient $env:SLDG_ALLOW_SKIP_TLS gate (any child process could set it).
+	# Skipping TLS validation now requires an explicit, audited opt-in via Set-SldgAIProvider -SkipCertificateCheck,
+	# which only flips the PSFConfig for the current session (not persisted by default).
 	if ($aiProvider -eq 'Ollama') {
 		$skipCertCheck = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.AI.Ollama.SkipCertificateCheck'
 		if ($skipCertCheck -and $PSVersionTable.PSVersion.Major -ge 7) {
-			if ($env:SLDG_ALLOW_SKIP_TLS -eq '1' -or $env:SLDG_ALLOW_SKIP_TLS -eq 'true') {
+			# Only honour the skip when the endpoint resolves to a loopback address.
+			# Self-signed certs are a development convenience and must not weaken production traffic.
+			$endpointHost = $null
+			try {
+				$uriObj = [System.Uri]::new($uri)
+				$endpointHost = $uriObj.Host
+			} catch { $endpointHost = $null }
+			$isLoopback = $endpointHost -and ($endpointHost -in @('localhost', '127.0.0.1', '::1') -or `
+				($endpointHost -as [System.Net.IPAddress] -and ([System.Net.IPAddress]$endpointHost).IsIPv4MappedToIPv6 -eq $false -and ([System.Net.IPAddress]::IsLoopback([System.Net.IPAddress]$endpointHost))))
+			if ($isLoopback) {
 				Write-PSFMessage -Level Warning -Message $script:strings.'AI.TLSSkipActive'
 				$params['SkipCertificateCheck'] = $true
 			} else {
@@ -235,11 +250,11 @@
 
 				# Ollama /api/chat returns message directly, OpenAI-compatible returns choices array
 				if ($response.message) {
-					$script:AICircuitBreaker.ConsecutiveFailures = 0
+					$cb.ConsecutiveFailures = 0
 					return $response.message.content
 				}
 				elseif ($response.choices) {
-					$script:AICircuitBreaker.ConsecutiveFailures = 0
+					$cb.ConsecutiveFailures = 0
 					return $response.choices[0].message.content
 				}
 				else {
@@ -304,11 +319,11 @@
 
 		Write-PSFMessage -Level Warning -Message ($script:strings.'AI.RequestFailed' -f $lastError)
 
-		# Track failure for circuit breaker
-		$script:AICircuitBreaker.ConsecutiveFailures++
-		if ($script:AICircuitBreaker.ConsecutiveFailures -ge $cbThreshold) {
-			$script:AICircuitBreaker.OpenedAt = [datetime]::UtcNow
-			Write-PSFMessage -Level Warning -Message ($script:strings.'AI.CircuitBreakerOpen' -f $cbThreshold, $cbCooldown)
+		# Track failure for the per-purpose circuit breaker
+		$cb.ConsecutiveFailures++
+		if ($cb.ConsecutiveFailures -ge $cbThreshold) {
+			$cb.OpenedAt = [datetime]::UtcNow
+			Write-PSFMessage -Level Warning -Message ($script:strings.'AI.CircuitBreakerOpenPurpose' -f $cbKey, $cbThreshold, $cbCooldown)
 		}
 		$null
 	}

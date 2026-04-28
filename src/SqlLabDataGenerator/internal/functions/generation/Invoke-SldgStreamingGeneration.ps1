@@ -111,7 +111,8 @@
 			}
 			catch {
 				Write-PSFMessage -Level Warning -Message ($script:strings.'Generation.StreamingChunkFailed' -f ($chunk + 1), $chunkCount, $TableInfo.FullName, $_)
-				throw
+				Stop-PSFFunction -Message $_.Exception.Message -ErrorRecord $_ -EnableException $true
+				return
 			}
 		}
 		else {
@@ -140,7 +141,8 @@
 			$mergedDataTable.Dispose()
 			$mergedDataTable = $null
 		}
-		throw
+		Stop-PSFFunction -Message $_.Exception.Message -ErrorRecord $_ -EnableException $true
+		return
 	}
 
 	# Convert accumulated value lists to arrays

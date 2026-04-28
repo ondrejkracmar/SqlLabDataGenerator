@@ -109,14 +109,25 @@
 	}
 
 	$provider = if ($ConnectionInfo) { Get-SldgProviderInternal -Name $ConnectionInfo.Provider } else { $null }
-	$batchSize = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.Generation.BatchSize'
+
+	# Resolve all configuration + per-run identity in one place (refactor extract).
+	$ctx = Initialize-SldgGenerationContext -ThrottleLimitOverride $ThrottleLimit
+	$batchSize          = $ctx.BatchSize
+	$streamingThreshold = $ctx.StreamingThreshold
+	$streamingChunkSize = $ctx.StreamingChunkSize
+	$fkQueryLimit       = $ctx.FkQueryLimit
+	$uniqueQueryLimit   = $ctx.UniqueQueryLimit
+	$dbCommandTimeout   = $ctx.DbCommandTimeout
+	$ThrottleLimit      = $ctx.ThrottleLimit
+	$correlationId      = $ctx.CorrelationId
+	$executingUser      = $ctx.ExecutingUser
+	$generationStartTime = $ctx.GenerationStartTime
 
 	Write-PSFMessage -Level Host -Message ($script:strings.'Generation.Starting' -f $Plan.TableCount, $Plan.Mode)
 
 	# Seed for reproducibility
-	$seed = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.Generation.Seed'
-	if ($seed -gt 0) {
-		$null = Get-Random -SetSeed $seed
+	if ($ctx.Seed -gt 0) {
+		$null = Get-Random -SetSeed $ctx.Seed
 	}
 
 	$fkValues = @{}
@@ -124,12 +135,7 @@
 	$fkFallbackStats = [System.Collections.Generic.List[object]]::new()
 	$totalInserted = 0
 	$transaction = $null
-	$generationStartTime = Get-Date
-	$executingUser = if ($IsLinux -or $IsMacOS) {
-		[System.Environment]::UserName
-	} else {
-		[System.Security.Principal.WindowsIdentity]::GetCurrent().Name
-	}
+	Write-PSFMessage -Level Verbose -Message ('Generation correlation id: {0}' -f $correlationId)
 
 	Write-PSFMessage -Level Verbose -Message ($script:strings.'Generation.AuditStart' -f $executingUser, $Plan.Database, $Plan.TableCount, $Plan.Mode)
 
@@ -139,17 +145,7 @@
 		Write-PSFMessage -Level Verbose -Message ($script:strings.'Generation.TransactionStarted' -f $ConnectionInfo.Provider)
 	}
 
-	# Streaming config for large tables
-	$streamingThreshold = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.Generation.StreamingThreshold'
-	$streamingChunkSize = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.Generation.StreamingChunkSize'
-
-	# Query limits and timeouts
-	$fkQueryLimit = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.Generation.ForeignKeyQueryLimit'
-	$uniqueQueryLimit = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.Generation.UniqueValueQueryLimit'
-	$dbCommandTimeout = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.Database.CommandTimeout'
-
 	# Parallel config
-	if (-not $ThrottleLimit) { $ThrottleLimit = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.Generation.ThrottleLimit' }
 	$useParallel = $Parallel -and -not ($Plan.Mode -eq 'Masking') -and $PSVersionTable.PSVersion.Major -ge 7
 
 	$generationFailed = $false
@@ -173,7 +169,7 @@
 		if (-not $currentAIGen) {
 			Set-PSFConfig -FullName 'SqlLabDataGenerator.Generation.AIGeneration' -Value $true
 			$aiGenOverrideApplied = $true
-			Write-PSFMessage -Level Verbose -Message 'Auto-enabled AI row generation from plan UseAIGeneration flag.'
+			Write-PSFMessage -Level Verbose -Message $script:strings.'Generation.AIGenOverride'
 		}
 	}
 
@@ -217,6 +213,10 @@
 		if (-not $PSCmdlet.ShouldProcess("$($tablePlan.FullName) ($($tablePlan.RowCount) rows)", "Generate data")) {
 			continue
 		}
+
+		# Per-table stopwatch for audit DurationMs (correlation traceability)
+		$tableStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+		$tableResultCountBefore = $tableResults.Count
 
 		# Masking mode: read existing data, mask PII columns, write back
 		if ($isMaskingMode) {
@@ -306,24 +306,8 @@
 
 		# For non-identity integer PK columns, query MAX(PK) so we can auto-generate sequential values
 		if ($ConnectionInfo) {
-			foreach ($col in $tableInfo.Columns) {
-				if ($col.IsPrimaryKey -and -not $col.IsIdentity -and -not $col.IsComputed -and -not $col.ForeignKey -and $col.DataType -match '^(int|bigint|smallint|tinyint)$') {
-					try {
-						$safeTbl = Get-SldgSafeSqlName -SchemaName $tablePlan.SchemaName -TableName $tablePlan.TableName
-						$safeCol = Get-SldgSafeSqlName -ColumnName $col.ColumnName
-						$cmd = $ConnectionInfo.DbConnection.CreateCommand()
-						if ($transaction) { $cmd.Transaction = $transaction }
-						$cmd.CommandText = "SELECT ISNULL(MAX($safeCol), 0) FROM $safeTbl"
-						$cmd.CommandTimeout = $dbCommandTimeout
-						$maxVal = $cmd.ExecuteScalar()
-						$cmd.Dispose()
-						$col | Add-Member -NotePropertyName 'PKStartValue' -NotePropertyValue ([long]$maxVal) -Force
-					}
-					catch {
-						Write-PSFMessage -Level Verbose -Message ($script:strings.'Generation.MaxPKQueryFailed' -f $col.ColumnName, $_)
-					}
-				}
-			}
+			Set-SldgPrimaryKeyStartValue -TableInfo $tableInfo -TablePlan $tablePlan `
+				-ConnectionInfo $ConnectionInfo -Transaction $transaction -CommandTimeout $dbCommandTimeout
 		}
 
 		Invoke-PSFProtectedCommand -ActionString 'Generation.InsertingTable' -ActionStringValues $tablePlan.RowCount, $tablePlan.SchemaName, $tablePlan.TableName -Target $tablePlan.FullName -ScriptBlock {
@@ -423,35 +407,11 @@
 
 					# Post-insert: collect actual PK values from DB for identity/auto-increment columns
 					# that are NOT in the in-memory DataTable. Child tables need these FK references.
-					foreach ($col in $tablePlan.Columns) {
-						if (-not $col.IsPrimaryKey -and -not $col.IsUnique) { continue }
-						$colKey = "$($tablePlan.SchemaName).$($tablePlan.TableName).$($col.ColumnName)"
-						# Only query if this column's values are NOT already in fkValues (e.g., identity PKs)
-						if ($fkValues.ContainsKey($colKey) -and $fkValues[$colKey].Count -gt 0) { continue }
-						try {
-							$safeTbl = Get-SldgSafeSqlName -SchemaName $tablePlan.SchemaName -TableName $tablePlan.TableName
-							$safeCol = Get-SldgSafeSqlName -ColumnName $col.ColumnName
-							$pkCmd = $ConnectionInfo.DbConnection.CreateCommand()
-							if ($transaction) { $pkCmd.Transaction = $transaction }
-							$pkCmd.CommandText = "SELECT DISTINCT TOP ($fkQueryLimit) $safeCol FROM $safeTbl"
-							$pkCmd.CommandTimeout = $dbCommandTimeout
-							$pkReader = $pkCmd.ExecuteReader()
-							$pkVals = [System.Collections.Generic.List[object]]::new()
-							while ($pkReader.Read()) {
-								$pkv = $pkReader.GetValue(0)
-								if ($pkv -isnot [DBNull]) { $pkVals.Add($pkv) }
-							}
-							$pkReader.Close()
-							$pkReader.Dispose()
-							$pkCmd.Dispose()
-							if ($pkVals.Count -gt 0) {
-								$fkValues[$colKey] = $pkVals.ToArray()
-								Write-PSFMessage -Level Verbose -Message ($script:strings.'Generation.PostInsertPKCollected' -f $colKey, $pkVals.Count)
-							}
-						}
-						catch {
-							Write-PSFMessage -Level Verbose -Message ($script:strings.'Generation.PostInsertPKFailed' -f $colKey, $_)
-						}
+					$collectedPK = Get-SldgPostInsertPrimaryKeyValue -TablePlan $tablePlan -ExistingFkValues $fkValues `
+						-ConnectionInfo $ConnectionInfo -Transaction $transaction `
+						-FkQueryLimit $fkQueryLimit -CommandTimeout $dbCommandTimeout
+					foreach ($pkKey in $collectedPK.Keys) {
+						$fkValues[$pkKey] = $collectedPK[$pkKey]
 					}
 				}
 				else {
@@ -512,6 +472,13 @@
 				}
 				Stop-PSFFunction -String 'Generation.DataRolledBack' -StringValues $tablePlan.FullName -EnableException $true
 			}
+		}
+
+		# Stamp per-table duration on any TableResult(s) added during this iteration
+		$tableStopwatch.Stop()
+		$tableElapsedMs = [int]$tableStopwatch.Elapsed.TotalMilliseconds
+		for ($i = $tableResultCountBefore; $i -lt $tableResults.Count; $i++) {
+			$tableResults[$i] | Add-Member -NotePropertyName DurationMs -NotePropertyValue $tableElapsedMs -Force
 		}
 	}
 
@@ -600,38 +567,15 @@
 
 	# Persistent audit log — append a JSON record for compliance/traceability
 	Write-SldgAuditRecord -Plan $Plan -TotalInserted $totalInserted -StartTime $generationStartTime `
-		-User $executingUser -GenerationFailed $generationFailed -TableResults $tableResults
+		-User $executingUser -GenerationFailed $generationFailed -TableResults $tableResults `
+		-CorrelationId $correlationId
 
 	# Store generated data reference
 	$script:SldgState.GeneratedData[$Plan.Database] = $tableResults
 
-	$requestedRows = ($Plan.Tables | Measure-Object -Property RowCount -Sum).Sum
-	if ($null -eq $requestedRows) { $requestedRows = 0 }
-	$failedRows = ($tableResults | Where-Object { -not $_.Success } | ForEach-Object {
-		if ($_.PSObject.Properties.Name -contains 'RequestedRows') { [int]$_.RequestedRows } else { 0 }
-	} | Measure-Object -Sum).Sum
-	if ($null -eq $failedRows) { $failedRows = 0 }
-	$skippedRows = ($tableResults | ForEach-Object {
-		if ($_.PSObject.Properties.Name -contains 'SkippedRows') { [int]$_.SkippedRows } else { 0 }
-	} | Measure-Object -Sum).Sum
-	if ($null -eq $skippedRows) { $skippedRows = 0 }
-
-	$qualityReport = [PSCustomObject]@{
-		RequestedRows             = [int]$requestedRows
-		InsertedRows              = [int]$totalInserted
-		SkippedRows               = [int]$skippedRows
-		FailedRows                = [int]$failedRows
-		TableCount                = [int]$Plan.TableCount
-		SuccessfulTables          = ($tableResults | Where-Object Success).Count
-		FailedTables              = ($tableResults | Where-Object { -not $_.Success }).Count
-		FKFallbackReferenceCount   = @($fkFallbackStats).Count
-		FKFallbackValueCount       = [int]((@($fkFallbackStats) | Measure-Object -Property ValueCount -Sum).Sum)
-		FKFallbacks               = @($fkFallbackStats)
-		ValidationRun             = [bool]$ValidateAfterGeneration
-		ValidationPassed          = if ($ValidateAfterGeneration) { @($validationResults | Where-Object { -not $_.Passed -and $_.Severity -eq 'Error' }).Count -eq 0 } else { $null }
-		ValidationErrorCount      = if ($ValidateAfterGeneration) { @($validationResults | Where-Object { -not $_.Passed -and $_.Severity -eq 'Error' }).Count } else { 0 }
-		ValidationWarningCount    = if ($ValidateAfterGeneration) { @($validationResults | Where-Object { $_.Severity -eq 'Warning' }).Count } else { 0 }
-	}
+	$qualityReport = Get-SldgGenerationQualityReport -Plan $Plan -TableResults $tableResults `
+		-TotalInserted $totalInserted -FkFallbackStats $fkFallbackStats `
+		-ValidationRun:$ValidateAfterGeneration -ValidationResults $validationResults
 
 	$result = [SqlLabDataGenerator.GenerationResult]@{
 		Database      = $Plan.Database

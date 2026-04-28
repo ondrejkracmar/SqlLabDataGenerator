@@ -25,7 +25,9 @@
 		[bool]$GenerationFailed,
 
 		[Parameter(Mandatory)]
-		$TableResults
+		$TableResults,
+
+		[string]$CorrelationId
 	)
 
 	$auditLogPath = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.Audit.LogPath'
@@ -33,22 +35,48 @@
 
 	try {
 		$auditLogPath = [System.IO.Path]::GetFullPath($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($auditLogPath))
+
+		# S-6: Reject symlinks / reparse points to prevent writing to attacker-controlled targets
+		if (Test-Path -LiteralPath $auditLogPath) {
+			$existing = Get-Item -LiteralPath $auditLogPath -Force
+			if ($existing.LinkType) {
+				Write-PSFMessage -Level Warning -Message ($script:strings.'Audit.SymlinkRejected' -f $auditLogPath)
+				return
+			}
+		}
+
 		$auditDir = Split-Path $auditLogPath -Parent
 		if ($auditDir -and -not (Test-Path $auditDir)) {
 			$null = New-Item -Path $auditDir -ItemType Directory -Force
 		}
+		if ($auditDir -and (Test-Path -LiteralPath $auditDir)) {
+			$dirItem = Get-Item -LiteralPath $auditDir -Force
+			if ($dirItem.LinkType) {
+				Write-PSFMessage -Level Warning -Message ($script:strings.'Audit.SymlinkRejected' -f $auditLogPath)
+				return
+			}
+		}
 
 		$duration = (Get-Date) - $StartTime
 		$auditRecord = [PSCustomObject]@{
-			Timestamp  = (Get-Date).ToString('o')
-			User       = $User
-			Database   = $Plan.Database
-			Mode       = $Plan.Mode
-			TableCount = $Plan.TableCount
-			TotalRows  = $TotalInserted
-			Duration   = $duration.TotalSeconds
-			Success    = -not $GenerationFailed
-			Tables     = @($TableResults | ForEach-Object { @{ TableName = $_.TableName; RowCount = $_.RowCount; Success = $_.Success } })
+			Timestamp     = (Get-Date).ToString('o')
+			CorrelationId = $CorrelationId
+			User          = $User
+			Database      = $Plan.Database
+			Mode          = $Plan.Mode
+			TableCount    = $Plan.TableCount
+			TotalRows     = $TotalInserted
+			Duration      = $duration.TotalSeconds
+			Success       = -not $GenerationFailed
+			Tables        = @($TableResults | ForEach-Object {
+					$durMs = if ($_.PSObject.Properties.Name -contains 'DurationMs') { [int]$_.DurationMs } else { $null }
+					@{
+						TableName  = $_.TableName
+						RowCount   = $_.RowCount
+						Success    = $_.Success
+						DurationMs = $durMs
+					}
+				})
 		}
 		$auditJson = $auditRecord | ConvertTo-Json -Depth 4 -Compress
 		Add-Content -Path $auditLogPath -Value $auditJson -Encoding UTF8

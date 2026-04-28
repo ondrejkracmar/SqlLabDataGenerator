@@ -33,10 +33,28 @@ Register-PSFConfigValidation -Name 'SqlLabDataGenerator.NullProbability' -Script
 $script:SldgState = [SqlLabDataGenerator.SldgSession]::new()
 $script:CacheKeySeparator = '|'
 
-# Circuit breaker state for AI provider calls
-$script:AICircuitBreaker = @{
-	ConsecutiveFailures = 0
-	OpenedAt            = $null
+# A-1: Semantic state aliases. These are *views* over the same SldgSession instance,
+# documenting the intended logical partitions (connection / cache / AI). New code should
+# prefer the domain-specific alias when it makes the access intent clearer; existing
+# code that uses $script:SldgState directly continues to work unchanged.
+$script:ConnectionState = $script:SldgState   # ActiveConnection, Providers, Transformers
+$script:CacheState      = $script:SldgState   # AILocaleCache, AIValueCache, AILocaleCategoryCache, CacheTimestamps
+$script:AIState         = $script:SldgState   # AIModelOverrides, AIRequestTimestamps
+
+# Circuit breaker state for AI provider calls.
+# A-2: Per-purpose breaker so a failure in one purpose (e.g. batch-generation) does not
+# disable all AI traffic (e.g. column-analysis). Keyed by purpose name; the empty string
+# '' represents the global / unspecified-purpose bucket.
+$script:AICircuitBreakers = [System.Collections.Concurrent.ConcurrentDictionary[string, hashtable]]::new()
+
+function Get-SldgCircuitBreaker {
+	param ([string]$Purpose)
+	$key = if ($Purpose) { $Purpose } else { '' }
+	return $script:AICircuitBreakers.GetOrAdd($key, { param ($k) @{ ConsecutiveFailures = 0; OpenedAt = $null } })
+}
+
+function Reset-SldgCircuitBreakers {
+	$script:AICircuitBreakers.Clear()
 }
 
 # Import behavior

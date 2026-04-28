@@ -343,5 +343,31 @@
 	'Profile.InvalidJson'                    = "Profile '{0}' contains invalid JSON: {1}"
 
 	# Connect: SQL Server credential warning
-	'Connect.SqlServer.CredentialWarning'    = 'SQL authentication extracts password to plaintext for connection string. Consider using Integrated Security where possible.'
+	'Connect.SqlServer.CredentialWarning'    = 'SQL authentication is in use. The password is held in a SecureString via SqlCredential and never materialised into the connection string. Prefer Integrated Security where possible.'
+
+	# Hardcoded string fixes (round 3)
+	'Module.ManifestReadFailed'              = 'Failed to read module manifest: {0}'
+	'Generation.AIGenOverride'               = 'Auto-enabled AI row generation from plan UseAIGeneration flag.'
+
+	# AI batch validation (round 3 — strict whitelist)
+	'AI.BatchUnexpectedColumns'              = "AI response for '{0}' contained unexpected columns: {1}. Discarding extra properties."
+	'AI.BatchInvalidRow'                     = "AI response for '{0}': row at index {1} is not an object — skipping."
+
+	# Audit log integrity
+	'Audit.SymlinkRejected'                  = 'Audit log path is a symbolic link or reparse point — refusing to write to {0}.'
+
+	# AI TLS / cert handling (round 3)
+	'AI.TLSSkipNeedsExplicitOptIn'           = 'TLS certificate validation skip is configured but the explicit opt-in is required. Run Set-SldgAIProvider -SkipCertificateCheck to enable, then restart the session.'
+
+	# MCP CORS
+	'MCP.CORS.OriginRejected'                = 'CORS origin rejected: {0}. Only loopback (http://localhost / 127.0.0.1 / ::1) on the listener port {1} is allowed.'
+
+	# Per-purpose circuit breaker
+	'AI.CircuitBreakerOpenPurpose'           = "AI circuit breaker for purpose '{0}' is OPEN after {1} consecutive failures. AI calls for this purpose will be skipped for {2}s."
+	'AI.CircuitBreakerResetPurpose'          = "AI circuit breaker for purpose '{0}' reset after cooldown."
+
+	# Azure Function client (Managed Identity)
+	'Client.MIRequiresAzAccounts'            = 'Managed Identity authentication requires the Az.Accounts module to be installed.'
+	'Client.MIRequiresAudience'              = 'SqlLabDataGenerator.Client.Audience must be configured (the Application ID URI of the Function App) when UseManagedIdentity is enabled.'
+	'Client.NoAuthConfigured'                = 'No authentication configured for the Function client. Set ProtectedToken / UnprotectedToken or enable UseManagedIdentity with a configured Audience.'
 }

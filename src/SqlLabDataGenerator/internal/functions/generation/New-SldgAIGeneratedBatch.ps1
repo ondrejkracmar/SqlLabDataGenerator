@@ -240,33 +240,37 @@
 		}
 
 		try {
-			$parsed = $jsonText | ConvertFrom-Json -ErrorAction Stop
+			# S-2: Bound recursion depth and deserialize as hashtable to avoid PSObject
+			# script-property / ToString() side effects from attacker-controlled JSON.
+			$parsed = $jsonText | ConvertFrom-Json -Depth 4 -AsHashtable -ErrorAction Stop
 
-			if ($parsed -isnot [System.Array] -and $parsed -isnot [System.Collections.IEnumerable]) {
+			if ($parsed -isnot [System.Collections.IEnumerable] -or $parsed -is [string] -or $parsed -is [hashtable]) {
 				Write-PSFMessage -Level Warning -Message ($script:strings.'AI.BatchParseFailed' -f $TableName, $script:strings.'AI.BatchNotArray')
 				break
 			}
 
 			# Detect Lorem Ipsum / Latin filler text in AI responses — reject entire batch if found.
 			# AI models sometimes generate Latin placeholder text despite explicit instructions not to.
+			# S-7: Use a regex with an explicit timeout to prevent ReDoS on huge AI strings.
 			$loremDetected = $false
 			$loremPattern = '\b(lorem\s+ipsum|dolor\s+sit\s+amet|consectetur\s+adipiscing|sed\s+do\s+eiusmod|tempor\s+incididunt|labore\s+et\s+dolore|magna\s+aliqua|ut\s+enim\s+ad\s+minim|veniam\s+quis\s+nostrud|exercitation\s+ullamco|laboris\s+nisi\s+ut|aliquip\s+ex\s+ea|commodo\s+consequat|duis\s+aute\s+irure|reprehenderit\s+in\s+voluptate|velit\s+esse\s+cillum|fugiat\s+nulla\s+pariatur|excepteur\s+sint\s+occaecat|cupidatat\s+non\s+proident|sunt\s+in\s+culpa)\b'
-			# Also catch single Lorem Ipsum words densely packed — 3+ of these in one string value is suspicious
 			$loremWords = 'lorem|ipsum|dolor|amet|elit|adipiscing|consectetur|eiusmod|tempor|incididunt|labore|dolore|aliqua|veniam|nostrud|exercitation|ullamco|laboris|aliquip|consequat|irure|reprehenderit|voluptate|cillum|fugiat|pariatur|excepteur|occaecat|cupidatat|proident|officia|deserunt|mollit|anim|laborum'
+			$loremPhraseRegex = [regex]::new($loremPattern, [System.Text.RegularExpressions.RegexOptions]::IgnoreCase, [TimeSpan]::FromMilliseconds(500))
+			$loremWordRegex   = [regex]::new($loremWords,   [System.Text.RegularExpressions.RegexOptions]::IgnoreCase, [TimeSpan]::FromMilliseconds(500))
+			$maxScanLength    = 10000
 			foreach ($row in $parsed) {
 				if ($loremDetected) { break }
-				foreach ($prop in $row.psobject.Properties) {
-					if ($prop.Value -is [string] -and $prop.Value.Length -gt 5) {
-						# Check for multi-word Latin phrases
-						if ($prop.Value -match $loremPattern) {
-							$loremDetected = $true
-							break
-						}
-						# Check for dense concentration of single Lorem Ipsum words (3+ matches in one value)
-						$wordMatches = [regex]::Matches($prop.Value, $loremWords, 'IgnoreCase')
-						if ($wordMatches.Count -ge 3) {
-							$loremDetected = $true
-							break
+				if ($row -isnot [System.Collections.IDictionary]) { continue }
+				foreach ($key in $row.Keys) {
+					$val = $row[$key]
+					if ($val -is [string] -and $val.Length -gt 5) {
+						$scan = if ($val.Length -gt $maxScanLength) { $val.Substring(0, $maxScanLength) } else { $val }
+						try {
+							if ($loremPhraseRegex.IsMatch($scan)) { $loremDetected = $true; break }
+							if ($loremWordRegex.Matches($scan).Count -ge 3) { $loremDetected = $true; break }
+						} catch [System.Text.RegularExpressions.RegexMatchTimeoutException] {
+							# Treat regex timeout as a suspicious payload — drop the batch.
+							$loremDetected = $true; break
 						}
 					}
 				}
@@ -276,16 +280,32 @@
 				break
 			}
 
+			$rowIndex = -1
 			foreach ($row in $parsed) {
-				$rowHash = @{}
-				# Validate AI returned all expected columns
-				$rowProps = @($row.psobject.Properties.Name)
-				$missingCols = @($colNames | Where-Object { $_ -notin $rowProps })
+				$rowIndex++
+				if ($row -isnot [System.Collections.IDictionary]) {
+					Write-PSFMessage -Level Warning -Message ($script:strings.'AI.BatchInvalidRow' -f $TableName, $rowIndex)
+					continue
+				}
+
+				# Strict whitelist: only declared columns flow into the row hash.
+				$rowKeys = @($row.Keys)
+				$unexpected = @($rowKeys | Where-Object { $_ -notin $colNames })
+				if ($unexpected.Count -gt 0) {
+					Write-PSFMessage -Level Verbose -Message ($script:strings.'AI.BatchUnexpectedColumns' -f $TableName, ($unexpected -join ', '))
+				}
+				$missingCols = @($colNames | Where-Object { $_ -notin $rowKeys })
 				if ($missingCols.Count -gt 0) {
 					Write-PSFMessage -Level Warning -Message ($script:strings.'AI.BatchMissingColumns' -f $TableName, ($missingCols -join ', '))
 				}
+
+				$rowHash = @{}
 				foreach ($colName in $colNames) {
-					$val = $row.$colName
+					$val = if ($row.Contains($colName)) { $row[$colName] } else { $null }
+					# Reject nested objects/arrays — scalar values only.
+					if ($val -is [System.Collections.IDictionary] -or ($val -is [System.Collections.IEnumerable] -and $val -isnot [string])) {
+						$val = $null
+					}
 					$rowHash[$colName] = if ($null -eq $val -or ($val -is [string] -and $val -eq 'null')) { [DBNull]::Value } else { $val }
 				}
 				$allResults.Add($rowHash)

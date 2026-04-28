@@ -22,7 +22,7 @@
 		$moduleVersion = $moduleInfo.ModuleVersion
 	}
 	catch {
-		Write-PSFMessage -Level Warning -Message "Failed to read module manifest: $_"
+		Write-PSFMessage -Level Warning -Message ($script:strings.'Module.ManifestReadFailed' -f $_)
 	}
 
 	$aiConfig = @{

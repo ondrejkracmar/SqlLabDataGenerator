@@ -123,7 +123,8 @@
 			if ($localTransaction) {
 				try { $localTransaction.Rollback() } catch { $null = $_ }
 			}
-			throw
+			Stop-PSFFunction -Message $_.Exception.Message -ErrorRecord $_ -EnableException $true
+			return
 		}
 		finally {
 			if ($localTransaction) { $localTransaction.Dispose() }

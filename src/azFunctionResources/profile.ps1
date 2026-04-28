@@ -9,7 +9,17 @@ if ($env:MSI_SECRET -and (Get-Module -ListAvailable Az.Accounts))
 {
 	try
 	{
-		Connect-AzAccount -Identity
+		# Bound the MI handshake so a hung IMDS endpoint cannot stall every cold start indefinitely.
+		$miJob = Start-Job -ScriptBlock { Connect-AzAccount -Identity -ErrorAction Stop }
+		$completed = Wait-Job -Job $miJob -Timeout 15
+		if (-not $completed)
+		{
+			Stop-Job -Job $miJob -ErrorAction SilentlyContinue
+			Remove-Job -Job $miJob -Force -ErrorAction SilentlyContinue
+			throw "Managed Identity authentication did not complete within 15 seconds."
+		}
+		Receive-Job -Job $miJob -ErrorAction Stop | Out-Null
+		Remove-Job -Job $miJob -Force -ErrorAction SilentlyContinue
 		Write-Host "Managed Identity connected successfully"
 	}
 	catch

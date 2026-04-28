@@ -1,4 +1,4 @@
-function Start-McpSseTransport {
+﻿function Start-McpSseTransport {
 	<#
 	.SYNOPSIS
 		Starts the MCP server in SSE (Server-Sent Events) HTTP transport mode.
@@ -91,14 +91,24 @@ function Start-McpSseTransport {
 				$queue = [System.Collections.Concurrent.BlockingCollection[string]]::new()
 				$sessions[$sessionId] = $queue
 
-				# Restrict CORS to localhost/loopback origins only
+				# Restrict CORS to localhost/loopback origins on the listener port only.
+				# S-5: Tightened scheme + port validation. Loopback HTTP is acceptable;
+				# any non-loopback host or mismatched port is rejected outright.
 				$origin = $request.Headers['Origin']
 				$isAllowed = $false
 				if ($origin) {
 					try {
 						$originUri = [System.Uri]::new($origin)
-						$isAllowed = $originUri.Host -in @('localhost', '127.0.0.1', '[::1]') -and $originUri.Scheme -in @('http', 'https')
+						$loopbackHosts = @('localhost', '127.0.0.1', '::1', '[::1]')
+						$schemeOk = $originUri.Scheme -in @('http', 'https')
+						$hostOk   = $originUri.Host -in $loopbackHosts
+						# Origin Port: a missing port becomes the scheme default. Require exact match against the listener port.
+						$portOk   = ($originUri.Port -eq $Port)
+						$isAllowed = $schemeOk -and $hostOk -and $portOk
 					} catch { $isAllowed = $false }
+				}
+				if (-not $isAllowed -and $origin) {
+					Write-PSFMessage -Level Verbose -Message ($script:strings.'MCP.CORS.OriginRejected' -f $origin, $Port)
 				}
 				$allowedOrigin = if ($isAllowed) { $origin } else { "http://localhost:$Port" }
 
@@ -205,14 +215,19 @@ function Start-McpSseTransport {
 				$response.Close()
 			}
 			elseif ($method -eq 'OPTIONS') {
-				# CORS preflight — restrict to localhost/loopback origins (consistent with GET /sse handler)
+				# CORS preflight — same loopback + scheme + port validation as GET /sse.
 				$origin = $request.Headers['Origin']
 				$isAllowedOrigin = $false
 				if ($origin) {
 					try {
 						$originUri = [System.Uri]::new($origin)
-						$isAllowedOrigin = $originUri.Host -in @('localhost', '127.0.0.1', '[::1]') -and $originUri.Scheme -in @('http', 'https')
+						$loopbackHosts = @('localhost', '127.0.0.1', '::1', '[::1]')
+						$isAllowedOrigin = ($originUri.Scheme -in @('http', 'https')) -and `
+							($originUri.Host -in $loopbackHosts) -and ($originUri.Port -eq $Port)
 					} catch { $isAllowedOrigin = $false }
+				}
+				if (-not $isAllowedOrigin -and $origin) {
+					Write-PSFMessage -Level Verbose -Message ($script:strings.'MCP.CORS.OriginRejected' -f $origin, $Port)
 				}
 				$allowedOrigin = if ($isAllowedOrigin) { $origin } else { "http://localhost:$Port" }
 				$response.Headers.Add('Access-Control-Allow-Origin', $allowedOrigin)

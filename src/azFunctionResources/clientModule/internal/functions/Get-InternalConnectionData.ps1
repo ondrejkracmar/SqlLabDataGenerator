@@ -38,23 +38,61 @@
 		$header = @{ }
 		
 		#region Authentication
-		$unprotectedToken = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.Client.UnprotectedToken'
-		$protectedToken = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.Client.ProtectedToken'
-		
+		# S-4: Managed Identity is the preferred authentication path for the Azure Function client.
+		# Falls back to function-key (protected/unprotected) only if MI is not configured.
+		$useManagedIdentity = $false
+		try { $useManagedIdentity = [bool](Get-PSFConfigValue -FullName 'SqlLabDataGenerator.Client.UseManagedIdentity' -Fallback $false) } catch { $useManagedIdentity = $false }
+		$unprotectedToken   = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.Client.UnprotectedToken'
+		$protectedToken     = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.Client.ProtectedToken'
+
 		$authenticationDone = $false
-		if ($protectedToken -and -not $authenticationDone)
+		if ($useManagedIdentity)
 		{
-			$header['x-functions-key'] = $protectedToken.GetNetworkCredential().Password
+			if (-not (Get-Module -ListAvailable -Name Az.Accounts))
+			{
+				Stop-PSFFunction -String 'Client.MIRequiresAzAccounts' -EnableException $true
+				return
+			}
+			$audience = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.Client.Audience'
+			if (-not $audience)
+			{
+				Stop-PSFFunction -String 'Client.MIRequiresAudience' -EnableException $true
+				return
+			}
+			try
+			{
+				# Get-AzAccessToken returns a SecureString in newer Az versions; coerce safely either way.
+				$tokenObj = Get-AzAccessToken -ResourceUrl $audience -ErrorAction Stop
+				$tokenValue = if ($tokenObj.Token -is [System.Security.SecureString]) {
+					[System.Net.NetworkCredential]::new('', $tokenObj.Token).Password
+				} else { [string]$tokenObj.Token }
+				$header['Authorization'] = "Bearer $tokenValue"
+				Remove-Variable -Name tokenValue -ErrorAction SilentlyContinue
+				$authenticationDone = $true
+			}
+			catch
+			{
+				Stop-PSFFunction -Message "Failed to acquire Managed Identity access token: $($_.Exception.Message)" -ErrorRecord $_ -EnableException $true
+				return
+			}
+		}
+		if (-not $authenticationDone -and $protectedToken)
+		{
+			# Keep the SecureString — only materialise into the header momentarily.
+			$networkCred = $protectedToken.GetNetworkCredential()
+			$header['x-functions-key'] = $networkCred.Password
+			$networkCred = $null
 			$authenticationDone = $true
 		}
-		if ($unprotectedToken -and -not $authenticationDone)
+		if (-not $authenticationDone -and $unprotectedToken)
 		{
 			$header['x-functions-key'] = $unprotectedToken
 			$authenticationDone = $true
 		}
 		if (-not $authenticationDone)
 		{
-			throw "No Authentication configured!"
+			Stop-PSFFunction -String 'Client.NoAuthConfigured' -EnableException $true
+			return
 		}
 		#endregion Authentication
 		
