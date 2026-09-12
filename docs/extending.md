@@ -1,6 +1,6 @@
 # Extending SqlLabDataGenerator
 
-How to extend the module with custom database providers, data transformers, locales, and generation rules.
+How to extend the module with additional database engines, data transformers, locales, and generation rules.
 
 > For basic usage, see [Getting Started](getting-started.md). For AI features, see [AI Configuration](ai-configuration.md).
 
@@ -8,144 +8,84 @@ How to extend the module with custom database providers, data transformers, loca
 
 ## Table of Contents
 
-- [Custom Database Provider](#custom-database-provider)
+- [Adding a Database Engine](#adding-a-database-engine)
 - [Custom Transformer](#custom-transformer)
 - [Custom Locale](#custom-locale)
 - [Custom Generation Rules](#custom-generation-rules)
 
 ---
 
-## Custom Database Provider
+## Adding a Database Engine
 
-A database provider teaches SqlLabDataGenerator how to connect, read schemas, write data, and disconnect from a specific database engine. Built-in providers: SQL Server, SQLite.
-
-### Required Functions
-
-Implement 5 functions:
-
-#### 1. Connect
+SqlLabDataGenerator does not open database connections itself. `Connect-SldgDatabase` registers the
+module's empty repository context with [PSSqlRepository](https://github.com/ondrejkracmar/PSSqlRepository),
+calls `Connect-PSSqlRepository`, and works from then on with the raw `System.Data.Common.DbConnection`
+of the session. That means **every PSSqlRepository provider is a SqlLabDataGenerator provider**:
 
 ```powershell
-function Connect-MyDatabase {
-    param (
-        [Parameter(Mandatory)][string]$Server,
-        [Parameter(Mandatory)][string]$Database,
-        [PSCredential]$Credential,
-        [string]$ConnectionString
-    )
+Get-PSSqlRepositoryProvider                     # SqlServer, Sqlite, DuckDB, ... whatever is installed
+Install-PSSqlRepositoryExtension -FromModule PSSqlRepository.Providers.DuckDB -Trust
+Connect-SldgDatabase -Provider DuckDB -ConnectionString 'Data Source=.\lab.duckdb'
+```
 
-    # Open connection and return a connection info object
-    [SqlLabDataGenerator.Connection]@{
-        Provider       = 'MyDatabase'
-        DbConnection   = $conn
-        ServerInstance = $Server
-        Database       = $Database
-    }
+What differs per engine is isolated in two places:
+
+| Concern | Where | Built-in |
+|---|---|---|
+| SQL phrasing: identifier quoting, `TOP`/`LIMIT`, `COALESCE`, parameter placeholders, identity insert, constraint toggling, parameter cap | `SqlLabDataGenerator.Data.SqlDialect` (C#, `src/library/SqlLabDataGenerator/Data/SqlDialect.cs`) | `SqlServerDialect`, `SqliteDialect`, `DuckDbDialect`, `MySqlDialect`, `AnsiSqlDialect` (default) |
+| Reading the catalog | a `GetSchema` function registered by `Register-SldgBuiltInProvider`, keyed by `SqlDialect.SchemaSource` | `Get-SldgSqlServerSchema` (`sys.*`), `Get-SldgSqliteSchema` (`PRAGMA`), `Get-SldgInformationSchema` (ANSI `INFORMATION_SCHEMA`) |
+
+Reading and writing rows (`Read-SldgTableData`, `Write-SldgTableData`) are already generic: they
+ask the dialect for quoting and placeholders and bind every value as a `DbParameter`.
+
+### A new engine that speaks INFORMATION_SCHEMA and `@name` parameters
+
+Nothing to do. Install the PSSqlRepository provider; the `AnsiSqlDialect` and the
+`INFORMATION_SCHEMA` reader cover it. Types reported by the catalog are mapped onto the SQL Server
+vocabulary the generators use by `ConvertTo-SldgCanonicalDataType` - extend its table if the engine
+reports a name it does not know.
+
+### A new engine with its own quoting or parameter syntax
+
+Add a `SqlDialect` subclass and one `case` in `SqlDialect.ForProvider`:
+
+```csharp
+public sealed class PostgreSqlDialect : SqlDialect
+{
+    public override string Name => "PostgreSql";
+    public override string SchemaSource => "InformationSchema";
+    public override string QuoteIdentifier(string name) => "\"" + name.Replace("\"", "\"\"") + "\"";
+    public override string DisableAllForeignKeysStatement => "SET session_replication_role = replica";
+    public override string EnableAllForeignKeysStatement => "SET session_replication_role = DEFAULT";
 }
 ```
 
-#### 2. GetSchema
+Rebuild the library (`dotnet build src/library/SqlLabDataGenerator.sln -c Release`) and add a case
+to `SqlDialectTests.cs`.
+
+### A new engine whose catalog is not INFORMATION_SCHEMA
+
+Write a `Get-Sldg<Engine>Schema` function that returns a `[SqlLabDataGenerator.SchemaModel]`
+(the SQLite reader is the template: it builds `ColumnInfo`/`TableInfo` objects directly; the SQL
+Server reader instead shapes DataTables and hands them to `ConvertTo-SldgSchemaModel`), give the
+dialect a new `SchemaSource` name, and register the map in `Register-SldgBuiltInProvider`:
 
 ```powershell
-function Get-MyDatabaseSchema {
-    param (
-        [Parameter(Mandatory)]$ConnectionInfo,
-        [string[]]$IncludeTable,
-        [string[]]$ExcludeTable
-    )
-
-    @(
-        [PSCustomObject]@{
-            SchemaName  = 'dbo'
-            TableName   = 'Users'
-            FullName    = '[dbo].[Users]'
-            Columns     = @(
-                [PSCustomObject]@{
-                    ColumnName   = 'Id'
-                    DataType     = 'int'
-                    IsIdentity   = $true
-                    IsNullable   = $false
-                    MaxLength    = $null
-                    IsPrimaryKey = $true
-                }
-                # ... more columns
-            )
-            ForeignKeys = @()
-        }
-    )
+Register-SldgProviderInternal -Name 'MyCatalog' -FunctionMap @{
+    GetSchema = 'Get-SldgMyEngineSchema'
+    WriteData = 'Write-SldgTableData'
+    ReadData  = 'Read-SldgTableData'
 }
 ```
 
-#### 3. WriteData
+### Rules
 
-```powershell
-function Write-MyDatabaseData {
-    param (
-        [Parameter(Mandatory)]$ConnectionInfo,
-        [Parameter(Mandatory)][string]$SchemaName,
-        [Parameter(Mandatory)][string]$TableName,
-        [Parameter(Mandatory)][System.Data.DataTable]$Data,
-        [int]$BatchSize = 1000,
-        $Transaction
-    )
-
-    # Insert rows — use parameterized queries, never concatenate user data into SQL
-    return $Data.Rows.Count
-}
-```
-
-#### 4. ReadData
-
-```powershell
-function Read-MyDatabaseData {
-    param (
-        [Parameter(Mandatory)]$ConnectionInfo,
-        [Parameter(Mandatory)][string]$SchemaName,
-        [Parameter(Mandatory)][string]$TableName,
-        [int]$Top = 100
-    )
-
-    # Return a DataTable of existing rows
-    return $dataTable
-}
-```
-
-#### 5. Disconnect
-
-```powershell
-function Disconnect-MyDatabase {
-    param (
-        [Parameter(Mandatory)]$ConnectionInfo
-    )
-
-    $ConnectionInfo.DbConnection.Close()
-    $ConnectionInfo.DbConnection.Dispose()
-}
-```
-
-### Registration
-
-Register your provider using the internal registration function:
-
-```powershell
-Register-SldgProviderInternal -Name 'MyDatabase' -FunctionMap @{
-    Connect    = 'Connect-MyDatabase'
-    GetSchema  = 'Get-MyDatabaseSchema'
-    WriteData  = 'Write-MyDatabaseData'
-    ReadData   = 'Read-MyDatabaseData'
-    Disconnect = 'Disconnect-MyDatabase'
-}
-
-# Now use it:
-Connect-SldgDatabase -Provider 'MyDatabase' -ServerInstance 'localhost' -Database 'TestDB'
-```
-
-### Tips
-
-- Always use **parameterized queries** in WriteData — never concatenate user data into SQL.
-- Support the `-Transaction` parameter so `Invoke-SldgDataGeneration -UseTransaction` works with your provider.
-- Return `[System.Data.DataTable]` from ReadData for compatibility with validation and transforms.
-- The module uses compiled C# types (namespace `SqlLabDataGenerator`). Your Connect function should return a `[SqlLabDataGenerator.Connection]` object.
+- Never quote identifiers by hand or branch on `$ConnectionInfo.Provider`; ask
+  `$ConnectionInfo.GetDialect()`.
+- Values travel as `DbParameter`s. `Invoke-SldgDbQuery` and `Write-SldgTableData` are the only
+  places that build commands - reuse them.
+- Add an integration test under `src/tests/functions/integration/` that skips (with a reason)
+  when the provider is not installed; see `DuckDBIntegration.Tests.ps1`.
 
 ---
 

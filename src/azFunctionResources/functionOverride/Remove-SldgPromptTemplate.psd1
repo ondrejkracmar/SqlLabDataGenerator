@@ -1,3 +1,0 @@
-@{
-	RestMethods = 'delete'
-}

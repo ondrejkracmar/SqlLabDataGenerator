@@ -1,6 +1,6 @@
 ﻿# SqlLabDataGenerator
 
-**AI-powered** PowerShell module that fills your SQL Server or SQLite databases with realistic test data. Uses large language models (OpenAI, Azure OpenAI, or Ollama) to **understand your database structure** — recognizing what each column represents regardless of naming conventions or language — and then **generates contextually consistent rows** where names, emails, addresses, and business data make sense together.
+**AI-powered** PowerShell module that fills your SQL Server, SQLite, DuckDB - or any other [PSSqlRepository](https://github.com/ondrejkracmar/PSSqlRepository) provider - databases with realistic test data. Uses large language models (OpenAI, Azure OpenAI, or Ollama) to **understand your database structure** — recognizing what each column represents regardless of naming conventions or language — and then **generates contextually consistent rows** where names, emails, addresses, and business data make sense together.
 
 ### Key AI Capabilities
 
@@ -10,7 +10,7 @@
 - **Any-language locale support** — generate data in any language without pre-built locale packs; the AI adapts names, addresses, and values to the target culture automatically
 - **Per-table generation notes** — schema analysis produces expert-level guidance for each table that is passed to the generation model, resulting in higher-quality data even from smaller local models
 
-The module also works **without AI** using 10 built-in generators (PersonName, Address, Email, Phone, Date, Number, Company, Identifier, Financial, Text) and pattern-based column classification. The provider architecture is extensible to additional database engines (PostgreSQL, MySQL, Oracle, and others).
+The module also works **without AI** using 10 built-in generators (PersonName, Address, Email, Phone, Date, Number, Company, Identifier, Financial, Text) and pattern-based column classification. Database access goes through PSSqlRepository: every provider it loads (SQL Server and SQLite out of the box, DuckDB and others as installable extensions) works here without any driver of its own, and engine differences are isolated in a small SQL dialect model.
 
 ## How It Works
 
@@ -30,21 +30,36 @@ The pipeline is designed so that you can run it with a single command chain, or 
 
 ## Requirements
 
-- **PowerShell** 5.1+ or PowerShell 7+ (7+ recommended for parallel generation and Ollama TLS skip)
-- **PSFramework** (installed automatically as dependency)
+- **PowerShell 7.4+** (Core edition). The module ships a `net8.0` build for PowerShell 7.4/7.5 and a `net10.0` build for 7.6+; the loader picks the right one.
+- **PSFramework** and **PSSqlRepository** 0.5+ (installed automatically as dependencies). PSSqlRepository provides every database driver: SQL Server and SQLite are built in, DuckDB and further engines install as extensions (`Install-PSSqlRepositoryExtension`).
 - Optional: Ollama, OpenAI API key, or Azure OpenAI deployment for AI features
 
 ## Installation
 
 ```powershell
-Install-Module SqlLabDataGenerator -Scope CurrentUser
+Install-PSResource SqlLabDataGenerator -Repository PSGallery   # or: Install-Module SqlLabDataGenerator -Scope CurrentUser
+Import-Module SqlLabDataGenerator
 ```
 
-Or import directly from source:
+> **Reading this on GitHub?** This repository is a published mirror: it carries the compiled
+> module and its documentation, but no source and no build. Source and issues live in Azure
+> DevOps (`i-system/PSModules/SqlLabDataGenerator`). Install from the PowerShell Gallery as above.
+
+## Supported databases
+
+| Provider | Comes from | Schema reader | Notes |
+|---|---|---|---|
+| `SqlServer` | PSSqlRepository (built in) | `sys.*` catalog views | SqlBulkCopy inserts, `IDENTITY_INSERT`, per-constraint FK toggling, view-based JSON/XML hints |
+| `Sqlite` | PSSqlRepository (built in) | `PRAGMA` | Batched parameterised inserts, session-wide `PRAGMA foreign_keys` |
+| `DuckDB` | PSSqlRepository extension | `INFORMATION_SCHEMA` | Sequence-backed identities detected from `nextval()` defaults |
+| anything else PSSqlRepository loads | PSSqlRepository extension | `INFORMATION_SCHEMA` | ANSI dialect: double-quoted identifiers, `LIMIT`, `COALESCE`; MySQL/MariaDB get backtick quoting |
 
 ```powershell
-git clone <repo-url>
-Import-Module ./src/SqlLabDataGenerator/SqlLabDataGenerator.psd1
+Connect-SldgDatabase -ServerInstance 'localhost' -Database 'AdventureWorks'          # SQL Server, integrated auth
+Connect-SldgDatabase -ServerInstance 'sql01' -Database 'Lab' -Credential (Get-Credential) -TrustServerCertificate
+Connect-SldgDatabase -Provider Sqlite -Database ./lab.db -CreateIfNotExists
+Connect-SldgDatabase -Provider DuckDB -ConnectionString 'Data Source=./lab.duckdb'
+Get-PSSqlRepositoryProvider                                                          # what is available here
 ```
 
 ## Quick Start — Without AI
@@ -293,7 +308,7 @@ See [Extending](docs/extending.md) for how to create your own transformers.
 
 ## Parallel Generation and Streaming
 
-For large databases, speed things up with parallel table generation (PowerShell 7+):
+For large databases, speed things up with parallel table generation:
 
 ```powershell
 # Parallel: independent tables generated concurrently
@@ -307,7 +322,7 @@ Streaming is automatic — when a table exceeds the row threshold (default 100 0
 ### Connection
 | Command | Description |
 |---|---|
-| `Connect-SldgDatabase` | Connect to SQL Server or SQLite; supports Windows auth, SQL auth, connection string |
+| `Connect-SldgDatabase` | Connect through any PSSqlRepository provider (SQL Server, SQLite, DuckDB, ...); integrated auth, SQL auth or a raw connection string |
 | `Disconnect-SldgDatabase` | Close the active connection |
 
 ### Session
@@ -396,8 +411,8 @@ For detailed guides beyond this README:
 
 - [Getting Started](docs/getting-started.md) — full installation, first run, step-by-step workflow
 - [AI Configuration & Training](docs/ai-configuration.md) — provider setup, custom Ollama models, prompt customization, walkthroughs
-- [Extending](docs/extending.md) — custom database providers, transformers, locales, generation rules
-- [Command Reference](docs/commands/) — detailed help for every exported command
+- [Extending](docs/extending.md) — adding a database engine (dialect + schema reader), transformers, locales, generation rules
+- [Command Reference](docs/cmdlets/) — detailed help for every exported command
 
 ## License
 

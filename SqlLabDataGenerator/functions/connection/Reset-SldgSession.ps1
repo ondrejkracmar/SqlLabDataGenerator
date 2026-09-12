@@ -1,0 +1,68 @@
+﻿function Reset-SldgSession {
+	<#
+	.SYNOPSIS
+		Resets the SqlLabDataGenerator session to a clean state.
+
+	.DESCRIPTION
+		Closes the active database connection, clears all registered providers,
+		transformers, locales, generation plans, AI caches, and model overrides.
+
+		After reset, the module behaves as if freshly imported — built-in providers
+		and locales are NOT re-registered automatically. Use Import-Module -Force
+		if you need a fresh module import with built-in registrations.
+
+		Use Clear-SldgCache if you only want to clear AI caches without losing
+		connection and registrations.
+
+	.PARAMETER Force
+		Skips the confirmation prompt.
+
+	.PARAMETER WhatIf
+		Shows what the command would do without actually resetting the session.
+
+	.PARAMETER Confirm
+		Prompts for confirmation before resetting the session.
+
+	.EXAMPLE
+		PS C:\> Reset-SldgSession
+
+		Prompts for confirmation, then resets the entire session.
+
+	.EXAMPLE
+		PS C:\> Reset-SldgSession -Force
+
+		Resets the session without confirmation.
+	#>
+	[OutputType([void])]
+	[CmdletBinding(SupportsShouldProcess, ConfirmImpact = 'High')]
+	param (
+		[switch]$Force
+	)
+
+	if ($Force -or $PSCmdlet.ShouldProcess('SqlLabDataGenerator session', 'Reset all state (connection, providers, caches, plans)')) {
+		$session = $script:SldgState
+
+		# Log what is being cleared for diagnostics
+		$connInfo = $session.ActiveConnection
+		if ($connInfo) {
+			Write-PSFMessage -Level Verbose -Message ($script:strings.'Session.ClosingConnection' -f $connInfo.Provider, $connInfo.Database)
+		}
+
+		$providerCount = $session.Providers.Count
+		$localeCount = $session.Locales.Count
+		$cacheTotal = $session.AIValueCache.Count + $session.AILocaleCache.Count + $session.AILocaleCategoryCache.Count
+
+		if ($connInfo) { Disconnect-SldgRepositorySession -ConnectionInfo $connInfo }
+		$session.Reset()
+
+		# The built-in schema/data maps and transformers are infrastructure, not session
+		# state; without them the freshly reset session could not connect or export.
+		Register-SldgBuiltInProvider
+
+		# A-2: Per-purpose AI circuit breakers must be cleared too — otherwise a stale OPEN
+		# state from before the reset blocks AI traffic in the freshly reset session.
+		Reset-SldgCircuitBreaker
+
+		Write-PSFMessage -Level Host -Message ($script:strings.'Session.ResetComplete' -f $providerCount, $localeCount, $cacheTotal)
+	}
+}

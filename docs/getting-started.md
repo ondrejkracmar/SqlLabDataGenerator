@@ -11,13 +11,18 @@ Step-by-step guide to installing SqlLabDataGenerator and generating your first t
 ### From PowerShell Gallery
 
 ```powershell
-Install-Module SqlLabDataGenerator -Scope CurrentUser
+Install-PSResource SqlLabDataGenerator -Repository PSGallery   # or: Install-Module SqlLabDataGenerator -Scope CurrentUser
 ```
+
+PSFramework and PSSqlRepository are installed as dependencies. PSSqlRepository brings the
+database drivers: SQL Server and SQLite are built in; other engines are PSSqlRepository
+extensions (`Install-PSSqlRepositoryExtension -FromModule PSSqlRepository.Providers.DuckDB -Trust`).
 
 ### From Source
 
 ```powershell
 git clone <repo-url>
+dotnet build ./src/library/SqlLabDataGenerator.sln -c Release   # writes bin/net8.0 and bin/net10.0
 Import-Module ./src/SqlLabDataGenerator/SqlLabDataGenerator.psd1
 ```
 
@@ -25,8 +30,9 @@ Import-Module ./src/SqlLabDataGenerator/SqlLabDataGenerator.psd1
 
 | Requirement | Version | Notes |
 |---|---|---|
-| PowerShell | 5.1+ or 7+ | PowerShell 7 recommended for parallel generation |
-| PSFramework | 1.13.426+ | Installed automatically as dependency |
+| PowerShell | 7.4+ (Core) | net8.0 build for 7.4/7.5, net10.0 build for 7.6+ |
+| PSFramework | 1.12.346+ | Installed automatically as dependency |
+| PSSqlRepository | 0.5.0+ | Installed automatically; provides every database driver and provider |
 | Ollama | any | Optional — for local AI models |
 | OpenAI API key | — | Optional — for OpenAI / Azure OpenAI |
 
@@ -70,8 +76,14 @@ Other connection methods:
 $cred = Get-Credential
 Connect-SldgDatabase -ServerInstance 'dbserver\SQLEXPRESS' -Database 'TestDB' -Credential $cred
 
-# SQLite
-Connect-SldgDatabase -ServerInstance 'C:\data\mydb.sqlite' -Database 'main' -Provider 'SQLite'
+# SQLite (file path; add -CreateIfNotExists to start from an empty file)
+Connect-SldgDatabase -Provider Sqlite -Database 'C:\data\mydb.sqlite'
+
+# DuckDB, or any other PSSqlRepository provider, through a connection string
+Connect-SldgDatabase -Provider DuckDB -ConnectionString 'Data Source=C:\data\lab.duckdb'
+
+# See which providers this machine has
+Get-PSSqlRepositoryProvider
 ```
 
 ### 2. Discover Schema
@@ -280,7 +292,7 @@ $result.QualityReport
 
 ## Parallel Generation
 
-Generate independent tables concurrently (PowerShell 7+):
+Generate independent tables concurrently:
 
 ```powershell
 $result = Invoke-SldgDataGeneration -Plan $plan -Parallel -ThrottleLimit 4
