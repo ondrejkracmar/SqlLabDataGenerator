@@ -200,13 +200,14 @@ Register-SldgLocale -Name 'mixed' -MixFrom @{
 
 ## AI Providers
 
-Three providers are supported. Choose based on your needs:
+Four providers are supported. Choose based on your needs:
 
 | Provider | Auth | Local | Cost | Best For |
 |---|---|---|---|---|
 | **Ollama** | None | Yes | Free | Development, privacy, custom models |
 | **OpenAI** | API key | No | Per token | Highest quality, broad language support |
 | **Azure OpenAI** | API key | No | Per token | Enterprise, data residency, compliance |
+| **LiteLLM** | Optional virtual key | Yes (proxy) | Per backend | One OpenAI-compatible endpoint for Anthropic, Gemini, Bedrock, Mistral, Ollama, ... |
 
 ```powershell
 # Ollama (local, free — recommended for development)
@@ -218,6 +219,9 @@ Set-SldgAIProvider -Provider OpenAI -Model 'gpt-4o' -ApiKey $env:OPENAI_API_KEY 
 # Azure OpenAI
 Set-SldgAIProvider -Provider AzureOpenAI -Model 'gpt-4' `
     -Endpoint 'https://myinstance.openai.azure.com' -ApiKey $env:AZURE_OPENAI_KEY -EnableAIGeneration
+
+# LiteLLM proxy (any backend behind the OpenAI wire format; model = the alias the proxy exposes)
+Set-SldgAIProvider -Provider LiteLLM -Model 'claude-sonnet' -Endpoint 'http://localhost:4000' -EnableAIGeneration
 ```
 
 You can also use different models for different tasks — for example, a powerful model for analysis and a fast local model for data generation:

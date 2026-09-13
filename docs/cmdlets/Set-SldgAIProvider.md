@@ -4,7 +4,7 @@ external help file: SqlLabDataGenerator-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: SqlLabDataGenerator
-ms.date: 09/12/2026
+ms.date: 09/13/2026
 PlatyPS schema version: 2024-05-01
 title: Set-SldgAIProvider
 ---
@@ -76,19 +76,26 @@ Configures Azure OpenAI.
 
 ### EXAMPLE 5
 
+Set-SldgAIProvider -Provider LiteLLM -Model 'claude-sonnet' -Endpoint 'http://localhost:4000' -ApiKey $virtualKey
+
+Routes every AI call through a local LiteLLM proxy; 'claude-sonnet' is the model alias the
+proxy exposes and $virtualKey its virtual key (omit -ApiKey when the proxy runs without one).
+
+### EXAMPLE 6
+
 Set-SldgAIProvider -Provider None
 
 Disables AI entirely.
 Falls back to pattern matching and static generators.
 
-### EXAMPLE 6
+### EXAMPLE 7
 
 Set-SldgAIProvider -Provider Ollama -Model 'codellama' -Purpose 'structured-value'
 
 Uses Ollama codellama specifically for JSON/XML structured value generation,
 while other AI tasks use the global provider.
 
-### EXAMPLE 7
+### EXAMPLE 8
 
 Set-SldgAIProvider -Provider OpenAI -Model 'gpt-4o' -ApiKey $key
 PS C:\> Set-SldgAIProvider -Provider Ollama -Model 'llama3' -Endpoint 'http://gpu:11434' -Purpose 'batch-generation'
@@ -214,7 +221,9 @@ HelpMessage: ''
 The API endpoint URL.
 - Ollama: defaults to http://localhost:11434 if not specified
 - AzureOpenAI: required (e.g., https://myinstance.openai.azure.com)
-- OpenAI: not needed (uses api.openai.com)
+- OpenAI: not needed (uses api.openai.com); set it to point at another OpenAI-compatible
+  server (https only)
+- LiteLLM: defaults to http://localhost:4000; plain http is accepted for loopback only
 
 ```yaml
 Type: System.String
@@ -299,7 +308,10 @@ HelpMessage: ''
 
 ### -Provider
 
-The AI provider: Ollama, OpenAI, AzureOpenAI, or None (to disable AI).
+The AI provider: Ollama, OpenAI, AzureOpenAI, LiteLLM, or None (to disable AI).
+LiteLLM is a self-hosted proxy that speaks the OpenAI wire format in front of any backend
+(Anthropic, Gemini, Bedrock, Mistral, Ollama, ...); the model name is whatever the proxy
+exposes and the API key is the proxy's virtual key, if it uses one.
 
 ```yaml
 Type: System.String

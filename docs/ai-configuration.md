@@ -37,6 +37,7 @@ Without AI the module falls back to pattern matching and static generators. See 
 | **Ollama** | None | Yes | Free | Development, privacy, custom models |
 | **OpenAI** | API key | No | Per token | Highest quality, broad language support |
 | **Azure OpenAI** | API key | No | Per token | Enterprise, data residency, compliance |
+| **LiteLLM** | Optional virtual key | Yes (proxy) | Per backend | One endpoint for Anthropic, Gemini, Bedrock, Mistral, Ollama and 100+ others; routing, budgets and logging in the proxy |
 
 ---
 
@@ -83,6 +84,29 @@ Set-SldgAIProvider -Provider AzureOpenAI `
 Test-SldgAIProvider
 ```
 
+### LiteLLM (any backend behind one OpenAI-compatible proxy)
+
+[LiteLLM](https://docs.litellm.ai/) is a self-hosted proxy that exposes the OpenAI wire format
+in front of Anthropic, Google Gemini, AWS Bedrock, Mistral, Ollama and many more. The model
+name is the alias configured in the proxy; the API key is the proxy's virtual key, when it
+uses one. Plain `http` is accepted for a loopback endpoint only - a proxy on the network needs
+TLS.
+
+```powershell
+# proxy on this machine (default endpoint http://localhost:4000)
+Set-SldgAIProvider -Provider LiteLLM -Model 'claude-sonnet' -EnableAIGeneration -EnableAILocale
+
+# shared proxy with virtual keys
+Set-SldgAIProvider -Provider LiteLLM -Model 'gemini-pro' `
+    -Endpoint 'https://litellm.contoso.internal' -ApiKey $env:LITELLM_KEY -EnableAIGeneration
+Test-SldgAIProvider
+```
+
+The endpoint may be given as the base URL, `.../v1` or the full `.../v1/chat/completions`;
+all three resolve to the same request. `AI.Endpoint` also works for the **OpenAI** provider:
+when set, requests go to that server (vLLM, LM Studio, an internal gateway) instead of
+`api.openai.com`, over https.
+
 ### Disable AI
 
 ```powershell
@@ -95,9 +119,9 @@ Set-SldgAIProvider -Provider None
 
 ```powershell
 Set-SldgAIProvider
-    -Provider <None|OpenAI|AzureOpenAI|Ollama>    # Required
+    -Provider <None|OpenAI|AzureOpenAI|Ollama|LiteLLM>   # Required
     [-Model <string>]                               # e.g. 'llama3', 'gpt-4o', 'mistral'
-    [-Endpoint <string>]                            # URL (auto for OpenAI/Ollama localhost)
+    [-Endpoint <string>]                            # URL (auto for OpenAI; localhost defaults for Ollama/LiteLLM)
     [-ApiKey <string>]                              # Required for OpenAI/AzureOpenAI
     [-MaxTokens <int>]                              # Default: 4096
     [-Temperature <double>]                         # Ollama: 0.0-1.0, default 0.3

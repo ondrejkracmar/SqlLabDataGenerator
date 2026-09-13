@@ -13,7 +13,7 @@ Register-PSFTeppScriptblock -Name "SqlLabDataGenerator.GenerationMode" -ScriptBl
 
 # AI provider names
 Register-PSFTeppScriptblock -Name "SqlLabDataGenerator.AIProvider" -ScriptBlock {
-	'None', 'OpenAI', 'AzureOpenAI', 'Ollama'
+	'None', 'OpenAI', 'AzureOpenAI', 'Ollama', 'LiteLLM'
 }
 
 # Semantic types

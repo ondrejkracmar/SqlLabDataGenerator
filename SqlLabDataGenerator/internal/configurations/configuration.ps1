@@ -13,7 +13,7 @@ Register-PSFConfigValidation -Name 'SqlLabDataGenerator.GenerationMode' -ScriptB
 
 Register-PSFConfigValidation -Name 'SqlLabDataGenerator.AIProvider' -ScriptBlock {
 	param ($Value)
-	$validProviders = @('None', 'OpenAI', 'AzureOpenAI', 'Ollama')
+	$validProviders = @('None', 'OpenAI', 'AzureOpenAI', 'Ollama', 'LiteLLM')
 	if ($Value -in $validProviders) { return [PSCustomObject]@{ Success = $true; Value = $Value; Message = '' } }
 	[PSCustomObject]@{ Success = $false; Value = $Value; Message = "Invalid AI provider '$Value'. Valid values: $($validProviders -join ', ')" }
 }
@@ -67,9 +67,9 @@ Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'Import.DoDotSource' -Value $f
 Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'Import.IndividualFiles' -Value $false -Initialize -Validation 'bool' -Description "Whether the module files should be imported individually. During the module build, all module code is compiled into few files, which are imported instead by default. Loading the compiled versions is faster, using the individual files is easier for debugging and testing out adjustments."
 
 # AI Provider settings
-Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'AI.Provider' -Value 'None' -Initialize -Validation 'SqlLabDataGenerator.AIProvider' -Description "AI provider to use for semantic column analysis: None, OpenAI, AzureOpenAI, Ollama"
+Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'AI.Provider' -Value 'None' -Initialize -Validation 'SqlLabDataGenerator.AIProvider' -Description "AI provider to use for semantic column analysis: None, OpenAI, AzureOpenAI, Ollama, LiteLLM (any OpenAI-compatible proxy)"
 Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'AI.ApiKey' -Value $null -Initialize -Description "API key for the AI provider (not required for Ollama). Stored as SecureString when possible."
-Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'AI.Endpoint' -Value '' -Initialize -Validation 'string' -Description "Endpoint URL for AI provider (required for AzureOpenAI, optional for Ollama - defaults to http://localhost:11434)"
+Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'AI.Endpoint' -Value '' -Initialize -Validation 'string' -Description "Endpoint URL for the AI provider: required for AzureOpenAI; optional for Ollama (default http://localhost:11434) and LiteLLM (default http://localhost:4000); when set for OpenAI it replaces api.openai.com with any OpenAI-compatible server."
 Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'AI.Model' -Value 'gpt-4' -Initialize -Validation 'string' -Description "AI model to use for semantic analysis (e.g., gpt-4, llama3, mistral, codellama)"
 Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'AI.MaxTokens' -Value 4096 -Initialize -Validation 'integer' -Description "Maximum tokens for AI responses"
 Set-PSFConfig -Module 'SqlLabDataGenerator' -Name 'AI.AzureApiVersion' -Value '2024-02-01' -Initialize -Validation 'string' -Description "API version for Azure OpenAI deployments (e.g. 2024-02-01, 2024-06-01)."

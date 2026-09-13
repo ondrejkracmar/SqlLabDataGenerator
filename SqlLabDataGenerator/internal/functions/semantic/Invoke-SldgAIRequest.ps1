@@ -55,8 +55,9 @@
 		return $null
 	}
 
-	# Ollama does not require an API key
-	if ($aiProvider -ne 'Ollama' -and -not $apiKey) {
+	# Ollama does not require an API key; a LiteLLM proxy may run without one (its virtual keys
+	# are optional), so only the hosted providers refuse to run without a key.
+	if ($aiProvider -in @('OpenAI', 'AzureOpenAI') -and -not $apiKey) {
 		return $null
 	}
 
@@ -163,6 +164,12 @@
 		$tokenParamName = 'max_completion_tokens'
 		$body[$tokenParamName] = $maxTokens
 	}
+	elseif ($aiProvider -eq 'LiteLLM') {
+		# LiteLLM translates for every backend it fronts (Anthropic, Gemini, Bedrock, Ollama, ...);
+		# max_tokens is the parameter all of them understand.
+		$tokenParamName = 'max_tokens'
+		$body[$tokenParamName] = $maxTokens
+	}
 
 	# Ollama supports additional options
 	if ($aiProvider -eq 'Ollama') {
@@ -180,7 +187,14 @@
 	$uri = switch ($aiProvider) {
 		'OpenAI' {
 			$headers['Authorization'] = "Bearer $apiKey"
-			'https://api.openai.com/v1/chat/completions'
+			# AI.Endpoint, when set, points at any OpenAI-compatible server instead of api.openai.com.
+			if ($endpoint) { Get-SldgOpenAICompatibleUri -Endpoint $endpoint } else { 'https://api.openai.com/v1/chat/completions' }
+		}
+		'LiteLLM' {
+			# LiteLLM proxy: OpenAI wire format on a self-hosted endpoint (default port 4000),
+			# optional virtual key as a Bearer token.
+			if ($apiKey) { $headers['Authorization'] = "Bearer $apiKey" }
+			Get-SldgOpenAICompatibleUri -Endpoint $(if ($endpoint) { $endpoint } else { 'http://localhost:4000' })
 		}
 		'AzureOpenAI' {
 			$headers['api-key'] = $apiKey

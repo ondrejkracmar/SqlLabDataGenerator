@@ -17,7 +17,10 @@
 		for structured JSON/XML generation.
 
 	.PARAMETER Provider
-		The AI provider: Ollama, OpenAI, AzureOpenAI, or None (to disable AI).
+		The AI provider: Ollama, OpenAI, AzureOpenAI, LiteLLM, or None (to disable AI).
+		LiteLLM is a self-hosted proxy that speaks the OpenAI wire format in front of any backend
+		(Anthropic, Gemini, Bedrock, Mistral, Ollama, ...); the model name is whatever the proxy
+		exposes and the API key is the proxy's virtual key, if it uses one.
 
 	.PARAMETER Model
 		The model name (e.g., 'llama3', 'mistral', 'codellama', 'gpt-4', 'gpt-4o').
@@ -26,7 +29,9 @@
 		The API endpoint URL.
 		- Ollama: defaults to http://localhost:11434 if not specified
 		- AzureOpenAI: required (e.g., https://myinstance.openai.azure.com)
-		- OpenAI: not needed (uses api.openai.com)
+		- OpenAI: not needed (uses api.openai.com); set it to point at another OpenAI-compatible
+		  server (https only)
+		- LiteLLM: defaults to http://localhost:4000; plain http is accepted for loopback only
 
 	.PARAMETER ApiKey
 		API key for the provider. Required for OpenAI and AzureOpenAI. Not needed for Ollama.
@@ -84,6 +89,12 @@
 		Configures Azure OpenAI.
 
 	.EXAMPLE
+		PS C:\> Set-SldgAIProvider -Provider LiteLLM -Model 'claude-sonnet' -Endpoint 'http://localhost:4000' -ApiKey $virtualKey
+
+		Routes every AI call through a local LiteLLM proxy; 'claude-sonnet' is the model alias the
+		proxy exposes and $virtualKey its virtual key (omit -ApiKey when the proxy runs without one).
+
+	.EXAMPLE
 		PS C:\> Set-SldgAIProvider -Provider None
 
 		Disables AI entirely. Falls back to pattern matching and static generators.
@@ -104,7 +115,7 @@
 	[CmdletBinding(SupportsShouldProcess)]
 	param (
 		[Parameter(Mandatory)]
-		[ValidateSet('None', 'OpenAI', 'AzureOpenAI', 'Ollama')]
+		[ValidateSet('None', 'OpenAI', 'AzureOpenAI', 'Ollama', 'LiteLLM')]
 		[string]$Provider,
 
 		[string]$Model,
@@ -136,13 +147,16 @@
 	# Helper: validate endpoint URI for cloud providers
 	$validateEndpoint = {
 		param ([string]$EndpointUri, [string]$ProviderName)
-		if ($ProviderName -notin @('OpenAI', 'AzureOpenAI')) { return }
+		if ($ProviderName -notin @('OpenAI', 'AzureOpenAI', 'LiteLLM')) { return }
 		try {
 			$parsedUri = [System.Uri]::new($EndpointUri)
 			if ($parsedUri.UserInfo) {
 				Stop-PSFFunction -String 'AI.EndpointCredentialsForbidden' -EnableException $true
 			}
-			if ($parsedUri.Scheme -ne 'https') {
+			# A LiteLLM proxy is commonly self-hosted next to the caller; plain http is accepted for
+			# loopback only, the same rule Ollama gets. Anything reachable over the network needs TLS.
+			$loopback = $parsedUri.IsLoopback
+			if ($parsedUri.Scheme -ne 'https' -and -not ($ProviderName -eq 'LiteLLM' -and $loopback)) {
 				Stop-PSFFunction -String 'AI.EndpointHttpsForbidden' -StringValues $ProviderName, $parsedUri.Scheme, $parsedUri.Host -EnableException $true
 			}
 		} catch [System.UriFormatException] {
@@ -162,6 +176,7 @@
 			$override['Endpoint'] = $Endpoint
 		}
 		elseif ($Provider -eq 'Ollama') { $override['Endpoint'] = 'http://localhost:11434' }
+		elseif ($Provider -eq 'LiteLLM') { $override['Endpoint'] = 'http://localhost:4000' }
 
 		if ($Credential) {
 			$override['ApiKey'] = $Credential.Password
@@ -201,10 +216,11 @@
 		& $validateEndpoint $Endpoint $Provider
 		Set-PSFConfig -FullName 'SqlLabDataGenerator.AI.Endpoint' -Value $Endpoint
 	}
-	elseif ($Provider -eq 'Ollama') {
+	elseif ($Provider -in @('Ollama', 'LiteLLM')) {
 		$current = Get-PSFConfigValue -FullName 'SqlLabDataGenerator.AI.Endpoint'
 		if (-not $current) {
-			Set-PSFConfig -FullName 'SqlLabDataGenerator.AI.Endpoint' -Value 'http://localhost:11434'
+			$defaultEndpoint = if ($Provider -eq 'Ollama') { 'http://localhost:11434' } else { 'http://localhost:4000' }
+			Set-PSFConfig -FullName 'SqlLabDataGenerator.AI.Endpoint' -Value $defaultEndpoint
 		}
 	}
 

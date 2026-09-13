@@ -72,6 +72,16 @@
 			}
 			$customRule = if ($tableRules -and $tableRules.ContainsKey($col.ColumnName)) { $tableRules[$col.ColumnName] } else { $null }
 			$maskedValue = New-SldgGeneratedValue -Column $colObj -GeneratorMap $generatorMap -CustomRule $customRule -NullProbability 0
+
+			# A mask that lands on the original value hides nothing: 'John' drawn from the first-name
+			# pool for a row that already says 'John' leaks the PII the run is meant to remove. Draw
+			# again a few times; tiny value spaces (bit, one-member rules) may legitimately repeat.
+			$original = $row[$col.ColumnName]
+			$attempt = 0
+			while ($attempt -lt 5 -and $null -ne $maskedValue -and $null -ne $original -and $original -isnot [DBNull] -and [string]$maskedValue -eq [string]$original) {
+				$maskedValue = New-SldgGeneratedValue -Column $colObj -GeneratorMap $generatorMap -CustomRule $customRule -NullProbability 0
+				$attempt++
+			}
 			if ($null -ne $maskedValue) {
 				$row[$col.ColumnName] = $maskedValue
 			}

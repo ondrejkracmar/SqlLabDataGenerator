@@ -39,6 +39,7 @@
 			'AzureOpenAI' { 'openai' }
 			'OpenAI'      { 'openai' }
 			'Ollama'      { 'ollama' }
+			'LiteLLM'     { 'openai' }
 			default       { 'default' }
 		}
 	}
