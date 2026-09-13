@@ -12,7 +12,7 @@
 RootModule = 'SqlLabDataGenerator.psm1'
 
 # Version number of this module.
-ModuleVersion = '2.1.0'
+ModuleVersion = '3.0.0'
 
 # Supported PSEditions
 CompatiblePSEditions = 'Core'
@@ -52,7 +52,7 @@ PowerShellVersion = '7.4'
 
 # Modules that must be imported into the global environment prior to importing this module
 RequiredModules = @(@{ModuleName = 'PSFramework'; ModuleVersion = '1.12.346'; }, 
-               @{ModuleName = 'PSSqlRepository'; ModuleVersion = '0.5.0'; })
+               @{ModuleName = 'PSSqlRepository'; ModuleVersion = '0.6.1'; })
 
 # Assemblies that must be loaded prior to importing this module
 # RequiredAssemblies = @()

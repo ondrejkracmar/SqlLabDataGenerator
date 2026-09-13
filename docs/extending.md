@@ -33,17 +33,18 @@ What differs per engine is isolated in two places:
 | Concern | Where | Built-in |
 |---|---|---|
 | SQL phrasing: identifier quoting, `TOP`/`LIMIT`, `COALESCE`, parameter placeholders, identity insert, constraint toggling, parameter cap | `SqlLabDataGenerator.Data.SqlDialect` (C#, `src/library/SqlLabDataGenerator/Data/SqlDialect.cs`) | `SqlServerDialect`, `SqliteDialect`, `DuckDbDialect`, `MySqlDialect`, `AnsiSqlDialect` (default) |
-| Reading the catalog | a `GetSchema` function registered by `Register-SldgBuiltInProvider`, keyed by `SqlDialect.SchemaSource` | `Get-SldgSqlServerSchema` (`sys.*`), `Get-SldgSqliteSchema` (`PRAGMA`), `Get-SldgInformationSchema` (ANSI `INFORMATION_SCHEMA`) |
+| Reading the catalog | `Get-SldgImportedSchema`, one reader for every engine, on top of PSSqlRepository's schema import (the EF provider's own catalogue reader); CHECK constraints and SQL Server view hints come from a small augmentation keyed by `SqlDialect.SchemaSource` (`Get-SldgCheckConstraintRow`, `Get-SldgViewHintRow`) | SQL Server, SQLite, DuckDB and any PSSqlRepository extension whose EF provider ships an `IDatabaseModelFactory` |
 
 Reading and writing rows (`Read-SldgTableData`, `Write-SldgTableData`) are already generic: they
 ask the dialect for quoting and placeholders and bind every value as a `DbParameter`.
 
 ### A new engine that speaks INFORMATION_SCHEMA and `@name` parameters
 
-Nothing to do. Install the PSSqlRepository provider; the `AnsiSqlDialect` and the
-`INFORMATION_SCHEMA` reader cover it. Types reported by the catalog are mapped onto the SQL Server
-vocabulary the generators use by `ConvertTo-SldgCanonicalDataType` - extend its table if the engine
-reports a name it does not know.
+Nothing to do. Install the PSSqlRepository provider; the `AnsiSqlDialect` covers the SQL and
+the schema comes through PSSqlRepository's import (the EF provider's own catalogue reader), with
+CHECK and unique constraints read from `INFORMATION_SCHEMA`. Store types reported by the catalogue
+are mapped onto the SQL Server vocabulary the generators use by `ConvertTo-SldgCanonicalDataType` -
+extend its table if the engine reports a name it does not know.
 
 ### A new engine with its own quoting or parameter syntax
 
@@ -63,20 +64,17 @@ public sealed class PostgreSqlDialect : SqlDialect
 Rebuild the library (`dotnet build src/library/SqlLabDataGenerator.sln -c Release`) and add a case
 to `SqlDialectTests.cs`.
 
-### A new engine whose catalog is not INFORMATION_SCHEMA
+### A new engine whose EF provider has no scaffolding factory
 
-Write a `Get-Sldg<Engine>Schema` function that returns a `[SqlLabDataGenerator.SchemaModel]`
-(the SQLite reader is the template: it builds `ColumnInfo`/`TableInfo` objects directly; the SQL
-Server reader instead shapes DataTables and hands them to `ConvertTo-SldgSchemaModel`), give the
-dialect a new `SchemaSource` name, and register the map in `Register-SldgBuiltInProvider`:
-
-```powershell
-Register-SldgProviderInternal -Name 'MyCatalog' -FunctionMap @{
-    GetSchema = 'Get-SldgMyEngineSchema'
-    WriteData = 'Write-SldgTableData'
-    ReadData  = 'Read-SldgTableData'
-}
-```
+The schema reader relies on the EF Core provider's `IDatabaseModelFactory`, which PSSqlRepository
+discovers in the provider's assembly (every mainstream provider ships one). If an extension's EF
+provider lacks it, `Import-PSSqlRepositorySchema` fails with a clear message and so does
+`Get-SldgDatabaseSchema`. The fix belongs in the extension - a `DatabaseModelFactoryType`
+override on its provider definition, see PSSqlRepository's `docs/database-first.md` - not in a
+new reader here. CHECK constraints and unique constraints for such an engine are read through the
+standard `INFORMATION_SCHEMA` views when the engine exposes them; a new `SchemaSource` value only
+matters when the engine needs a different catalogue for those two (extend
+`Get-SldgCheckConstraintRow` / the unique fallback in `Get-SldgImportedSchema`).
 
 ### Rules
 

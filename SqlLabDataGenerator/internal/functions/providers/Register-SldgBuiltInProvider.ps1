@@ -11,25 +11,28 @@
 		Function maps are keyed by dialect schema source, not by PSSqlRepository provider
 		name: SqlServer -> 'SqlServer', Sqlite -> 'Sqlite', everything else (DuckDB,
 		PostgreSQL, MySQL, future extensions) -> 'InformationSchema'. See
-		Get-SldgProviderInternal for the resolution.
+		Get-SldgProviderInternal for the resolution. Since 3.0 all three maps point at the
+		same functions: the catalogue is read through PSSqlRepository's schema import
+		(Get-SldgImportedSchema) and rows travel through the shared read/write paths; the
+		schema source only selects the CHECK-constraint and view-hint augmentation inside them.
 	#>
 	[CmdletBinding()]
 	param ()
 
 	Register-SldgProviderInternal -Name 'SqlServer' -FunctionMap @{
-		GetSchema = 'Get-SldgSqlServerSchema'
+		GetSchema = 'Get-SldgImportedSchema'
 		WriteData = 'Write-SldgTableData'
 		ReadData  = 'Read-SldgTableData'
 	}
 
 	Register-SldgProviderInternal -Name 'Sqlite' -FunctionMap @{
-		GetSchema = 'Get-SldgSqliteSchema'
+		GetSchema = 'Get-SldgImportedSchema'
 		WriteData = 'Write-SldgTableData'
 		ReadData  = 'Read-SldgTableData'
 	}
 
 	Register-SldgProviderInternal -Name 'InformationSchema' -FunctionMap @{
-		GetSchema = 'Get-SldgInformationSchema'
+		GetSchema = 'Get-SldgImportedSchema'
 		WriteData = 'Write-SldgTableData'
 		ReadData  = 'Read-SldgTableData'
 	}

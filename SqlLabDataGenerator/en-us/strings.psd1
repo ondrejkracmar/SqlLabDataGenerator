@@ -200,6 +200,13 @@
 	# Connection (PSSqlRepository session)
 	'Connect.PSSqlRepositoryMissing'         = 'PSSqlRepository is not available. Install it from the PowerShell Gallery (Install-PSResource PSSqlRepository) - it provides every database driver this module uses.'
 	'Connect.SessionOpened'                  = "PSSqlRepository session opened for provider '{0}' (dialect {1}, connection type {2})"
+	'Disconnect.ClearPoolFailed'             = "Clearing the connection pool for provider '{0}' failed: {1}"
+	'Connect.SchemaImported'                 = "Schema import for provider '{0}': {1} table(s) registered as entity types, {2} skipped ({3})"
+	'Connect.SchemaImportSkipped'            = "No table of the {0} database could be registered as an entity type ({1}); the session uses the empty schema context and raw SQL only."
+	'Connect.SchemaImportFailed'             = "Schema import for provider '{0}' failed ({1}); the session uses the empty schema context and raw SQL only."
+	'Entity.ReadUnavailable'                 = "Table {0} has no entity type; reading through SQL."
+	'Entity.Read'                            = "Read {0} rows from {1} through entity type {2}"
+	'Entity.Updated'                         = "Updated {0} rows in {1} through entity type {2}"
 	'Disconnect.SessionReleased'             = "PSSqlRepository session for provider '{0}' released"
 	'Disconnect.CloseFailed'                 = "Error closing the {0} connection: {1}"
 	'Connect.NoActiveConnection'             = 'No active database connection. Use Connect-SldgDatabase first.'
@@ -335,6 +342,7 @@
 	'Write.RowRejected'                      = "Row rejected by {0}: {1}"
 	'Write.RollbackFailed'                   = 'Transaction rollback failed: {0}'
 	'Write.IdentityInsertUnsupported'        = "Dialect {0} cannot write explicit identity values; {1} is inserted without them."
+	'Schema.UniqueConstraintsUnavailable'    = "Provider {0} does not expose INFORMATION_SCHEMA unique constraints ({1}); uniqueness beyond the primary key is unknown."
 	'Schema.CheckConstraintsUnavailable'     = "Provider {0} does not expose INFORMATION_SCHEMA.CHECK_CONSTRAINTS ({1}); check constraints are skipped."
 	'Generation.FKDisableUnsupported'        = "Dialect {0} cannot disable foreign keys; {1} table(s) in a circular dependency are inserted in plan order only."
 

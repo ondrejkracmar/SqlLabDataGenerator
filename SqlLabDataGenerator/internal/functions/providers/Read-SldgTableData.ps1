@@ -37,6 +37,19 @@
 		[System.Data.Common.DbTransaction]$Transaction
 	)
 
+	# Tables PSSqlRepository imported on connect are read through their entity type. An explicit
+	# DbTransaction keeps the SQL path: the entity query runs on the EF context, which cannot see a
+	# transaction opened on the raw connection (SQLite refuses to read outside it).
+	if (-not $Transaction) {
+		$binding = Get-SldgEntityBinding -ConnectionInfo $ConnectionInfo -SchemaName $SchemaName -TableName $TableName
+		if ($binding) {
+			$entityParams = @{ Binding = $binding; TopN = $TopN }
+			if ($ColumnFilter) { $entityParams['ColumnFilter'] = $ColumnFilter }
+			return , (Read-SldgEntityData @entityParams)
+		}
+		Write-PSFMessage -Level Debug -String 'Entity.ReadUnavailable' -StringValues "$SchemaName.$TableName"
+	}
+
 	$dialect = $ConnectionInfo.GetDialect()
 	$safeTable = $dialect.QualifiedName($SchemaName, $TableName)
 	$columns = if ($ColumnFilter) { ($ColumnFilter | ForEach-Object { $dialect.QuoteIdentifier($_) }) -join ', ' } else { '*' }

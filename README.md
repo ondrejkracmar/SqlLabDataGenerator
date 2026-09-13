@@ -31,7 +31,7 @@ The pipeline is designed so that you can run it with a single command chain, or 
 ## Requirements
 
 - **PowerShell 7.4+** (Core edition). The module ships a `net8.0` build for PowerShell 7.4/7.5 and a `net10.0` build for 7.6+; the loader picks the right one.
-- **PSFramework** and **PSSqlRepository** 0.5+ (installed automatically as dependencies). PSSqlRepository provides every database driver: SQL Server and SQLite are built in, DuckDB and further engines install as extensions (`Install-PSSqlRepositoryExtension`).
+- **PSFramework** and **PSSqlRepository** 0.6.1+ (installed automatically as dependencies). PSSqlRepository provides every database driver: SQL Server and SQLite are built in, DuckDB and further engines install as extensions (`Install-PSSqlRepositoryExtension`).
 - Optional: Ollama, OpenAI API key, or Azure OpenAI deployment for AI features
 
 ## Installation
@@ -60,6 +60,19 @@ Connect-SldgDatabase -ServerInstance 'sql01' -Database 'Lab' -Credential (Get-Cr
 Connect-SldgDatabase -Provider Sqlite -Database ./lab.db -CreateIfNotExists
 Connect-SldgDatabase -Provider DuckDB -ConnectionString 'Data Source=./lab.duckdb'
 Get-PSSqlRepositoryProvider                                                          # what is available here
+```
+
+Connecting also imports the schema through PSSqlRepository (database-first): every table with a
+single-column primary key becomes an entity type for the session, so the same connection serves
+PSSqlRepository's own cmdlets and PowerShell type literals - handy for checking or fixing generated
+rows without leaving the module.
+
+```powershell
+$conn = Connect-SldgDatabase -Provider Sqlite -Database ./lab.db
+$conn.EntityTypes.Keys                                   # Customer, Order, ...
+Get-PSSqlRepositoryEntity -EntityType ([Customer]) -Filter "Email -like '*@example.com'" -Top 5
+[Customer]@{ Name = 'Acme'; Email = 'hello@acme.example' } | Save-PSSqlRepositoryEntity -PassThru
+(Get-SldgDatabaseSchema).Tables | Select-Object FullName, EntityType   # keyless / composite-key tables have none
 ```
 
 ## Quick Start — Without AI

@@ -51,6 +51,19 @@
 		[System.Data.Common.DbTransaction]$Transaction
 	)
 
+	# Tables PSSqlRepository imported on connect are updated through their entity type, which
+	# needs complete rows (EF copies every mapped property); the masking engine reads whole rows,
+	# so this holds unless a caller passed a projection - then the SQL UPDATE below runs.
+	$binding = Get-SldgEntityBinding -ConnectionInfo $ConnectionInfo -SchemaName $SchemaName -TableName $TableName
+	if ($binding -and $KeyColumn.Count -eq 1 -and $KeyColumn[0] -eq $binding.KeyColumn) {
+		$complete = @($binding.Columns | Where-Object { -not $Data.Columns.Contains($_.Name) }).Count -eq 0
+		if ($complete) {
+			$entityParams = @{ ConnectionInfo = $ConnectionInfo; Binding = $binding; Data = $Data }
+			if ($Transaction) { $entityParams['Transaction'] = $Transaction }
+			return (Update-SldgEntityData @entityParams)
+		}
+	}
+
 	$targets = @($Column | Where-Object { $_ -notin $KeyColumn -and $Data.Columns.Contains($_) })
 	if ($Data.Rows.Count -eq 0 -or $targets.Count -eq 0) { return 0 }
 	foreach ($key in $KeyColumn) {

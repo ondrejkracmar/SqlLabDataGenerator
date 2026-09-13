@@ -52,9 +52,35 @@
 		Stop-PSFFunction -String 'Provider.NotFound' -StringValues $Provider, $available -EnableException $true
 	}
 
-	# The empty context is what lets Connect-PSSqlRepository open a session for a database
-	# whose schema this module has not seen yet. Registration is per provider and idempotent.
-	Register-PSSqlRepositoryContext -ContextType ([SqlLabDataGenerator.Data.SldgSchemaContext]) -ProviderName $providerInfo.Name
+	# Database-first: let PSSqlRepository read the catalogue and emit one entity type per table
+	# with a single-column primary key, registered as the provider's repository context. The
+	# generator keeps its own schema readers for the metadata the import does not carry (check
+	# constraints, keyless and composite-key tables), but reads and masking updates go through
+	# the entities, and the caller gets [Customer]-style types for the connected database.
+	# When nothing can be imported (empty database, only keyless tables) the empty context is
+	# registered instead so the session still opens for raw SQL.
+	$schemaImport = $null
+	try {
+		$schemaImport = Import-PSSqlRepositorySchema -ProviderName $providerInfo.Name @ConnectParameter -NoRegister -Confirm:$false -WarningAction SilentlyContinue -ErrorAction Stop
+	}
+	catch {
+		Write-PSFMessage -Level Warning -String 'Connect.SchemaImportFailed' -StringValues $providerInfo.Name, $_.Exception.Message
+	}
+
+	$entityTypes = New-Object 'System.Collections.Generic.Dictionary[string,type]' ([System.StringComparer]::OrdinalIgnoreCase)
+	if ($schemaImport -and $schemaImport.EntityTypes.Count -gt 0) {
+		# Register the emitted types as the provider's context - the same registration the cmdlet
+		# makes without -NoRegister, minus a second catalogue read.
+		$providerDefinition = [PSSqlRepository.Core.Hosting.PSSqlRepositoryHost]::Current.Providers.GetProvider($providerInfo.Name)
+		[PSSqlRepository.Core.Schema.DatabaseSchemaImporter]::Register($providerDefinition, $schemaImport)
+		foreach ($table in $schemaImport.Imported) { $entityTypes[$table.FullName] = $table.EntityType }
+		$skipped = @($schemaImport.Skipped)
+		Write-PSFMessage -Level Verbose -String 'Connect.SchemaImported' -StringValues $providerInfo.Name, $schemaImport.Imported.Count, $skipped.Count, (($skipped | ForEach-Object { "$($_.FullName): $($_.SkipReason)" }) -join '; ')
+	}
+	else {
+		if ($schemaImport) { Write-PSFMessage -Level Verbose -String 'Connect.SchemaImportSkipped' -StringValues $providerInfo.Name, "$($schemaImport.Tables.Count) table(s) seen, none with a single-column primary key" }
+		Register-PSSqlRepositoryContext -ContextType ([SqlLabDataGenerator.Data.SldgSchemaContext]) -ProviderName $providerInfo.Name
+	}
 
 	$repository = $null
 	$dbConnection = $null
@@ -64,11 +90,12 @@
 			throw 'Connect-PSSqlRepository returned no session.'
 		}
 
-		# Session.Services is the session's DI scope; the context registered above is the
-		# only DbContext in it. EF Core's relational facade hands out the driver's DbConnection.
-		$context = $repository.Session.Services.GetService([SqlLabDataGenerator.Data.SldgSchemaContext])
+		# Session.Services is the session's DI scope with exactly one DbContext in it - the
+		# imported DynamicEntityDbContext or the empty fallback context. EF Core's relational
+		# facade hands out the driver's DbConnection.
+		$context = $repository.Session.Services.GetService([Microsoft.EntityFrameworkCore.DbContext])
 		if (-not $context) {
-			throw 'The PSSqlRepository session does not expose the SqlLabDataGenerator schema context.'
+			throw 'The PSSqlRepository session does not expose a DbContext.'
 		}
 		$dbConnection = [Microsoft.EntityFrameworkCore.RelationalDatabaseFacadeExtensions]::GetDbConnection($context.Database)
 
@@ -99,5 +126,8 @@
 		Database       = $Database
 		Provider       = $providerInfo.Name
 		ConnectedAt    = Get-Date
+		SchemaImport   = $schemaImport
+		ConnectParameters = $ConnectParameter
+		EntityTypes    = $entityTypes
 	}
 }

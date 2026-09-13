@@ -56,6 +56,24 @@ Connect → Discover → Analyze → Plan → Generate
 
 You can stop at any step to inspect or customize the output before continuing.
 
+### The connection is also a PSSqlRepository session
+
+`Connect-SldgDatabase` imports the schema through PSSqlRepository before it opens the session
+(database-first): every table with a single-column primary key becomes an entity type for the
+session. That gives you a second, row-level way in to the same database - useful to spot-check or
+patch generated rows, or to script assertions after a run:
+
+```powershell
+$conn = Connect-SldgDatabase -Provider Sqlite -Database ./lab.db
+$conn.EntityTypes.Keys                                            # tables that have an entity type
+Get-PSSqlRepositoryEntity -EntityType ([Customer]) -Top 5         # PowerShell type literal per table
+(Get-SldgDatabaseSchema).Tables | Select-Object FullName, EntityType
+```
+
+Tables without a single-column key (junction tables, views) have no entity; the generator still
+handles them through SQL. Masking updates and table reads use the entities internally; bulk inserts
+stay on the raw connection.
+
 ---
 
 ## Tutorial: Generate Data Without AI

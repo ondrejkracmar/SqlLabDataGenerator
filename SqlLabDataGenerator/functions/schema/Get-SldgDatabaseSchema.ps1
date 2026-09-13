@@ -54,6 +54,12 @@
 
 	$schemaModel = & $provider.FunctionMap.GetSchema @params
 
+	# Attach the entity type PSSqlRepository emitted for each table on connect, so callers can
+	# move between the schema model and Get-/Save-PSSqlRepositoryEntity without a lookup.
+	foreach ($table in @($schemaModel.Tables)) {
+		$table.EntityType = $ConnectionInfo.FindEntityType($table.SchemaName, $table.TableName)
+	}
+
 	if ($schemaModel.TableCount -eq 0) {
 		Write-PSFMessage -Level Warning -Message $script:strings.'Schema.NoTables'
 	}

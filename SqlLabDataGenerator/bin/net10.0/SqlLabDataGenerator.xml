@@ -242,6 +242,35 @@
         <member name="P:SqlLabDataGenerator.Connection.ConnectedAt">
             <summary>When the connection was established.</summary>
         </member>
+        <member name="P:SqlLabDataGenerator.Connection.SchemaImport">
+            <summary>
+            The database-first schema import PSSqlRepository produced for this connection
+            (<c>PSSqlRepository.Core.Schema.SqlSchemaImportResult</c>): one entry per table with the
+            entity type emitted for it, or a skip reason. Typed as <see cref="T:System.Object"/> so this
+            library does not reference PSSqlRepository's assemblies; <c>null</c> when the database
+            had no importable table (empty database, only keyless tables).
+            </summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.Connection.ConnectParameters">
+            <summary>
+            The parameters Connect-SldgDatabase handed to PSSqlRepository (provider parameters,
+            authentication mode, credential), kept so the schema reader can re-read the catalogue the
+            same way the session was opened. <c>null</c> for connections built without them.
+            </summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.Connection.EntityTypes">
+            <summary>
+            Entity types registered for this connection, keyed by <c>schema.table</c> (or the bare
+            table name on engines without schemas), case-insensitive. Empty when nothing was imported.
+            </summary>
+        </member>
+        <member name="M:SqlLabDataGenerator.Connection.FindEntityType(System.String,System.String)">
+            <summary>
+            Looks up the entity type registered for a table: <paramref name="schemaName"/>.<paramref name="tableName"/>
+            first, then the bare table name. <c>null</c> when the table has no entity (no primary key,
+            composite key, view, or nothing was imported).
+            </summary>
+        </member>
         <member name="M:SqlLabDataGenerator.Connection.#ctor">
             <summary>Initializes a new instance of the <see cref="T:SqlLabDataGenerator.Connection"/> class.</summary>
         </member>
@@ -1081,6 +1110,13 @@
         </member>
         <member name="P:SqlLabDataGenerator.TableInfo.HasCircularDependency">
             <summary>Set by Resolve-SldgForeignKeyOrder when the table sits in a foreign-key cycle.</summary>
+        </member>
+        <member name="P:SqlLabDataGenerator.TableInfo.EntityType">
+            <summary>
+            The CLR entity type PSSqlRepository emitted for this table on connect (database-first
+            import), usable with Get-/Save-/Remove-PSSqlRepositoryEntity and as a PowerShell type
+            literal. <c>null</c> for tables without a single-column primary key.
+            </summary>
         </member>
         <member name="M:SqlLabDataGenerator.TableInfo.#ctor">
             <summary>Initializes a new instance of the <see cref="T:SqlLabDataGenerator.TableInfo"/> class.</summary>

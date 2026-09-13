@@ -156,6 +156,15 @@
 		}
 	}
 
+	# The generator drives masking and -UseTransaction through explicit DbTransactions on the raw
+	# connection and enlists the EF context in them for entity updates. EF Core refuses a user
+	# transaction while SQL Server's retrying execution strategy is active, so the SQL Server
+	# session is opened without it (PSSqlRepository's -DisableRetryOnFailure); transient-fault
+	# handling stays where it was - in the generator's own batch fallbacks.
+	if ($dialect.Name -eq 'SqlServer' -and -not $connectParams.ContainsKey('DisableRetryOnFailure')) {
+		$connectParams['DisableRetryOnFailure'] = $true
+	}
+
 	Write-PSFMessage -Level Host -String 'Connect.Connecting' -StringValues $Provider, $displayDatabase, $displayServer
 
 	$connectionInfo = Connect-SldgRepositorySession -Provider $Provider -ConnectParameter $connectParams `
