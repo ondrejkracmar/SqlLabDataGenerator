@@ -180,6 +180,7 @@
 				Skip          = $skip
 				IsIdentity    = [bool]$col.IsIdentity
 				IsComputed    = [bool]$col.IsComputed
+				CheckConstraints = @($col.CheckConstraints)
 				CustomRule    = $col.GenerationRule
 			}
 		}

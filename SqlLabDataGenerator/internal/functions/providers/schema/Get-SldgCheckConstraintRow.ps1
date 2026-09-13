@@ -76,11 +76,21 @@ FROM sys.check_constraints cc
 				$createSql = [string]$row.sql
 				if (-not $createSql) { continue }
 				try {
-					$checkRegex = [regex]::new('CHECK\s*\(([^)]+)\)', 'IgnoreCase', $regexTimeout)
+					# Walk each CHECK( ... ) to its balancing parenthesis so clauses with nested
+					# parentheses - IN ('a', 'b'), length(x) > 0 - come out whole.
+					$checkRegex = [regex]::new('CHECK\s*\(', 'IgnoreCase', $regexTimeout)
 					$index = 0
 					foreach ($m in $checkRegex.Matches($createSql)) {
+						$depth = 1
+						$start = $m.Index + $m.Length
+						$pos = $start
+						while ($pos -lt $createSql.Length -and $depth -gt 0) {
+							switch ($createSql[$pos]) { '(' { $depth++ } ')' { $depth-- } }
+							$pos++
+						}
+						if ($depth -ne 0) { continue }
 						$index++
-						& $attribute $dialect.DefaultSchema ([string]$row.name) "CK_$($row.name)_$index" $m.Groups[1].Value.Trim()
+						& $attribute $dialect.DefaultSchema ([string]$row.name) "CK_$($row.name)_$index" $createSql.Substring($start, $pos - 1 - $start).Trim()
 					}
 				}
 				catch [System.Text.RegularExpressions.RegexMatchTimeoutException] {

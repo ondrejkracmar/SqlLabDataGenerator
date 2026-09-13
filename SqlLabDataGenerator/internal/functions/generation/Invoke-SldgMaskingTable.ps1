@@ -68,6 +68,7 @@
 				IsIdentity   = [bool]$col.IsIdentity
 				IsComputed   = [bool]$col.IsComputed
 				IsPrimaryKey = [bool]$col.IsPrimaryKey
+				CheckConstraints = @($col.CheckConstraints)
 				ForeignKey   = $null
 			}
 			$customRule = if ($tableRules -and $tableRules.ContainsKey($col.ColumnName)) { $tableRules[$col.ColumnName] } else { $null }

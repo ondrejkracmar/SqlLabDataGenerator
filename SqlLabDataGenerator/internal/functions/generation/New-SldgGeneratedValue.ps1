@@ -141,6 +141,21 @@
 		}
 	}
 
+	# A CHECK of the form "Col IN ('a', 'b', 3)" is an allowed-value list: draw from it instead of
+	# running a generator whose output the engine would reject row by row. Only a custom rule
+	# (explicit values or a generator the user chose) takes precedence.
+	if (-not $CustomRule -and $Column.CheckConstraints -and $Column.CheckConstraints.Count -gt 0) {
+		$columnPattern = '^\s*\(?\s*[\["`]?' + [regex]::Escape($Column.ColumnName) + '[\]"`]?\s+IN\s*\((.+)\)\s*\)?\s*$'
+		foreach ($check in $Column.CheckConstraints) {
+			if ($check -match "(?i)$columnPattern") {
+				$allowed = @([regex]::Matches($Matches[1], "'((?:[^']|'')*)'|([-+]?\d+(?:\.\d+)?)") | ForEach-Object {
+					if ($_.Groups[1].Success) { $_.Groups[1].Value -replace "''", "'" } else { [double]$_.Groups[2].Value }
+				})
+				if ($allowed.Count -gt 0) { return ($allowed | Get-Random) }
+			}
+		}
+	}
+
 	# Pass column/table context to structured data generators (JSON/XML)
 	if ($gen.Function -eq 'New-SldgStructuredData') {
 		$params['ColumnName'] = $Column.ColumnName

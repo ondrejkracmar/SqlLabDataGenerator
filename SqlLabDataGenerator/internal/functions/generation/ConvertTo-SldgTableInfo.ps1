@@ -44,6 +44,7 @@
 			MaxLength      = $cp.MaxLength
 			ForeignKey     = $colFK
 			SchemaHint     = $cp.SchemaHint
+			CheckConstraints = @($cp.CheckConstraints)
 			Classification = [SqlLabDataGenerator.ColumnClassification]@{ ColumnName = $cp.ColumnName; TableName = $TablePlan.FullName; SemanticType = $cp.SemanticType; IsPII = [bool]$cp.IsPII }
 			GenerationRule = $cp.CustomRule
 		}

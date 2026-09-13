@@ -569,6 +569,9 @@
             Represents the generation plan for a single column.
             </summary>
         </member>
+        <member name="P:SqlLabDataGenerator.ColumnPlan.CheckConstraints">
+            <summary>CHECK constraint clauses discovered for the column; the generator draws from IN lists and clamps numeric ranges.</summary>
+        </member>
         <member name="P:SqlLabDataGenerator.ColumnPlan.ColumnName">
             <summary>The column name.</summary>
         </member>
